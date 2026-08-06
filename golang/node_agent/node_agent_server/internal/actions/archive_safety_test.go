@@ -366,6 +366,62 @@ func TestInstallPayloadStillInstallsALegitimatePackage(t *testing.T) {
 	assertNothingEscaped(t, root)
 }
 
+// TestInstallPayloadAcceptsReleasePipelineTarLayout pins the layout that
+// scripts/build-release.sh actually produces: `tar -C "${tmpdir}" -czf out .`
+// emits a "./" root directory entry and prefixes every member with "./".
+//
+// This is the regression for a real false positive. The gate rejected the
+// "./" root as an empty path, and the first audit-only release run refused
+// 51 of 51 artifacts — every package the release pipeline builds. It was
+// invisible locally because the reference corpus in globulario/packages is
+// packed by a different script whose members start at "bin/" with no root
+// entry, so a clean 22/22 there said nothing about the release corpus.
+func TestInstallPayloadAcceptsReleasePipelineTarLayout(t *testing.T) {
+	root := installRoots(t)
+	artifact := filepath.Join(root, "release-shaped.tgz")
+	buildArchive(t, artifact, []archiveEntry{
+		{name: "./", typeflag: tar.TypeDir, mode: 0o755},
+		{name: "./bin/", typeflag: tar.TypeDir, mode: 0o755},
+		{name: "./bin/demo", body: "#!/bin/sh\n", typeflag: tar.TypeReg, mode: 0o755},
+		{name: "./config/", typeflag: tar.TypeDir, mode: 0o755},
+		regularEntry("./config/app.yaml", "seed: true\n"),
+		regularEntry("./package.json", `{"name":"demo"}`),
+	})
+
+	if _, err := applyInstallPayload(t, "demo", artifact); err != nil {
+		t.Fatalf("release-pipeline tar layout must install: %v", err)
+	}
+	for _, want := range []string{
+		filepath.Join(ActionBinDir, "demo"),
+		filepath.Join(ActionConfigDir, "demo", "app.yaml"),
+	} {
+		if _, err := os.Stat(want); err != nil {
+			t.Errorf("expected %s to be installed: %v", want, err)
+		}
+	}
+	assertNothingEscaped(t, root)
+}
+
+// The root entry is admitted only as a directory. A regular file cannot be
+// named "." — that is malformed, not a packaging convention.
+//
+// The name is "." rather than "./": archive/tar refuses to encode a regular
+// file whose name has a trailing slash, so "./" as a payload entry is not
+// representable in the first place. "." is the same case and is encodable.
+func TestPlannerRejectsArchiveRootAsNonDirectory(t *testing.T) {
+	root := installRoots(t)
+	artifact := filepath.Join(root, "bad-root.tgz")
+	buildArchive(t, artifact, []archiveEntry{regularEntry(".", "payload")})
+
+	violations, err := ValidateArtifactArchive(artifact, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(violations) != 1 || violations[0].Reason != ViolationEmptyPath {
+		t.Fatalf("want one %s violation, got %v", ViolationEmptyPath, violations)
+	}
+}
+
 func TestInstallPayloadPreservesExistingConfigAfterGate(t *testing.T) {
 	root := installRoots(t)
 	live := filepath.Join(ActionConfigDir, "demo", "app.yaml")

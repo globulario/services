@@ -206,6 +206,16 @@ func planArtifactExtraction(artifactPath string, roots extractionRoots) ([]archi
 			continue
 		}
 
+		// The archive root reached here as something other than a directory.
+		// A regular file cannot be named "." — refuse it rather than guess.
+		if name == "" {
+			violations = append(violations, ArchiveViolation{
+				Entry: hdr.Name, Reason: ViolationEmptyPath, Mapped: false,
+				Detail: fmt.Sprintf("archive root used for a non-directory entry (typeflag %q)", string(hdr.Typeflag)),
+			})
+			continue
+		}
+
 		kind, mapped := classifyArchiveEntry(name)
 		if hdr.Typeflag != tar.TypeReg {
 			// Symlinks, hard links, devices, FIFOs and sockets are refused.
@@ -268,8 +278,13 @@ func normalizeArchiveEntryName(raw string) (string, *ArchiveViolation) {
 		trimmed = strings.TrimPrefix(trimmed, "./")
 	}
 	if trimmed == "" || trimmed == "." {
-		return "", &ArchiveViolation{Entry: raw, Reason: ViolationEmptyPath,
-			Detail: "entry has no usable path"}
+		// The archive root itself. `tar -C dir -czf out .` — which is how
+		// scripts/build-release.sh packages every artifact — emits a "./"
+		// directory entry for it. It is a container, not a payload entry, and
+		// designates no destination, so it is returned as the empty name for
+		// the caller to skip. The caller still rejects it if it arrives as
+		// something other than a directory.
+		return "", nil
 	}
 	for _, segment := range strings.Split(trimmed, "/") {
 		if segment == ".." {
