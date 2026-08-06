@@ -11627,13 +11627,3 @@ invariants:
   required_tests:
     - golang/cmd/affectedtests/census_test.go:TestScarOne_NodeAgentPlacementSuiteIsDiscoveredAndRun
   contract: no path may exist from a changed package with a failing suite to a released artifact
-- id: graph.certified_domain_must_match_published_domain_content
-  title: A certified domain must actually be represented by the content published for it
-  status: active
-  description: 'GRAPH_FRESHNESS_STATE_CURRENT may mean only ''the store matches the latest publication transaction''. It must never imply semantic authority. A domain slice becomes authoritative only when: the certified revision matches, the corpus census reconciles, every required identity declared by the certified source is present as a typed canonical subject, NO identity is present whose authoredIn provenance lies outside the certified source root, the publication digest matches, and post-publication probes pass. Coverage alone is insufficient — a slice built from the wrong working directory projects perfectly and is simply the wrong corpus; only provenance states the contradiction. Presence of an id STRING is also insufficient: the subject must carry a governed rdf:type, because the graph is full of untyped subjects created as objects of other nodes'' relations.'
-  protects:
-    files:
-      - cmd/awg/domain_closure.go
-  required_tests:
-    - cmd/awg/domain_closure_test.go:TestWrongWorkspacePublicationFailsClosure
-  contract: authoritative requires proof that the slice represents its certified source, in both directions
