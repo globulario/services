@@ -1,0 +1,21 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: failure_mode
+    id: failure.globular.global_state_lock_held_across_etcd_i_o_in_the_heartbeat_path
+    title: Global state lock held across etcd I/O in the heartbeat path turns one slow peer into a false cluster-wide quorum emergency
+    description: 'ReportNodeStatus:commit holds srv.mu — the single global controller state lock — across four etcd round-trips, one of which (putNodeObservedServiceHash) ran on the gRPC handler context and was therefore effectively unbounded. When one etcd member is partitioned the writes stall, the lock is held for tens of seconds, and every other node''s heartbeat commit queues behind it. No LastSeen advances while the lock is held, so invariantValidateNodeReachability later reads stale timestamps and classifies healthy nodes — including the controller''s OWN node — as critically unreachable. Two spurious criticals reach the quorum_at_risk threshold and raise a cluster-wide quorum_loss alert (which instructs external monitoring to trigger an emergency backup) from what was a single-node partition. The general shape: a lock that guards shared state must not be held across network I/O in a hot path, because the resulting starvation is indistinguishable from the failure the state is used to detect.'
+    severity: high
+    source_files:
+        - golang/cluster_controller/cluster_controller_server/handlers_status.go
+        - golang/cluster_controller/cluster_controller_server/workflow_invariant.go
+    evidence:
+        - '2026-08-12 mu-watchdog: ''srv.mu held for 28.384131173s by "ReportNodeStatus:commit"; dumping goroutines'', repeating from 02:54 to 03:02 during the resilience suite'
+        - '03:02:57 ''CRITICAL - 2 nodes unreachable, quorum at risk: [node-1 node-5]'' where only node-5 was partitioned by the scenario and node-1 is the controller''s own node; node-1 unfenced 60s later with ''heartbeat resumed'''
+        - quickstart resilience scenario network-partition-fencing failed its no_quorum_loss_alert assertion (11 of 12 checks passed) on an etcd cluster that stayed healthy throughout
+    domain: globular
+    contract: Blocking I/O must not occur while holding a lock that guards state a liveness or reachability decision reads. Staleness caused by lock starvation is not evidence of node unreachability, and a detector must not be able to manufacture its own input.

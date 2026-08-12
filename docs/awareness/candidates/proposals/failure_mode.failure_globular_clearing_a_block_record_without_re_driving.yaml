@@ -1,0 +1,25 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: failure_mode
+    id: failure.globular.clearing_a_block_record_without_re_driving_the_gated_loop_le
+    title: Clearing a block record without re-driving the gated loop leaves the workload unblocked and unconverged
+    description: 'sweepRuntimeDepBlocks removes a stale BLOCKED_MISSING_NATIVE_DEP record once the dependency is satisfied, but nothing re-drove the event-driven reconcile loop the block had gated. Removing the record retracts the EXPLANATION for why a workload is down; it installs nothing. The result is the worst of both states: the workload stays down, and the one signal that said why is now deleted, so it no longer reports as blocked. cluster-doctor sees only the downstream installed_state_runtime_mismatch and the operator has no pointer back to the dependency that caused it.'
+    severity: high
+    source_files:
+        - golang/cluster_controller/cluster_controller_server/critical_key_prereqs.go
+    related_invariants:
+        - reconcile.dep_block_records_must_be_cleared_when_dep_satisfies
+    related_failures:
+        - reconcile.stale_dep_block_persists_after_dep_active
+    required_tests:
+        - golang/cluster_controller/cluster_controller_server/critical_key_prereqs_test.go:TestSweepRuntimeDepBlocks_ClearReDrivesReconcile
+    evidence:
+        - '2026-08-12 03:08:36 ''runtime-dep-block: auto-cleared stale block for SERVICE/authentication on 6400b443'' followed by exactly one further authentication log line and no dispatch; the unit remained inactive+disabled 12+ minutes later'
+        - cluster-doctor reported both node.systemd.units_running and installed_state_runtime_mismatch WARN for authentication on node-4 with no blocked record to explain either
+    domain: globular
+    contract: Clearing a block is a state change that must re-arm whatever loop the block was gating. A component that retracts a blocking record owns re-driving the work the record suppressed; retracting the explanation without retrying the action is not a completion.

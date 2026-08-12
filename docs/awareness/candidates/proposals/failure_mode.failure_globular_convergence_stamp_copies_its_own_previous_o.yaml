@@ -1,0 +1,25 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: failure_mode
+    id: failure.globular.convergence_stamp_copies_its_own_previous_output_into_entryp
+    title: Convergence stamp copies its own previous output into entrypoint_checksum, aliasing a schema hash into the binary domain
+    description: StampInfraConvergenceHash preserved existing.Checksum into metadata.entrypoint_checksum whenever that key was empty, then overwrote Checksum with the convergence desired_hash. The preserve step is only correct on the FIRST stamp. On any re-apply existing.Checksum is already the convergence hash the same function wrote last time, so the copy published InfrastructureRelease.status.desired_hash under a binary-domain key. cluster-doctor's I3 check in verify_integrity.go then compared that schema hash against the repository manifest binary digest and raised artifact.installed_digest_mismatch (ERROR) against a node whose bytes were correct.
+    severity: high
+    source_files:
+        - golang/node_agent/node_agent_server/installed_services.go
+    related_invariants:
+        - install_package.hash_schemas_must_not_alias
+        - identity.has_single_canonical_source_and_is_immutable
+    related_failures:
+        - node_agent.install_package_aliases_convergence_hash_into_expected_sha256
+    required_tests:
+        - golang/node_agent/node_agent_server/installed_services_convergence_stamp_test.go:TestApplyInfraConvergenceStamp_DoesNotAuthorEntrypointChecksum
+    evidence:
+        - 'Observed 2026-08-11 on quickstart node-2: /globular/nodes/c8a09d9e/packages/INFRASTRUCTURE/scylladb had checksum == metadata.entrypoint_checksum == fc2998b7617c, which is exactly InfrastructureRelease/scylladb status.desired_hash, while the manifest digest was 02e6662741f4'
+        - installed_by was node-agent.apply_package_release.binary_only with installedUnix 23:40:45 but updatedUnix 23:44:26 - a later read-modify-write, i.e. a second stamp
+    domain: globular
