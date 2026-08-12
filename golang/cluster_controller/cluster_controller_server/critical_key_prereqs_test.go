@@ -286,6 +286,8 @@ func TestSweepRuntimeDepBlocks_ClearReDrivesReconcile(t *testing.T) {
 	srv := newTestServer(t, newControllerState())
 	reconciles := 0
 	srv.enqueueReconcile = func() { reconciles++ }
+	releaseEnqueued := 0
+	srv.releaseEnqueue = func(string) { releaseEnqueued++ }
 
 	node := &nodeState{
 		NodeID:          "node-1",
@@ -298,6 +300,17 @@ func TestSweepRuntimeDepBlocks_ClearReDrivesReconcile(t *testing.T) {
 
 	if reconciles != 1 {
 		t.Fatalf("enqueueReconcile called %d times, want exactly 1 — a cleared block must re-drive the loop it was gating, once per sweep", reconciles)
+	}
+
+	// The node loop only decides GATED; only the release loop dispatches. An
+	// earlier version of this fix re-drove the node loop alone and looked like
+	// it worked — the workload correctly left the gated list and was then never
+	// evaluated again, because nothing re-enqueued its ServiceRelease.
+	if srv.resources == nil {
+		t.Skip("resources store unavailable in this harness; release-enqueue half not exercised")
+	}
+	if releaseEnqueued == 0 {
+		t.Fatal("releaseEnqueue never called — clearing a block must also re-arm the loop that dispatches, or the workload stays ungated, unserved and unexamined")
 	}
 }
 
