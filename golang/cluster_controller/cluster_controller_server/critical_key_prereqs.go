@@ -255,6 +255,28 @@ func writeRuntimeDepBlock(ctx context.Context, nodeIDs []string, pkgName, kind s
 //   - This periodic sweep is level-triggered safety: once deps are healthy, the
 //     stale BLOCKED_MISSING_NATIVE_DEP record is removed automatically.
 func (srv *server) sweepRuntimeDepBlocks(ctx context.Context, nodes []*nodeState) {
+	// Clearing a block must re-arm the loop the block was gating. Removing the
+	// record only retracts the EXPLANATION for why the workload is down; it
+	// installs nothing. The reconcile loop is event-driven, so with nothing
+	// re-driving it the workload stays down while no longer reporting as
+	// blocked — unblocked and unconverged, with the one signal that said why
+	// now deleted. Observed 2026-08-12: authentication on node-4 was gated on
+	// rbac, "runtime-dep-block: auto-cleared stale block for
+	// SERVICE/authentication" at 03:08:36, then not one further dispatch; the
+	// unit sat inactive+disabled indefinitely and cluster-doctor reported
+	// installed_state_runtime_mismatch against it.
+	//
+	// Enqueue once after the whole sweep rather than per cleared block, so a
+	// sweep that clears many does not storm the reconciler. This re-runs the
+	// normal gated evaluation — it does not dispatch anything directly, so the
+	// critical-key prereq gate still applies
+	// (dispatch_package_before_critical_key_prereqs_present).
+	clearedAny := false
+	defer func() {
+		if clearedAny && srv.enqueueReconcile != nil {
+			srv.enqueueReconcile()
+		}
+	}()
 	for _, node := range nodes {
 		if node == nil || node.NodeID == "" {
 			continue
@@ -296,6 +318,7 @@ func (srv *server) sweepRuntimeDepBlocks(ctx context.Context, nodes []*nodeState
 				kind = runtimeDepBlockKindFromComponent(comp)
 			}
 			runtimeDepBlockClearFn(ctx, []string{node.NodeID}, pkgName, kind)
+			clearedAny = true
 			log.Printf("runtime-dep-block: auto-cleared stale block for %s/%s on %s",
 				kind, pkgName, node.NodeID)
 		}

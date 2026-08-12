@@ -252,3 +252,94 @@ func TestSweepRuntimeDepBlocks_ListErrorIsNonFatal(t *testing.T) {
 		t.Fatal("clear should not be called on list error")
 	}
 }
+
+// Clearing a dep block only retracts the explanation for why a workload is
+// down; it installs nothing. The reconcile loop is event-driven, so the sweep
+// must re-drive it — otherwise the workload is left unblocked AND unconverged
+// with the one signal that said why now deleted.
+//
+// Scar (2026-08-12): authentication on node-4 was gated on rbac. The sweep
+// logged "auto-cleared stale block for SERVICE/authentication" and then nothing
+// re-dispatched; the unit sat inactive+disabled indefinitely while
+// cluster-doctor reported installed_state_runtime_mismatch against it.
+func TestSweepRuntimeDepBlocks_ClearReDrivesReconcile(t *testing.T) {
+	origList := criticalKeyListResults
+	origClear := runtimeDepBlockClearFn
+	t.Cleanup(func() {
+		criticalKeyListResults = origList
+		runtimeDepBlockClearFn = origClear
+	})
+
+	criticalKeyListResults = func(context.Context, string) ([]*installed_state.ConvergenceResultV1, error) {
+		return []*installed_state.ConvergenceResultV1{
+			{
+				ActionID:   "controller/node-1/INFRASTRUCTURE/scylla-manager/runtime_dep_block",
+				Package:    "scylla-manager",
+				NodeID:     "node-1",
+				Outcome:    installed_state.OutcomeBlockedMissingNativeDep,
+				ReasonCode: "runtime_deps_not_ready",
+			},
+		}, nil
+	}
+	runtimeDepBlockClearFn = func(context.Context, []string, string, string) {}
+
+	srv := newTestServer(t, newControllerState())
+	reconciles := 0
+	srv.enqueueReconcile = func() { reconciles++ }
+
+	node := &nodeState{
+		NodeID:          "node-1",
+		ScyllaJoinPhase: ScyllaJoinVerified,
+		Units: []unitStatusRecord{
+			{Name: "scylla-server.service", State: "active"},
+		},
+	}
+	srv.sweepRuntimeDepBlocks(context.Background(), []*nodeState{node})
+
+	if reconciles != 1 {
+		t.Fatalf("enqueueReconcile called %d times, want exactly 1 — a cleared block must re-drive the loop it was gating, once per sweep", reconciles)
+	}
+}
+
+// A sweep that clears nothing must not touch the reconciler: re-driving on
+// every idle sweep would turn a periodic safety pass into a reconcile storm.
+func TestSweepRuntimeDepBlocks_NoClearDoesNotReDrive(t *testing.T) {
+	origList := criticalKeyListResults
+	origClear := runtimeDepBlockClearFn
+	t.Cleanup(func() {
+		criticalKeyListResults = origList
+		runtimeDepBlockClearFn = origClear
+	})
+
+	criticalKeyListResults = func(context.Context, string) ([]*installed_state.ConvergenceResultV1, error) {
+		return []*installed_state.ConvergenceResultV1{
+			{
+				ActionID:   "controller/node-1/INFRASTRUCTURE/scylla-manager/runtime_dep_block",
+				Package:    "scylla-manager",
+				NodeID:     "node-1",
+				Outcome:    installed_state.OutcomeBlockedMissingNativeDep,
+				ReasonCode: "runtime_deps_not_ready",
+			},
+		}, nil
+	}
+	runtimeDepBlockClearFn = func(context.Context, []string, string, string) {
+		t.Fatal("clear must not run while the dep is still missing")
+	}
+
+	srv := newTestServer(t, newControllerState())
+	reconciles := 0
+	srv.enqueueReconcile = func() { reconciles++ }
+
+	node := &nodeState{
+		NodeID:          "node-1",
+		ScyllaJoinPhase: ScyllaJoinConfigured, // dep still unsatisfied
+		Units: []unitStatusRecord{
+			{Name: "scylla-server.service", State: "active"},
+		},
+	}
+	srv.sweepRuntimeDepBlocks(context.Background(), []*nodeState{node})
+
+	if reconciles != 0 {
+		t.Fatalf("enqueueReconcile called %d times on a sweep that cleared nothing, want 0", reconciles)
+	}
+}
