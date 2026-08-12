@@ -16,6 +16,7 @@ import (
 
 	"github.com/globulario/services/golang/identity"
 	"github.com/globulario/services/golang/installed_state"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/packagekind"
 	"github.com/globulario/services/golang/versionutil"
 )
@@ -648,9 +649,27 @@ func isHex64(s string) bool {
 // which would never match the controller's expected convergence hash and would
 // cause a perpetual redispatch loop (Envoy restart storm, 2026-05-06).
 //
-// The binary SHA256 is preserved in Metadata["entrypoint_checksum"] for
-// integrity verification. Only pkg.Checksum is updated — this is the field
-// that classifyPackageConvergence compares against DesiredHash.
+// Only pkg.Checksum is updated — this is the field that
+// classifyPackageConvergence compares against DesiredHash.
+//
+// This function is NOT an author of Metadata["entrypoint_checksum"]. That
+// field is binary-domain: its single canonical source is the apply path,
+// which hashes the installed entrypoint and writes it before this stamp runs
+// (identity.has_single_canonical_source_and_is_immutable). This function only
+// ever holds a convergence-domain hash, so copying anything into the binary
+// field here is an alias between two distinct hash schemas
+// (install_package.hash_schemas_must_not_alias).
+//
+// It used to copy existing.Checksum into entrypoint_checksum "to preserve the
+// binary SHA". That is only true on the FIRST stamp; on every re-apply
+// existing.Checksum is the convergence hash this function stamped last time,
+// so the copy wrote a convergence hash into the binary field. cluster-doctor
+// then compared that against the manifest's binary digest and reported
+// artifact.installed_digest_mismatch (ERROR) on a healthy node — observed for
+// INFRASTRUCTURE/scylladb on node-2 (2026-08-11): entrypoint_checksum held
+// InfrastructureRelease.status.desired_hash fc2998b7…, manifest digest was
+// 02e66627…. Same class as
+// node_agent.install_package_aliases_convergence_hash_into_expected_sha256.
 //
 //globular:enforces infra.desired_hash_consistency
 //globular:expects_hash_schema infra_desired_hash
@@ -668,16 +687,20 @@ func StampInfraConvergenceHash(ctx context.Context, nodeID, component, convergen
 		return fmt.Errorf("stamp infra convergence hash: no installed record for INFRASTRUCTURE/%s", component)
 	}
 
-	// Preserve binary SHA256 in metadata for integrity checks, then overwrite
-	// Checksum with the convergence hash so the controller's comparison passes.
-	if existing.Metadata == nil {
-		existing.Metadata = make(map[string]string)
-	}
-	if existing.Checksum != "" && existing.Metadata["entrypoint_checksum"] == "" {
-		existing.Metadata["entrypoint_checksum"] = existing.Checksum
-	}
-	existing.Checksum = convergenceHash
+	applyInfraConvergenceStamp(existing, convergenceHash)
 	return installed_state.WriteInstalledPackage(ctx, existing)
+}
+
+// applyInfraConvergenceStamp is the pure transformation StampInfraConvergenceHash
+// applies to an installed record: overwrite the convergence-domain Checksum and
+// touch nothing else. Metadata is left exactly as the apply path wrote it —
+// entrypoint_checksum is binary-domain and is not this writer's to author
+// (install_package.hash_schemas_must_not_alias).
+func applyInfraConvergenceStamp(pkg *node_agentpb.InstalledPackage, convergenceHash string) {
+	if pkg == nil || convergenceHash == "" {
+		return
+	}
+	pkg.Checksum = convergenceHash
 }
 
 func canonicalServiceName(name string) string {

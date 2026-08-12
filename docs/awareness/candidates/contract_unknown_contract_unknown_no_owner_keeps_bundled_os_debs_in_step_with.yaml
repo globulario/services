@@ -1,0 +1,9 @@
+contract_unknown:
+  - id: contract_unknown.no_owner_keeps_bundled_os_debs_in_step_with_the_base_image_t
+    kind: contract_unknown
+    title: No owner keeps bundled OS debs in step with the base image they must install onto
+    description: libnss-resolve bundles a deb with an exact-version dependency on systemd-resolved, a package supplied by the base image. Refreshing the checked-in deb resets the clock but does not prevent the next base-image security update from breaking joins again. Nothing detects the divergence at build time.
+    proposed_contract: The release build must verify that every bundled deb's dependencies are satisfiable against the target base image, and fail the build when they are not — the same way check-glibc-floor verifies binaries against the platform floor.
+    revision_request: 'Decide the strategy: refresh-per-release with a build-time satisfiability gate, drop the strict-pin package in favour of host apt, or pin the base image. Affects the offline-install guarantee either way.'
+    evidence:
+      - Refreshing packages/metadata/libnss-resolve/debs to 255.4-1ubuntu8.17 unblocked Day-1 join, but the same class of break recurs on the next systemd point release. The release build already gates binaries against the platform floor (check-glibc-floor) and has no equivalent gate for bundled debs; the 8.16 deb sat checked in from Jun 8 until it broke joins on 2026-08-10.

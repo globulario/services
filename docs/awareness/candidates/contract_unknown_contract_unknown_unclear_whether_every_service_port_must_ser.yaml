@@ -1,0 +1,9 @@
+contract_unknown:
+  - id: contract_unknown.unclear_whether_every_service_port_must_serve_mtls_or_the_en
+    kind: contract_unknown
+    title: Unclear whether every service port must serve mTLS or the Envoy mesh is the mTLS boundary
+    description: CLAUDE.md HARD RULE 3 states all inter-service gRPC must use mTLS with the cluster CA. In a running 5-node cluster 18 of 20 service configs carry TLS=False and their gRPC ports answer plaintext (openssl reports 'wrong version number'); only cluster_doctor serves direct mTLS. Services reach each other through the Envoy mesh on :443, which does carry mTLS. Both readings are self-consistent, and the graph has no intent that decides between them.
+    proposed_contract: Either (a) the Envoy mesh on :443 is the mTLS boundary and backend service ports are legitimately plaintext on the node-local network — in which case mtls-connectivity must probe through the mesh, not the backend port, and HARD RULE 3 needs the boundary spelled out; or (b) every service port must serve mTLS — in which case 18 services are non-compliant and cluster_doctor is the only correct one.
+    revision_request: 'Architect decision required. I did not change either side: making the scenario expect plaintext would bless a possible security gap, and switching 18 services to serve mTLS is a large security-surface change on an unresolved contract.'
+    evidence:
+      - 'mtls-connectivity asserts a direct mTLS handshake to the event service and fails: event listens on 10050 with TLS=False in its runtime config, and the handshake returns ''ssl3_get_record: wrong version number''. Meanwhile a direct mTLS connect to cluster-doctor on node-2:12005 succeeds. Survey of /var/lib/globular/services/*.json on node-1: TLS=False x18, TLS=True x1 (cluster_doctor), unset x1.'
