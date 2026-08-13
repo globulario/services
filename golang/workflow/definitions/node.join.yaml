@@ -248,6 +248,48 @@ spec:
         success:
           expr: all_installed == true
 
+    # ── Tier 3b: Control-plane-only foundational services ────────────────
+    # resource is authorized ONLY on control-plane in component_catalog
+    # (Profiles: ["control-plane"]), unlike its six siblings above which are
+    # authorized on core/compute too.
+    #
+    # It used to sit in install_foundational, which has no profile guard, so
+    # every joining node got it — including compute nodes the catalog does not
+    # authorize. The doctor then reported, permanently and correctly,
+    #   placement.installed_package_orphaned: "resource" is installed on
+    #   <node> but the node's profiles [compute core] do not authorize it
+    #   (catalog requires one of [control-plane])
+    # and there was nothing to converge: no pass starts a service the cluster
+    # never desired there, and per
+    # invariant:placement.orphan_removal_needs_a_lawful_node_scoped_path the
+    # orphan has no lawful node-scoped uninstall either. The catalog is the
+    # placement authority, so the join must not install outside it.
+    - id: install_foundational_control_plane
+      title: Install control-plane-only foundational services
+      when:
+        anyOf:
+          - expr: contains(inputs.node_profiles, 'control-plane')
+      dependsOn: [install_foundational]
+      actor: node-agent
+      action: node.install_packages
+      with:
+        packages:
+          - { name: resource, kind: SERVICE }
+      timeout: $.install_timeout
+      execution:
+        idempotency: verify_then_continue
+        resume_policy: verify_effect
+        receipt_key: install_foundational_control_plane
+      verification:
+        actor: node-agent
+        action: node.verify_packages_installed
+        with:
+          node_id: $.node_id
+          packages:
+            - { name: resource, kind: SERVICE }
+        success:
+          expr: all_installed == true
+
     # ── Tier 3: Foundational services (parallel, need ScyllaDB) ───────────
     - id: install_foundational
       title: Install foundational services
@@ -259,7 +301,6 @@ spec:
           - { name: dns, kind: SERVICE }
           - { name: event, kind: SERVICE }
           - { name: rbac, kind: SERVICE }
-          - { name: resource, kind: SERVICE }
           - { name: authentication, kind: SERVICE }
           - { name: repository, kind: SERVICE }
           - { name: monitoring, kind: SERVICE }
@@ -277,7 +318,6 @@ spec:
             - { name: dns, kind: SERVICE }
             - { name: event, kind: SERVICE }
             - { name: rbac, kind: SERVICE }
-            - { name: resource, kind: SERVICE }
             - { name: authentication, kind: SERVICE }
             - { name: repository, kind: SERVICE }
             - { name: monitoring, kind: SERVICE }
