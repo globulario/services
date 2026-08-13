@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -21,6 +22,47 @@ const (
 	scyllaAgentConfigPrimary = "/var/lib/globular/scylla-manager-agent/scylla-manager-agent.yaml"
 	scyllaAgentConfigEtc     = "/etc/scylla-manager-agent/scylla-manager-agent.yaml"
 )
+
+// scyllaAdminAPIPort is where ScyllaDB's admin REST API listens. The ADDRESS
+// is the node's routable IP (scylla.yaml api_address), not loopback, because
+// the API has remote consumers: cluster_controller calls
+// /storage_service/host_id and /storage_service/remove_node on other nodes
+// during ring removal, and backup_manager registers that address with
+// scylla-manager.
+//
+// Local consumers must therefore name the address explicitly rather than rely
+// on a default. nodetool defaults to 127.0.0.1, so leaving it implicit makes it
+// talk to nothing and report "exit status 2 / Connection refused" against a
+// node whose operation_mode is NORMAL.
+//
+// Whichever address is chosen, choose it DETERMINISTICALLY — see
+// scyllaAdminAPIHost. This value previously came from ranging over a Go map of
+// local IPs and taking the first key, so a multi-IP node picked a different
+// address on each run.
+const scyllaAdminAPIPort = 10000
+
+// scyllaAdminAPIHost picks the address of the local ScyllaDB admin REST API
+// from the node's local IPv4 set, deterministically: loopback is excluded
+// (api_address is the routable IP) and the remaining addresses are sorted so
+// the same node always yields the same answer.
+//
+// Determinism is the whole point. Ranging over a map gives Go's randomised
+// iteration order, so a node with several addresses probes a different one each
+// run and fails intermittently for reasons that look like ScyllaDB flapping.
+func scyllaAdminAPIHost(localIPs map[string]bool) string {
+	candidates := make([]string, 0, len(localIPs))
+	for ip := range localIPs {
+		if ip == "" || strings.HasPrefix(ip, "127.") {
+			continue
+		}
+		candidates = append(candidates, ip)
+	}
+	if len(candidates) == 0 {
+		return ""
+	}
+	sort.Strings(candidates)
+	return candidates[0]
+}
 
 // scyllaAgent* constants define non-conflicting ports for scylla-manager-agent.
 // The agent defaults to :10001 (HTTPS), :5090 (Prometheus), 127.0.0.1:5112
@@ -286,13 +328,13 @@ func extractScyllaBlocks(content string) []scyllaBlock {
 // YAML's last-wins rule, that silently rerouted the agent to an unreachable
 // address and broke scylla-manager cluster registration. Stripping first is
 // the only way to converge to a single source of truth.
-func upsertScyllaAPIURL(content, nodeIP string) string {
+func upsertScyllaAPIURL(content, apiAddress string) string {
 	cleaned := stripScyllaBlocks(content)
 	cleaned = stripLegacyTopLevel(cleaned, "api_url:")
 	if !strings.HasSuffix(cleaned, "\n") {
 		cleaned += "\n"
 	}
-	cleaned += fmt.Sprintf("\nscylla:\n  api_address: %s\n  api_port: 10000\n", nodeIP)
+	cleaned += fmt.Sprintf("\nscylla:\n  api_address: %s\n  api_port: 10000\n", apiAddress)
 	return cleaned
 }
 

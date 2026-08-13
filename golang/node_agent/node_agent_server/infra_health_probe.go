@@ -85,13 +85,21 @@ func (srv *NodeAgentServer) runProbeScyllaHealth(ctx context.Context, req *node_
 	if nodetool, err := exec.LookPath("nodetool"); err == nil {
 		cmdCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
-		var apiHost string
-		for ip := range localIPs {
-			apiHost = ip
-			break
-		}
+		// nodetool talks to ScyllaDB's admin REST API, which binds the node's
+		// routable address (scylla.yaml api_address), NOT loopback — the API
+		// has remote consumers. nodetool's own default IS loopback, so the
+		// address has to be passed explicitly or it talks to nothing.
+		//
+		// scyllaAdminAPIHost picks that address deterministically. This used to
+		// range over the localIPs MAP and take the first key, so on a multi-IP
+		// node (LAN + docker0 + …) the choice varied run to run and the probe
+		// failed intermittently with "nodetool failed: exit status 2" /
+		// "std::system_error (error system:111, Connection refused)" against a
+		// node whose operation_mode was NORMAL — a healthy node reported as
+		// unobservable. Strategy 2's REST fallback masked it, which is why it
+		// went unnoticed.
 		args := []string{"status"}
-		if apiHost != "" {
+		if apiHost := scyllaAdminAPIHost(localIPs); apiHost != "" {
 			args = []string{"-h", apiHost, "status"}
 		}
 		cmd := exec.CommandContext(cmdCtx, nodetool, args...)
