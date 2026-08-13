@@ -591,7 +591,22 @@ func VerifyTarget(target Target, ev Evidence, now time.Time) Verdict {
 	if oldPidBoundary.IsZero() {
 		oldPidBoundary = target.ApplyTime
 	}
-	if !oldPidBoundary.IsZero() && proof.GetProcessStartTime() != nil {
+	//    Liveness precondition: this finding asserts "the PID that is RUNNING
+	//    predates the apply". With running_pid == 0 there is no running PID —
+	//    the service is stopped, and process_start_time is a residue of the
+	//    last time it ran. Reporting a stale process when there is no process
+	//    is treating absence of evidence as evidence of failure; absence has a
+	//    scope, and this one is owned by the liveness rules
+	//    (node.systemd.units_running / installed_state_runtime_mismatch),
+	//    which know whether the service is SUPPOSED to be running.
+	//
+	//    This mattered for a deliberately held service: on a node outside
+	//    ObjectStoreDesiredState.Nodes the topology gate stops
+	//    globular-minio.service on purpose, which is the CORRECT state. The
+	//    verifier still reported service.old_pid_after_upgrade (ERROR) on
+	//    three nodes at once with running_pid=0 — an error for behaving as
+	//    designed, and one no remediation could ever clear.
+	if !oldPidBoundary.IsZero() && proof.GetProcessStartTime() != nil && proof.GetRunningPid() != 0 {
 		started := proof.GetProcessStartTime().AsTime()
 		if !started.IsZero() && started.Before(oldPidBoundary.Add(-applyGraceWindow)) {
 			// runningMatchesInstalled is the authoritative proof that the live
