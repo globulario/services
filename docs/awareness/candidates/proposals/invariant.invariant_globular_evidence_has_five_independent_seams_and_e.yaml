@@ -1,0 +1,28 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: invariant
+    id: invariant.globular.evidence_has_five_independent_seams_and_each_can_fail_while
+    title: Evidence has five independent seams and each can fail while returning a confident answer
+    description: 'An assertion''s credibility depends on five properties that fail independently and require different enforcement. FRESHNESS: is the evidence current, or a cached snapshot of a prior state? OBSERVABLE DOMAIN / COMPLETENESS: is the observer looking where the truth can exist, and did it collect its whole intended domain? SENSITIVITY: can it detect a real positive state, demonstrated by observing one? INTERPRETABILITY: can it correctly decode what it sees, or does parsing succeed while yielding the wrong semantic value? INFERENCE VALIDITY: does the observation actually prove the claim, or could another mechanism satisfy the same predicate? The defining hazard is that all five return syntactically valid, confident answers — none throws, times out, or looks suspicious. A broken scenario announces itself; a broken observer quietly agrees with you. Freshness sits upstream of sensitivity: a perfectly sensitive observer fed a stale snapshot fails identically at the assertion but is repaired somewhere completely different, so a teardown check can falsely diagnose a latched observer when the real defect is cached evidence.'
+    severity: high
+    source_files:
+        - tests/harness/lib/probes.sh
+    related_invariants:
+        - an_observer_must_be_proven_able_to_see_the_known_good_baseline_before_its_readings_are_evidence
+        - observer_availability_is_a_prerequisite_for_sensitivity_never_a_substitute_for_it
+        - an_assertion_on_terminal_state_must_establish_the_causal_predicates_its_claim_depends_on
+    forbidden_fixes:
+        - Treat a pass at one evidence seam as coverage for another
+        - Assert on a cached observation harvested before the perturbation the assertion is testing
+        - Diagnose a latched observer from a teardown check that did not force a fresh harvest
+    evidence:
+        - 'One session (2026-08-12) produced a live failure at every seam. DOMAIN: doctor.finding read /globular/doctor/findings, a prefix nothing writes, verified empty while the doctor RPC reported findings. SENSITIVITY: a convergence check used systemctl list-units without --all, which omits cleanly-stopped units, reporting 0 non-running while 13 services were down. INTERPRETABILITY: an experiment parser used CamelCase keys against a snake_case schema, reading None for 20 minutes including at baseline. FRESHNESS: the cluster-doctor caches snapshots, so an assertion without --fresh can read a report harvested before its own perturbation. INFERENCE: node5_fenced observed a true fenced state that was being produced by lock starvation rather than by the partition under test.'
+        - Not one of the five raised an error, timed out, or produced malformed output.
+    repo: globulario/globular-quickstart
+    domain: globular
+    contract: 'Before an observation certifies a claim, its evidence chain must be established at all five seams: current, correctly scoped and complete, demonstrably sensitive, correctly decoded, and causally sufficient for the claim. A pass at one seam is not evidence at another.'

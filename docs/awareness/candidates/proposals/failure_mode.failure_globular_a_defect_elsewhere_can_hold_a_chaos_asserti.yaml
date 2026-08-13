@@ -1,0 +1,21 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: failure_mode
+    id: failure.globular.a_defect_elsewhere_can_hold_a_chaos_assertion_true_so_removi
+    title: A defect elsewhere can hold a chaos assertion true, so removing the defect looks like a regression
+    description: 'network-partition-fencing''s node5_fenced assertion passed for the wrong reason. The controller held its global state lock across etcd I/O in the heartbeat path, starving heartbeat commits and pre-ageing every node''s LastSeen, so fencing fired far earlier than its real 900s threshold. The scenario''s budget allowed only 960s before asserting. When the lock defect was fixed the confounder disappeared, fencing returned to its true ~959s timing, and the assertion began failing against a one-second margin — presenting as a regression introduced by the fix. Direct measurement (blocked 19:06:04, partition_fenced_since 19:22:03, 959s, only the isolated node fenced) proved isolation, LastSeen ageing, the threshold and the fencing path all correct. The general shape: when a test asserts on a condition that some OTHER defect also drives toward true, the test measures the defect rather than the property, and fixing the defect surfaces as a false regression. Correct response is to measure the mechanism directly and widen the test budget, never to relax the production threshold to restore green.'
+    severity: warning
+    source_files:
+        - tests/scenarios/resilience/network-partition-fencing.yaml
+    evidence:
+        - blocked 19:06:04 -> partition_fenced_since 19:22:03 = 959s, matching 900s threshold + one 60s enforcement tick; only node-5 fenced, no collateral
+        - prior scenario budget was 360 + 600 = 960s before the node5_fenced assertion — a one second margin
+        - on release 1.2.315 the same scenario failed no_quorum_loss_alert and passed node5_fenced; on 1.2.316 with the lock fix it passed no_quorum_loss_alert and failed node5_fenced — the assertions inverted
+    repo: globulario/globular-quickstart
+    domain: globular
+    contract: A test budget must exceed the measured worst-case time of the mechanism it observes, with margin. When a fix makes a previously-green assertion fail, establish by direct measurement whether the mechanism is broken or the test was racing it, before changing either.
