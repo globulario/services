@@ -1088,14 +1088,35 @@ func runtimeChecksumFromManifest(m *repositorypb.ArtifactManifest) string {
 // localCacheMayAdoptBuildID reports whether the local-package-cache repair path
 // may write manifestBuildID as the record's build identity.
 //
-// Backfill only: build_id has exactly one canonical source — the repository that
+// Never: build_id has exactly one canonical source — the repository that
 // published the artifact (identity.has_single_canonical_source_and_is_immutable).
 // A locally staged tarball carries whatever id the bundle build minted, which for
 // a locally-built release is a DIFFERENT uuid for byte-identical content. Adopting
 // it would make this path a second writer of that identity
 // (identity.field_semantic_drift_across_writers).
+//
+// The reasoning above was always right; the implementation kept a "backfill
+// only" exception that contradicted it. An absent build_id is not permission to
+// supply one from a non-authority — it is the honest record of an identity this
+// observer does not know. Filling it from the cache converts "unknown" into
+// "wrong", and wrong is strictly worse: convergence compares build_id, so a
+// confidently incorrect id reads as drift that no reinstall can settle, while an
+// empty one reads as not-yet-proven and resolves on the next authoritative apply.
+//
+// Observed 2026-08-12: during etcd instability node-3's records for event,
+// ai-executor and monitoring were (re)written from the local cache, each taking
+// its own payload-local UUIDv4 while the repository's published UUIDv7
+// (019ff62a-…, unchanged in etcd since 14:31, nine hours before the 23:49 stamp)
+// remained the desired identity. cluster-doctor then reported
+// release.boundary_unproven A2=FAILED "installed build_id does not match desired
+// build_id" against bytes whose checksum matched perfectly.
+//
+// Kept as a named predicate rather than deleted so the rule stays greppable and
+// testable, and so a future edit has to argue with this comment first.
+// (heartbeat.go enforces infra.heartbeat_observer_only_not_authority;
+// forbidden_fix:recompute_identity_from_secondary_source)
 func localCacheMayAdoptBuildID(existingBuildID, manifestBuildID string) bool {
-	return manifestBuildID != "" && existingBuildID == ""
+	return false
 }
 
 // localCacheRecordSettled reports whether an installed-state record needs no
@@ -1350,7 +1371,24 @@ func (srv *NodeAgentServer) syncInstalledStateFromLocalPackageCache(ctx context.
 			// is an artifact, not a committed installation.
 			Status:      installreceipt.StatusArtifactPresent,
 			BuildNumber: proof.BuildNumber,
-			BuildId:     proof.BuildID,
+			// BuildId is deliberately NOT set from the package cache.
+			//
+			// The cache proves BYTES (the entrypoint checksum matched the
+			// on-disk binary, which is why this record is created at all). It
+			// does not prove IDENTITY: the tarball carries whatever build_id
+			// the bundle build minted, and for a locally-built release that is
+			// a different uuid for byte-identical content. Stamping it here
+			// makes the heartbeat a second writer of a value whose single
+			// canonical source is the publishing repository
+			// (identity.has_single_canonical_source_and_is_immutable,
+			// four_layer.layer_has_single_writing_actor).
+			//
+			// Leaving it empty is the fail-closed choice: this record already
+			// declares Status=artifact_present rather than installed, so it is
+			// explicitly not claiming a committed install, and an unknown
+			// identity is consistent with that. The authoritative build_id
+			// arrives when apply_package_release commits a real install.
+			// See localCacheMayAdoptBuildID for the full scar.
 		}
 		if stale != nil && stale.GetInstalledUnix() > 0 {
 			pkg.InstalledUnix = stale.GetInstalledUnix()
