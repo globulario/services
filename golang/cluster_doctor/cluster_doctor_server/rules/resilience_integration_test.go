@@ -56,6 +56,7 @@ func TestResilienceIncidentSignals_PrometheusPreferred(t *testing.T) {
 		PromMetrics: map[string]float64{
 			"reconcile_lane_blocked_cluster":        1,
 			"reconcile_lane_timeouts_cluster":       2,
+			"reconcile_lane_timeouts_cluster_15m":   2, // recency fires the finding; lifetime is evidence only
 			"reconcile_lane_blocked_projections":    0,
 			"reconcile_lane_blocked_release_bridge": 0,
 			"reconcile_lane_blocked_drift":          0,
@@ -111,6 +112,7 @@ func TestReconcileLaneSeverityMapping_FromPrometheus(t *testing.T) {
 		PromMetrics: map[string]float64{
 			"reconcile_lane_blocked_cluster":        1,
 			"reconcile_lane_timeouts_cluster":       1,
+			"reconcile_lane_timeouts_cluster_15m":   1, // recency fires the finding; lifetime is evidence only
 			"reconcile_lane_blocked_projections":    1,
 			"reconcile_lane_blocked_release_bridge": 1,
 			"reconcile_lane_blocked_drift":          1,
@@ -163,4 +165,33 @@ func invariantSeverity(findings []Finding, invariant, entity string) cluster_doc
 		}
 	}
 	return cluster_doctorpb.Severity_SEVERITY_UNKNOWN
+}
+
+// TestReconcileLaneTimeoutDoesNotLatchOnLifetimeCounter guards the
+// latched-diagnostic defect.
+//
+// reconcile_lane_timeouts_total is monotonic: it never decreases. Firing on
+// "lifetime > 0" therefore made a single transient timeout a permanent ERROR
+// for the life of the controller process. Observed 2026-08-13 — one
+// cluster_reconcile timeout at 00:34:44 during a certification run held the
+// finding at ERROR while the lane's own etcd record read
+// {"phase":"OK","running":false}. The two disagreed because they answered
+// different questions, and the rule was answering neither.
+//
+// A lane that timed out once, long ago, and has been quiet since must produce
+// NO finding: the condition that raised it has passed, so the finding retires.
+func TestReconcileLaneTimeoutDoesNotLatchOnLifetimeCounter(t *testing.T) {
+	snap := &collector.Snapshot{
+		PromMetrics: map[string]float64{
+			// The lane has timed out before — the counter remembers, forever.
+			"reconcile_lane_timeouts_cluster": 7,
+			// Nothing in the recent window: the lane is quiet now.
+			"reconcile_lane_timeouts_cluster_15m": 0,
+		},
+	}
+	for _, f := range (promRuntime{}).Evaluate(snap, Config{}) {
+		if f.InvariantID == "reconcile.lane_timeout" {
+			t.Fatalf("reconcile.lane_timeout fired with no recent timeouts (%q) — a monotonic counter can never clear it, so this is a permanent false ERROR", f.Summary)
+		}
+	}
 }

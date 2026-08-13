@@ -103,7 +103,21 @@ func (c *Collector) fetchPrometheus(ctx context.Context, snap *Snapshot) {
 		"xds_config_applied_total": "globular_controller_xds_config_applied_total",
 		"xds_last_applied_unix":    "max(globular_controller_xds_last_applied_unix)",
 		// Reconcile lane isolation health.
+		//
+		// The lifetime totals below are kept for evidence — they answer "has
+		// this lane EVER timed out", which is useful telemetry. They must not
+		// be what a finding fires on: a monotonic counter never decreases, so
+		// `> 0` makes one transient timeout a permanent ERROR for the life of
+		// the process. Observed 2026-08-13: a single cluster_reconcile timeout
+		// at 00:34:44 held reconcile.lane_timeout at ERROR while the lane's own
+		// record read {"phase":"OK","running":false}.
+		//
+		// The _15m variants are the firing signal, mirroring
+		// workflow_dispatch_rejected_rate_15m above: they answer "did this lane
+		// time out RECENTLY", which is what the finding's wording claims, and
+		// they auto-clear once the window passes without a timeout.
 		"reconcile_lane_timeouts_cluster":       `sum(globular_controller_reconcile_lane_timeouts_total{lane="cluster_reconcile"})`,
+		"reconcile_lane_timeouts_cluster_15m":   `sum(increase(globular_controller_reconcile_lane_timeouts_total{lane="cluster_reconcile"}[15m]))`,
 		"reconcile_lane_timeouts_projections":   `sum(globular_controller_reconcile_lane_timeouts_total{lane="projections"})`,
 		"reconcile_lane_blocked_cluster":        `max(globular_controller_reconcile_blocked_phase{phase="cluster_reconcile"})`,
 		"reconcile_lane_blocked_projections":    `max(globular_controller_reconcile_blocked_phase{phase="projections"})`,
