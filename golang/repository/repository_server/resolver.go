@@ -263,18 +263,18 @@ func (srv *server) pickResolution(
 //
 //  1. SUCCESS                     — manifest returned.
 //  2. codes.FailedPrecondition    — manifest EXISTS but the row is not installable
-//                                   (ARCHIVED/YANKED/REVOKED/QUARANTINED/CORRUPTED
-//                                   /broken pipeline state). The build is "orphaned"
-//                                   in the sense that desired-state still points at
-//                                   it but the repository has demoted it. Error
-//                                   carries the stable prefix `DesiredBuildIdOrphaned`
-//                                   and includes the live publish_state /
-//                                   artifact_state so doctor can classify the cause.
-//                                   Conflating this with NotFound is what produced
-//                                   the production "build_id not found" install storm.
+//     (ARCHIVED/YANKED/REVOKED/QUARANTINED/CORRUPTED
+//     /broken pipeline state). The build is "orphaned"
+//     in the sense that desired-state still points at
+//     it but the repository has demoted it. Error
+//     carries the stable prefix `DesiredBuildIdOrphaned`
+//     and includes the live publish_state /
+//     artifact_state so doctor can classify the cause.
+//     Conflating this with NotFound is what produced
+//     the production "build_id not found" install storm.
 //  3. codes.NotFound              — manifest does not exist for this build_id.
-//                                   Legitimate missing artifact / never-published /
-//                                   purged-without-being-pinned.
+//     Legitimate missing artifact / never-published /
+//     purged-without-being-pinned.
 //
 // The node-agent's fallback path consumes these codes: FailedPrecondition means
 // "do NOT silently install a local pinned tarball — the repository has explicitly

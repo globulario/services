@@ -178,8 +178,8 @@ func TestResolver_BlocksMissingRequiredSignature(t *testing.T) {
 		t.Fatal("missing required signature must make artifact non-installable")
 	}
 	row := manifestRow{
-		ArtifactKey:  key,
-		PublisherID:  "core@globular.io", Name: "echo", Version: "1.0.0",
+		ArtifactKey: key,
+		PublisherID: "core@globular.io", Name: "echo", Version: "1.0.0",
 		Platform: "linux_amd64", Checksum: "sha256:abcd",
 		PublishState:  repopb.PublishState_PUBLISHED.String(),
 		ArtifactState: string(PipelinePublished),

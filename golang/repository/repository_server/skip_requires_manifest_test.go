@@ -186,4 +186,3 @@ func TestManifestJSONPresent_DirectChecks(t *testing.T) {
 		}
 	})
 }
-

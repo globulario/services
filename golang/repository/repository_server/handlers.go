@@ -14,11 +14,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/globulario/services/golang/versionutil"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	resourcepb "github.com/globulario/services/golang/resource/resourcepb"
-	"github.com/google/uuid"
+	"github.com/globulario/services/golang/versionutil"
 	Utility "github.com/globulario/utility"
+	"github.com/google/uuid"
 )
 
 // handlers.go
@@ -125,8 +125,8 @@ func (srv *server) DownloadBundle(
 
 	// Build the bundle skeleton.
 	bundle := &resourcepb.PackageBundle{
-		Plaform:           rqst.Platform,     // NOTE: field name comes from proto, keep as-is
-		PackageDescriptor: rqst.Descriptor_,  // incoming descriptor
+		Plaform:           rqst.Platform,    // NOTE: field name comes from proto, keep as-is
+		PackageDescriptor: rqst.Descriptor_, // incoming descriptor
 	}
 
 	// Build artifact ref and read from the artifacts/ directory.

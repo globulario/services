@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/globulario/services/golang/config"
-	"github.com/globulario/services/golang/versionutil"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/versionutil"
 	Utility "github.com/globulario/utility"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"google.golang.org/grpc/codes"
@@ -871,9 +871,25 @@ func (srv *server) GetPackageBundles(ctx context.Context, rqst *resourcepb.GetPa
 		query = `{"PublisherID":"` + rqst.PublisherId + `"}`
 	}
 
+	//go:uncertainty:declared-failsafe the empty list is unchanged for callers (the persistence API cannot distinguish "collection missing" from "store unreachable"), but the branch now logs the failure so an empty answer produced by an error is no longer silent. Triaged and fixed 2026-08-14.
 	results, err := p.Find(context.Background(), "local_resource", "local_resource", "Bundles", query, "")
 	if err != nil {
 		// Empty or missing collection — return empty list, not an error.
+		//
+		// The persistence Find API returns one undifferentiated error for both
+		// "collection does not exist" (the common, benign case) and "the store
+		// is unreachable", so this branch CANNOT distinguish them and must keep
+		// returning an empty list to avoid failing the benign case. What it can
+		// do is stop being silent: an empty answer produced by an error is now
+		// logged, so "there are no bundles" is not indistinguishable from "I
+		// could not read the bundles". See invariant
+		// fallback.must_emit_degraded_finding — this satisfies the
+		// observability half; classifying the error needs a persistence-layer
+		// change and is deliberately not attempted here.
+		slog.Warn("GetPackageBundles: bundle query failed — returning empty list",
+			"publisher_id", rqst.PublisherId,
+			"err", err,
+			"invariant", "fallback.must_emit_degraded_finding")
 		return &resourcepb.GetPackageBundlesResponse{}, nil
 	}
 

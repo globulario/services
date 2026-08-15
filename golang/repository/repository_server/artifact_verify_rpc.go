@@ -180,9 +180,9 @@ func (srv *server) RepairArtifact(ctx context.Context, req *repopb.RepairArtifac
 
 	key := artifactKeyWithBuild(ref, buildNumber)
 	resp := &repopb.RepairArtifactResponse{
-		Ref:                  ref,
-		ArtifactKey:          key,
-		ArtifactStateBefore:  string(srv.readArtifactState(ctx, key)),
+		Ref:                 ref,
+		ArtifactKey:         key,
+		ArtifactStateBefore: string(srv.readArtifactState(ctx, key)),
 	}
 
 	// Audit / operator subject — prefer the request's claimed subject only when

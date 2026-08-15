@@ -1162,18 +1162,18 @@ func (srv *server) ListArtifacts(ctx context.Context, _ *repopb.ListArtifactsReq
 	}
 
 	// Legacy / single-node fallback: scan MinIO directory.
-	// TRIAGE 2026-08-14: partially compensated, residual violation.
-	// requireCapability(CapRepoQuery) at RPC entry already fails closed when
-	// ScyllaDB is down, so the severe case is handled. But when this fallback
-	// actually activates (Scylla healthy, legacy scan fails) it is NOT
-	// observable: a Debug line is not a degraded finding reaching authoritative
-	// output. That does not satisfy invariant fallback.must_emit_degraded_finding.
-	// Deliberately NOT annotated as a declared fail-safe.
+	// TRIAGE 2026-08-14, then FIXED. requireCapability(CapRepoQuery) at RPC
+	// entry already failed closed when ScyllaDB is down, but an activated
+	// fallback (Scylla healthy, legacy scan fails) was invisible — a Debug line
+	// is not a degraded finding. noteCatalogFallback now degrades the
+	// repo:catalog-fallback subsystem, which cluster-doctor observes.
+	//go:uncertainty:declared-failsafe the empty result is unchanged for callers, but the fallback is now observable via the repo:catalog-fallback subsystem (see catalog_fallback.go); invariant fallback.must_emit_degraded_finding is satisfied by the degraded subsystem state, not by the return value.
 	entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
 	if err != nil {
-		slog.Debug("artifacts directory not found, returning empty catalog", "err", err)
+		noteCatalogFallback("ListArtifacts.legacyScan", err)
 		return &repopb.ListArtifactsResponse{}, nil
 	}
+	noteCatalogPrimary()
 	var manifests []*repopb.ArtifactManifest
 	for _, e := range entries {
 		name := e.Name()
@@ -1813,14 +1813,15 @@ func (srv *server) GetArtifactVersions(ctx context.Context, req *repopb.GetArtif
 	}
 
 	// Legacy / single-node fallback: scan MinIO directory.
-	// TRIAGE 2026-08-14: same as ListArtifacts, and worse — this branch logs
-	// NOTHING. The capability gate handles the ScyllaDB-down case; an activated
-	// fallback here is completely silent, so fallback.must_emit_degraded_finding
-	// is unsatisfied. Deliberately NOT annotated as a declared fail-safe.
+	// TRIAGE 2026-08-14, then FIXED. This branch previously logged NOTHING at
+	// all — an activated fallback was completely silent.
+	//go:uncertainty:declared-failsafe same as ListArtifacts — the empty result is unchanged for callers, and the fallback is now observable via the repo:catalog-fallback subsystem (see catalog_fallback.go).
 	entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
 	if err != nil {
+		noteCatalogFallback("GetArtifactVersions.legacyScan", err)
 		return &repopb.GetArtifactVersionsResponse{}, nil
 	}
+	noteCatalogPrimary()
 	var versions []*repopb.ArtifactManifest
 	for _, e := range entries {
 		fname := e.Name()

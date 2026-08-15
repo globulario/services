@@ -161,13 +161,13 @@ func TestDoctorAndVerify_AgreeOn_PublishedMissingBlob(t *testing.T) {
 //
 // Why this is a hard rule:
 //
-//   The architecture rule "MinIO is for secondary user data only —
-//   packages live in /var/lib/globular/packages/ (POSIX CAS)" means
-//   MinIO must NEVER be authoritative for package bytes. Even reading
-//   from it under "checksum-verified" guards legitimizes a path that
-//   should not exist. The correct recovery for a missing local POSIX
-//   blob is `globular repository sync --tag vX.Y.Z` from the upstream
-//   release, not from MinIO.
+//	The architecture rule "MinIO is for secondary user data only —
+//	packages live in /var/lib/globular/packages/ (POSIX CAS)" means
+//	MinIO must NEVER be authoritative for package bytes. Even reading
+//	from it under "checksum-verified" guards legitimizes a path that
+//	should not exist. The correct recovery for a missing local POSIX
+//	blob is `globular repository sync --tag vX.Y.Z` from the upstream
+//	release, not from MinIO.
 //
 // This test asserts that the publishReconciler's exported surface
 // contains only the VERIFIED→PUBLISHED retry loop, and that no method

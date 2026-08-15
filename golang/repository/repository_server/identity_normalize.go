@@ -27,9 +27,10 @@ var buildIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._:-]{2,127}$`)
 // rest of the system instead of fighting it.
 //
 // Examples:
-//   linux/amd64 -> linux_amd64
-//   linux-amd64 -> linux_amd64
-//   linux_amd64 -> linux_amd64
+//
+//	linux/amd64 -> linux_amd64
+//	linux-amd64 -> linux_amd64
+//	linux_amd64 -> linux_amd64
 func NormalizePlatform(platform string) string {
 	p := strings.TrimSpace(strings.ToLower(platform))
 	p = strings.ReplaceAll(p, "\\", "_")

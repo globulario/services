@@ -52,9 +52,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gocql/gocql"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/versionutil"
+	"github.com/gocql/gocql"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
