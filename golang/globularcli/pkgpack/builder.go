@@ -35,6 +35,19 @@ type BuildOptions struct {
 	SkipMissingConfig  bool
 	SkipMissingSystemd bool
 	DebsDir            string // pre-downloaded .deb directory; skips apt-get download when set
+
+	// PlatformBaselinePath declares the target platform bundled debs must be
+	// installable on. Empty means "not declared", which refuses assembly of any
+	// package that bundles debs rather than assembling one whose installability
+	// nobody checked.
+	PlatformBaselinePath string
+
+	// AllowUnprovenDebProvenance is a deliberate, explicit escape hatch for
+	// bootstrapping a package whose deb is not yet revision-backed. It is not a
+	// default and not a fallback: it must be passed by a human who has read the
+	// refusal. Leaving it off is what keeps ambient filesystem state out of a
+	// release.
+	AllowUnprovenDebProvenance bool
 }
 
 type BuildResult struct {
@@ -200,6 +213,31 @@ func BuildPackages(opts BuildOptions) ([]BuildResult, error) {
 		// collectors were filtered. Whatever the source, nothing foreign-arch
 		// reaches the artifact.
 		info.DebPaths = filterDebsForArch(info.DebPaths, goarch)
+
+		// Same choke point, two further proofs — for the same reason the arch
+		// filter lives here rather than in the collectors: a package-local
+		// debs/ directory arrives with DebPaths already populated and skips
+		// both collectors entirely.
+		//
+		// PRODUCER: the assembled bytes must be the bytes the owning repository
+		// holds at that path in its revision. Not "the checkout is clean", not
+		// "the path is tracked" — the bytes. This is what makes a deleted
+		// tracked file plus an untracked replacement at the same pathname a
+		// refusal instead of a silent substitution.
+		//
+		// CONSUMER: those bytes must be installable on the declared target
+		// baseline. Independent property — wrong bytes can be perfectly
+		// installable, which is how the 2026-08-14 deb passed unnoticed on the
+		// builder that produced it.
+		if len(info.DebPaths) > 0 {
+			if err := verifyBundledDebs(info.DebPaths, opts); err != nil {
+				res.Err = err
+				results = append(results, res)
+				fmt.Fprintf(os.Stderr, "[FAIL] %s: %v\n", info.ServiceName, err)
+				hadErr = true
+				continue
+			}
+		}
 
 		archiveName := buildArchiveName(info.ServiceName, opts.Version, goos, goarch)
 		outputPath := filepath.Join(opts.OutDir, archiveName)
@@ -731,4 +769,59 @@ func sha256File(path string) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// verifyBundledDebs runs both halves of the release-input proof over the debs
+// that will actually be assembled, and fails closed on either.
+//
+// Order matters. Provenance is checked first because satisfiability computed
+// over substituted bytes answers a question nobody asked: it would tell you
+// whether the WRONG deb installs. Establish what the bytes are, then ask what
+// they can do.
+func verifyBundledDebs(debPaths []string, opts BuildOptions) error {
+	provs := make([]*DebProvenance, 0, len(debPaths))
+	for _, p := range debPaths {
+		prov, err := VerifyDebProvenance(p)
+		if err != nil {
+			if opts.AllowUnprovenDebProvenance {
+				fmt.Fprintf(os.Stderr, "  WARNING: unproven deb provenance accepted via explicit override: %v\n", err)
+				continue
+			}
+			return fmt.Errorf("release input provenance: %w", err)
+		}
+		provs = append(provs, prov)
+	}
+	if len(provs) == 0 {
+		return nil
+	}
+
+	if opts.PlatformBaselinePath == "" {
+		return fmt.Errorf("release input satisfiability: no platform baseline declared, "+
+			"so the installability of %d bundled deb(s) cannot be established; "+
+			"pass a baseline rather than shipping an unchecked bundle", len(provs))
+	}
+	baseline, err := LoadPlatformBaseline(opts.PlatformBaselinePath)
+	if err != nil {
+		return fmt.Errorf("release input satisfiability: %w", err)
+	}
+
+	// Debs shipped together can satisfy each other.
+	bundled := make(map[string]string, len(provs))
+	for _, p := range provs {
+		bundled[p.Package] = p.Version
+	}
+
+	var refused []string
+	for _, p := range provs {
+		sat := CheckSatisfiable(p, baseline, bundled)
+		fmt.Fprint(os.Stdout, FormatProvenanceRecord(p, sat))
+		if !sat.Satisfied {
+			refused = append(refused, p.Package)
+		}
+	}
+	if len(refused) > 0 {
+		return fmt.Errorf("release input satisfiability: %s cannot install on declared baseline %s (%s) — "+
+			"assembly refused", strings.Join(refused, ", "), baseline.ID, baseline.Image)
+	}
+	return nil
 }

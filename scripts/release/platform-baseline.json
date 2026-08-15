@@ -1,0 +1,42 @@
+{
+  "_comment": [
+    "Declared target platform baseline for release assembly.",
+    "",
+    "This is the COMPATIBILITY WITNESS, not a support promise. Naming this image",
+    "does not commit Globular to supporting every unpatched Noble host back to",
+    "April 2024; it fixes one reproducible target so 'is this bundled deb",
+    "installable' has a determinate answer at build time, with no cluster",
+    "involved.",
+    "",
+    "Chosen window: systemd 255.4-1ubuntu8.15 entered Noble in April 2026 and",
+    "8.16 did not land until 2026-06-08, so release-20260518 sits cleanly inside",
+    "the 8.15 window. Pin the image by SHA-256 from the release's signed",
+    "SHA256SUMS, and pair it with the archive snapshot below so apt cannot drift",
+    "onto today's archive and silently turn the fixture into a different",
+    "experiment.",
+    "",
+    "'provides' lists packages supplied BY THE BASE IMAGE. A bundled deb whose",
+    "dependency resolves here is installable offline; one that resolves nowhere",
+    "is UNKNOWN, and unknown fails closed."
+  ],
+  "id": "ubuntu-noble-release-20260518-amd64",
+  "os": "Ubuntu 24.04 LTS (Noble Numbat)",
+  "image": "release-20260518",
+  "arch": "amd64",
+  "archive_snapshot": "2026-05-22",
+  "expected_systemd": "255.4-1ubuntu8.15",
+  "provides": {
+    "systemd": "255.4-1ubuntu8.15",
+    "systemd-resolved": "255.4-1ubuntu8.15",
+    "systemd-sysv": "255.4-1ubuntu8.15",
+    "libsystemd0": "255.4-1ubuntu8.15",
+    "libnss-systemd": "255.4-1ubuntu8.15",
+    "libudev1": "255.4-1ubuntu8.15",
+    "libc6": "2.39-0ubuntu8.7",
+    "libcap2": "1:2.66-5ubuntu2.2",
+    "libgcc-s1": "14.2.0-4ubuntu2~24.04.1",
+    "gcc-14-base": "14.2.0-4ubuntu2~24.04.1",
+    "zlib1g": "1:1.3.dfsg-3.1ubuntu2.1",
+    "libstdc++6": "14.2.0-4ubuntu2~24.04.1"
+  }
+}
