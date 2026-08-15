@@ -174,4 +174,38 @@ if [ "${fail}" -ne 0 ]; then
     exit 1
 fi
 echo "  VERDICT: cluster names resolve through libc without a Globular-supplied NSS module"
+
+# ── receipt ───────────────────────────────────────────────────────────────────
+# This witness needs a real host and cannot run inside a release build, so the
+# build gate cannot execute it. Instead it verifies a RECEIPT: proof that this
+# script ran, on the declared baseline, and passed.
+#
+# Without a receipt the gate would have to either skip (a safety check that
+# fails open the moment nobody remembers to run it — the failure mode this whole
+# lane exists to kill) or block every build on a VM. The receipt is the third
+# option: run it deliberately, record what it proved, and let the gate check the
+# binding.
+#
+# It records the BASELINE IDENTITY, not just a timestamp, so a receipt earned
+# against a different target cannot satisfy a gate for this one.
+if [ -n "${RECEIPT_OUT:-}" ]; then
+    cat > "${RECEIPT_OUT}" <<RECEIPT
+{
+  "witness": "verify-resolver-without-libnss",
+  "verdict": "PASS",
+  "pass": ${pass},
+  "fail": ${fail},
+  "expected_systemd": "${EXPECT_SYSTEMD:-}",
+  "observed_systemd": "${sysver}",
+  "observed_systemd_resolved": "${resver}",
+  "cluster_domain": "${CLUSTER_DOMAIN}",
+  "node_fqdn": "${NODE_FQDN}",
+  "libnss_state": "${nssstate}",
+  "hosts_line": "$(echo "${hostsline}" | sed 's/"/\\"/g')",
+  "recorded_at_unix": $(date +%s),
+  "recorded_by": "$(id -un)@$(hostname)"
+}
+RECEIPT
+    echo "  receipt written: ${RECEIPT_OUT}"
+fi
 exit 0

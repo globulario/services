@@ -965,6 +965,52 @@ if ! "$GLIBC_CHECK" "$DIST_DIR"; then
   exit 1
 fi
 
+# ── Bundled-deb artifact gate ─────────────────────────────────────────────────
+# Inspects the PRODUCED bundle for a Globular-supplied libnss-resolve. Source
+# configuration is not evidence here: this repository has already shipped a
+# release whose bundled .deb existed in nobody's source tree (an untracked file
+# in a sibling worktree, 2026-08-10), so "the declaration no longer mentions it"
+# and "the bytes are gone" are different claims and only the second one ships.
+#
+# The checker reports INCONCLUSIVE rather than clean when it inspects zero
+# tarballs — a scanner that never ran reports exactly like a clean tree. Missing
+# checker is a hard error, never a skip, for the same reason as the floor gate.
+LIBNSS_CHECK="$SERVICES_ROOT/scripts/release/check-no-bundled-libnss.sh"
+echo ""
+echo "── Verifying bundled-deb contents ──"
+[[ -x "$LIBNSS_CHECK" ]] || {
+  echo "  ✗ RELEASE REJECTED — bundled-deb checker missing or not executable: $LIBNSS_CHECK" >&2
+  exit 1
+}
+if ! "$LIBNSS_CHECK" "$DIST_DIR"; then
+  echo ""
+  echo "  ✗ RELEASE REJECTED — produced bundle contains a Globular-supplied libnss-resolve," >&2
+  echo "    or nothing was inspected. Staged bundle left at $DIST_DIR." >&2
+  exit 1
+fi
+
+# ── Host-level resolver witness ───────────────────────────────────────────────
+# Verifies a RECEIPT proving verify-resolver-without-libnss.sh ran on the
+# declared baseline and passed. The witness needs a real host, so the build
+# cannot run it and a container cluster cannot stand in for it — containers
+# share the host kernel and run no independent systemd-resolved, which is
+# precisely the layer being proven. Skipping instead would be a safety check
+# that fails open the moment nobody remembers to run it.
+WITNESS_CHECK="$SERVICES_ROOT/scripts/release/check-resolver-witness.sh"
+WITNESS_BASELINE="$SERVICES_ROOT/scripts/release/platform-baseline.json"
+echo ""
+echo "── Verifying host resolver witness ──"
+[[ -x "$WITNESS_CHECK" ]] || {
+  echo "  ✗ RELEASE REJECTED — resolver-witness checker missing or not executable: $WITNESS_CHECK" >&2
+  exit 1
+}
+if ! "$WITNESS_CHECK" "$WITNESS_BASELINE"; then
+  echo ""
+  echo "  ✗ RELEASE REJECTED — host-level resolver behaviour is unproven for this baseline." >&2
+  echo "    Staged bundle left at $DIST_DIR." >&2
+  exit 1
+fi
+
 # ── Affected-package test gate ────────────────────────────────────────────────
 # Runs the suites of every Go package touched by the working tree before the
 # bundle is packed. Like the platform-floor gate above, it MUST stay ahead of
