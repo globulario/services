@@ -1,0 +1,34 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: forbidden_fix
+    id: forbidden_fix.services.restart_a_service_to_clear_a_failed_release_boundary_a4_asse
+    title: Restart a service to clear a FAILED release-boundary A4 assertion
+    description: |-
+        Do not restart a service in order to make a FAILED A4 ("restart after install") release-boundary assertion pass, and do not offer restart as the remediation for that finding.
+
+        A4 currently compares process_start_unix > install_committed_unix. Because the node-agent installer starts the service before it commits the installation receipt, that comparison can fail while A0-A3 have already PROVEN that the running executable's sha256 equals the published artifact's checksum. Restarting changes only the process start timestamp: it flips the verdict from FAILED to PROVEN without changing, re-verifying, or improving the provenance of the running binary.
+
+        That makes restart an evidence-destroying no-op with the appearance of a repair. It converts a known false positive into a green result, teaches operators to restart until the light turns green, and destroys the reproducible evidence needed to repair the predicate itself.
+
+        If A4 fails, first read A0-A3. If they are PROVEN and the checksums agree, the finding is a defect in the proof predicate (see failure.services.release_boundary_a4_infers_causal_provenance_from_wall_clock), not a release-integrity problem. Repair the predicate to consume causal evidence (install committed -> supervisor restart requested -> PID changed -> executable hash verified) rather than restarting the workload.
+
+        A genuine A2/A3 mismatch is a different matter entirely and is NOT covered by this prohibition.
+    severity: high
+    source_files:
+        - golang/release_boundary/proof.go
+        - golang/cluster_doctor/cluster_doctor_server/rules/release_boundary_unproven.go
+    related_invariants:
+        - doctor.must_compare_claims_to_proofs
+        - diagnostics.must_measure_reality
+    related_failures:
+        - failure.services.release_boundary_a4_infers_causal_provenance_from_wall_clock
+    evidence:
+        - '2026-08-14: nuc and lenovo both showed A0-A3 PROVEN with running_exe_sha256 == published checksum while A4 FAILED on a 1-second ordering gap'
+        - A restart would have moved process_start past install_committed and produced a PROVEN verdict with a byte-identical binary — no provenance change
+        - Both nodes were deliberately left un-restarted to preserve the evidence
+    domain: github.com/globulario/services
