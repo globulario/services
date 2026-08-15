@@ -1,0 +1,37 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: failure_mode
+    id: failure.services.repository_collapses_storage_and_decode_failures_into_empty
+    title: Repository collapses storage and decode failures into "empty publisher set" and "permissive policy"
+    description: |-
+        Two instances of the same collapse in the repository service, filed together because they show the pattern is not tied to RBAC.
+
+        1. STORAGE FAILURE -> EMPTY SET. trusted_publisher.go:167-170 returns nil, nil when the backing read fails. Callers receive "no trusted publishers" and cannot tell that from "could not read the trusted publishers". matchesTrustedPublisherBySubject then returns false, and the upstream release gate treats zero publishers as "unmanaged" and goes inert.
+
+        2. DECODE FAILURE -> PERMISSIVE DEFAULT. loadSignaturePolicyFromEtcd falls back to defaultSignaturePolicy() for every failure mode including unmarshal error. A policy that exists but is corrupt is therefore indistinguishable from a policy that was never written — and the fallback is the most permissive posture available.
+
+        Deliberately filed as WARNING rather than HIGH, because the current blast radius is small and should not be overstated. The publish path does not gate on trust at all, and the live policy key is absent, so today both collapses resolve to the same behaviour the system would have chosen anyway. The reason to record them is that the DEFAULT DIRECTION is permissive: if signature enforcement is ever switched on (the stated production target, currently opt-in), instance 2 becomes the difference between "signatures required" and "signatures silently not required" on a corrupt read — and nothing in the code would report the difference.
+
+        The distinction worth preserving: the intended semantics of an empty trusted-publisher set are genuinely permissive by design, which is fine. What is not fine is that a FAILED READ produces the same value as that intentional state.
+    severity: warning
+    source_files:
+        - golang/repository/repository_server/trusted_publisher.go
+        - golang/repository/repository_server/signature_policy.go
+    related_invariants:
+        - authority_uncertainty_must_not_collapse_to_an_empty_scope_at
+        - meta.absence_scope_must_be_explicit
+        - meta.fail_safe_defaults_when_authority_is_uncertain
+    related_failures:
+        - failure.services.rbac_resource_info_lookup_failure_collapses_to_an_empty_scop
+    evidence:
+        - trusted_publisher.go:167-170 — listTrustedPublishers returns nil, nil when the directory read fails, so a MinIO outage is byte-identical to a genuinely empty publisher set
+        - signature_policy.go:109-134 — loadSignaturePolicyFromEtcd returns defaultSignaturePolicy() on client error, timeout, missing key AND unmarshal error, so a CORRUPT policy silently becomes no policy
+        - signature_policy.go:53-61 — the defaults are RequireSignaturesForCore=false / RequireSignaturesForAll=false / AllowUnsignedLocalDevelopment=true, i.e. the most permissive posture
+        - 'Live check 2026-08-14: etcd key /globular/repository/security/policy is ABSENT on this cluster, so the permissive path is the one actually in effect today'
+        - 'Impact today is LOW and this is not a live hole: UploadArtifact never consults trusted publishers as a gate (the only call at artifact_handlers.go:1537 is an audit label), so publishing is unaffected either way'
+    domain: github.com/globulario/services
