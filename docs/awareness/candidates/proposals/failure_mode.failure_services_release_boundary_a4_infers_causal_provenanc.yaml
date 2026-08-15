@@ -4,6 +4,36 @@
 # after verifying the contract.
 proposal:
     status: awaiting_review
+    # ─────────────────────────────────────────────────────────────────────────
+    # PREDICATE FIXED — 2026-08-15, commit 7378b07d.
+    #
+    # The description below is written in the present tense and is now FALSE of
+    # the code. golang/release_boundary/proof.go evalA4 no longer compares
+    # process_start_unix against install_committed_unix. It compares
+    # Runtime.RunningExeSHA256 against Installed.EntrypointChecksum, which is
+    # sound because the installer replaces binaries with os.Rename over a temp
+    # file: a pre-install process holds the superseded inode and cannot hash to
+    # the new artifact. Timestamps remain in the report as corroboration only,
+    # and absent identity evidence now yields INDETERMINATE, never FAILED.
+    #
+    # Promote as HISTORY, not as a live defect. A reviewer who reads it as
+    # current will go looking for a predicate that no longer exists.
+    #
+    # What remains TRUE and worth keeping from the description:
+    #   - the class: a proof that a restart can satisfy without changing what it
+    #     claims to prove is not a proof
+    #   - the installer protocol fact (service started BEFORE receipt commit),
+    #     which is what made the ordering rule invalid and is unchanged
+    #   - the caution recorded under
+    #     meta.physical_clocks_disagree_use_logical_ordering: "logical ordering"
+    #     here meant an explicit causal/protocol relation, NOT Lamport or vector
+    #     clocks. The fix used the typed owner transition, not a clock mechanism.
+    #     That caution was correct and steered the repair.
+    #
+    # Regression evidence is preserved as a test rather than only as prose:
+    # release_boundary.TestA4_LiveFalsePositive_2026_08_14 replays the exact
+    # nuc measurements cited below (checksum and both timestamps verbatim).
+    # ─────────────────────────────────────────────────────────────────────────
     proposed_by: agent
     kind: failure_mode
     id: failure.services.release_boundary_a4_infers_causal_provenance_from_wall_clock

@@ -4,6 +4,27 @@
 # after verifying the contract.
 proposal:
     status: awaiting_review
+    # ─────────────────────────────────────────────────────────────────────────
+    # UNDERLYING DEFECT FIXED — 2026-08-15, commit 7378b07d. This prohibition
+    # SURVIVES the fix and should still be promoted.
+    #
+    # The description's mechanism paragraph is now historical: A4 no longer
+    # compares process_start_unix against install_committed_unix, so the
+    # specific false positive that made restart-to-green tempting is gone.
+    #
+    # The prohibition itself is not about that predicate. It is about offering
+    # an action as a remediation when the action cannot change what the finding
+    # measures. Under the new predicate a restart still cannot repair a genuine
+    # A4 failure — if the running executable does not hash to the installed
+    # artifact, restarting onto the SAME installed artifact is either a no-op or
+    # the correct repair only when the install is already sound — and it still
+    # destroys the evidence needed to diagnose which. The triage rule below
+    # ("if A4 fails, first read A0-A3") is unchanged and still correct.
+    #
+    # Update on promotion: replace the wall-clock mechanism paragraph with the
+    # identity comparison, and keep the reasoning about evidence-destroying
+    # no-op repairs, which is the durable part.
+    # ─────────────────────────────────────────────────────────────────────────
     proposed_by: agent
     kind: forbidden_fix
     id: forbidden_fix.services.restart_a_service_to_clear_a_failed_release_boundary_a4_asse
