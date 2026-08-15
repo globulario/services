@@ -21,5 +21,5 @@ proposal:
     evidence:
         - '2026-08-12 03:08:36 ''runtime-dep-block: auto-cleared stale block for SERVICE/authentication on 6400b443'' followed by exactly one further authentication log line and no dispatch; the unit remained inactive+disabled 12+ minutes later'
         - cluster-doctor reported both node.systemd.units_running and installed_state_runtime_mismatch WARN for authentication on node-4 with no blocked record to explain either
-    domain: globular
+    domain: github.com/globulario/services
     contract: Clearing a block is a state change that must re-arm whatever loop the block was gating. A component that retracts a blocking record owns re-driving the work the record suppressed; retracting the explanation without retrying the action is not a completion.

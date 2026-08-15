@@ -17,5 +17,5 @@ proposal:
         - '2026-08-12 mu-watchdog: ''srv.mu held for 28.384131173s by "ReportNodeStatus:commit"; dumping goroutines'', repeating from 02:54 to 03:02 during the resilience suite'
         - '03:02:57 ''CRITICAL - 2 nodes unreachable, quorum at risk: [node-1 node-5]'' where only node-5 was partitioned by the scenario and node-1 is the controller''s own node; node-1 unfenced 60s later with ''heartbeat resumed'''
         - quickstart resilience scenario network-partition-fencing failed its no_quorum_loss_alert assertion (11 of 12 checks passed) on an etcd cluster that stayed healthy throughout
-    domain: globular
+    domain: github.com/globulario/services
     contract: Blocking I/O must not occur while holding a lock that guards state a liveness or reachability decision reads. Staleness caused by lock starvation is not evidence of node unreachability, and a detector must not be able to manufacture its own input.

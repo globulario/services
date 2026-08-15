@@ -20,5 +20,5 @@ proposal:
     evidence:
         - 'Controlled reproduction on a settled 1.2.317 cluster: event@node-3 buildId changed from desired 019ff913-1cf7-75c6-93e8-f88e055223a4 to deadbeef-1111-4222-8333-444455556666, every other field byte-intact. 16 minutes, zero hasUnservedNodes or release lines naming the package on the controller leader, one routine inventory line on the owning node-agent, no repair attempt and no decline.'
         - cluster-doctor raised release.boundary_unproven A2=FAILED for the same record, so the mismatch was visible to the diagnostic plane throughout.
-    domain: globular
+    domain: github.com/globulario/services
     contract: desired build_id != installed build_id implies the node is unserved for that package and an authoritative apply must be scheduled. Version, status, runtime health and receipt completeness are not substitutes for identity agreement.

@@ -17,5 +17,5 @@ proposal:
     evidence:
         - 'Resilience suite 2026-08-11: dual-node-failure legitimately raised /globular/cluster/alerts/quorum_loss, then network-partition-fencing failed its no_quorum_loss_alert assertion (11 of 12 checks passed)'
         - network-partition-fencing partitions exactly ONE node, and the trigger_emergency_backup step is gated on reachability_report.quorum_at_risk == true, so the alert present at assertion time could only have been the stale key
-    domain: globular
+    domain: github.com/globulario/services
     contract: A durable alert is retired by the exact negation of the predicate that raised it. Raise and clear must read one named predicate, not two independently spelled thresholds; a clear condition stricter than the raise condition latches the alert past the condition it reports.

@@ -21,5 +21,5 @@ proposal:
     evidence:
         - release.boundary_unproven fires on build-identity mismatch and no convergence actor consumes that predicate — proven by controlled reproduction 2026-08-13, 16 minutes with zero actor evaluation while the doctor reported ERROR throughout.
         - reconcile.lane_timeout fired on a monotonic lifetime counter with no retirement path, making one transient timeout a permanent ERROR (fixed in b2cd6bce) — the same shape from the retirement side rather than the repair side.
-    domain: globular
+    domain: github.com/globulario/services
     contract: A finding at ERROR severity must either name a governed repair path capable of consuming its violated predicate, or explicitly declare itself non-self-healing and requiring operator intervention. Detection without either is an unactionable alarm.

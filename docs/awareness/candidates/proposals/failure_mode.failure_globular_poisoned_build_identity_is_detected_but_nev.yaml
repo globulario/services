@@ -19,5 +19,5 @@ proposal:
         - '16-minute bounded observation: record unchanged at every 60s sample. cluster-doctor error count went 0 -> 1, so detection works.'
         - 'Actor trace over the same window: ZERO hasUnservedNodes or release lines naming event on the controller leader (node-1); node-3''s node-agent logged exactly one line naming event, a routine 43-service inventory report with no evaluation. No decline was logged because nothing evaluated it — this is absence of re-drive coverage, not a settlement precondition refusing.'
         - Conditional teardown restored the captured original and the doctor returned to the exact T0 baseline, confirming the single-field change was the whole cause.
-    domain: globular
+    domain: github.com/globulario/services
     contract: A defect that cluster-doctor can detect in authoritative state must have a convergence actor that can act on it. Detection without a re-drive path leaves a permanent finding no operator action short of manual state surgery can clear.
