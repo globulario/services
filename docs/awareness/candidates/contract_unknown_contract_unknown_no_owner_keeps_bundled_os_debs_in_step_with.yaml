@@ -31,6 +31,58 @@ contract_unknown:
 
       Together: control where release inputs come from, then prove those
       controlled inputs are compatible with the declared platform.
+
+      RESOLUTION FOR THIS SPECIFIC PACKAGE (2026-08-14 investigation)
+      The two obligations above stay as the general release gate. The package
+      that triggered them, however, turned out not to need coupling at all:
+
+        libnss-resolve is NOT a Globular runtime prerequisite and must not be
+        bundled merely to provide cluster hostname resolution.
+
+      The bundled deb ships one functional file (libnss_resolve.so.2) and can
+      only work if systemd-resolved is ALREADY routing globular.internal at the
+      cluster DNS — which Globular configures itself via a resolved.conf.d
+      drop-in. Once that drop-in exists, systemd-resolved's stub listener serves
+      the same answers over standard DNS, reachable through the ordinary `dns`
+      NSS source with no extra package on any distro. Go services bypass NSS
+      entirely (config.ClusterResolver dials DNS daemon IPs from etcd). So the
+      module is a second path to a resolver that must already be configured,
+      bought at the price of an exact-version ABI dependency on a package that
+      is deliberately never bundled.
+
+      What replaces it is the prerequisite the module was hiding:
+
+        CONFIGURATION
+          globular.internal has a configured route to Globular DNS.
+
+        EFFECTIVE RESOLUTION
+          after configuration convergence, a libc hostname lookup for a known
+          cluster FQDN succeeds WITHOUT libnss-resolve being supplied by
+          Globular.
+
+      Deliberately phrased as the effective resolver path, NOT as
+      "/etc/resolv.conf must point at 127.0.0.53". systemd supports stub,
+      uplink, static, foreign and absent resolv.conf modes, and NetworkManager
+      may participate in ownership; the live fleet already demonstrates two
+      legitimate topologies (a plain file naming 127.0.0.1 on the founding node,
+      the stub on a cloud image). Assert the behaviour and the configuration
+      that produces it, never one filesystem topology.
+
+      The verdict must also be sensitive, not merely green: a known cluster name
+      must resolve AND a known-impossible name must fail. A probe that always
+      reports success is decorative plumbing, and cannot be distinguished from a
+      dead one (cf. awareness.scanner_zero_findings_conflates_clean_with_dead).
+
+      Do NOT replace the bundled deb with a different pinned version. Tracked
+      8.16 stays refused by the satisfiability gate against baseline 8.15, and
+      that refusal should remain a permanent regression fixture after the
+      package leaves the release set: deleting the dependency must not delete
+      the knowledge of the failure.
+
+      Out of scope, recorded separately: before DNS configuration converges,
+      cluster names do not resolve by any path. libnss-resolve never solved
+      that, so removing it is not a regression — it is pre-existing bootstrap
+      sequencing debt.
     revision_request: 'Decide the strategy: refresh-per-release with a build-time satisfiability gate, drop the strict-pin package in favour of host apt, or pin the base image. Affects the offline-install guarantee either way.'
     evidence:
       - Refreshing packages/metadata/libnss-resolve/debs to 255.4-1ubuntu8.17 unblocked Day-1 join, but the same class of break recurs on the next systemd point release. The release build already gates binaries against the platform floor (check-glibc-floor) and has no equivalent gate for bundled debs; the 8.16 deb sat checked in from Jun 8 until it broke joins on 2026-08-10.

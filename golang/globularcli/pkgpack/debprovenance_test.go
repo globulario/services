@@ -405,3 +405,45 @@ func TestVerifyBundledDebs_RefusesUnsatisfiableAtChokePoint(t *testing.T) {
 		t.Fatalf("refusal should name satisfiability and the package, got: %v", err)
 	}
 }
+
+// TestRegression_LibnssResolve816AgainstBaseline815 keeps the knowledge of the
+// failure after the dependency itself is gone.
+//
+// libnss-resolve is being removed from the release package set entirely: it was
+// never a Globular runtime prerequisite (systemd-resolved's stub already serves
+// cluster names over standard DNS, and Go services bypass NSS via
+// config.ClusterResolver). Removing a dependency, however, must not remove the
+// reason it was dangerous. If anyone re-adds it — at 8.16, at 8.17, at any
+// pinned version — the gate must still refuse it against the declared baseline,
+// because the defect was never the version. It was pinning a base-image package
+// by exact equality while that package is deliberately never bundled.
+func TestRegression_LibnssResolve816AgainstBaseline815(t *testing.T) {
+	baseline := &PlatformBaseline{
+		ID:       "ubuntu-noble-release-20260518-amd64",
+		Image:    "release-20260518",
+		Provides: map[string]string{"systemd-resolved": "255.4-1ubuntu8.15", "libc6": "2.39-0ubuntu8.7", "libcap2": "1:2.66-5ubuntu2.2"},
+	}
+	// Exactly the Depends line of the tracked 8.16 deb.
+	prov := &DebProvenance{
+		Package: "libnss-resolve",
+		Version: "255.4-1ubuntu8.16",
+		Depends: []string{"libc6 (>= 2.39)", "libcap2 (>= 1:2.10)", "systemd-resolved (= 255.4-1ubuntu8.16)"},
+	}
+
+	res := CheckSatisfiable(prov, baseline, map[string]string{"libnss-resolve": "255.4-1ubuntu8.16"})
+	if res.Satisfied {
+		t.Fatal("re-added libnss-resolve 8.16 was accepted against baseline 8.15")
+	}
+
+	// Every pinned version fails the same way — the version is not the defect.
+	for _, v := range []string{"255.4-1ubuntu8.16", "255.4-1ubuntu8.17", "255.4-1ubuntu8.14"} {
+		p := &DebProvenance{
+			Package: "libnss-resolve",
+			Version: v,
+			Depends: []string{"systemd-resolved (= " + v + ")"},
+		}
+		if CheckSatisfiable(p, baseline, nil).Satisfied {
+			t.Errorf("libnss-resolve %s accepted against baseline 8.15 — exact-pin class not covered", v)
+		}
+	}
+}
