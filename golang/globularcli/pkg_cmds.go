@@ -131,19 +131,22 @@ var (
 	pkgSkipMissingConfig  bool
 	pkgSkipMissingSystemd bool
 	pkgDebsDir            string
+	pkgPackageSources     string
+	pkgPlatformBaseline   string
+	pkgAllowUnprovenDebs  bool
 
 	pkgVerifyFile string
 	pkgVerifySpec string // --spec flag for validating a raw spec YAML
 
 	// Publish / register command flags
-	pkgPublishFile       string
-	pkgPublishDir        string
-	pkgPublishRepository string
-	pkgPublishDirect     bool
-	pkgPublishPublisher  string
-	pkgPublishDryRun     bool
-	pkgPublishForce      bool
-	pkgPublishOutput     string // "table" | "json" | "yaml"
+	pkgPublishFile        string
+	pkgPublishDir         string
+	pkgPublishRepository  string
+	pkgPublishDirect      bool
+	pkgPublishPublisher   string
+	pkgPublishDryRun      bool
+	pkgPublishForce       bool
+	pkgPublishOutput      string // "table" | "json" | "yaml"
 	pkgPublishBump        string // "patch" | "minor" | "major" — calls AllocateUpload
 	pkgPublishChannel     string // "stable" | "candidate" | "canary" | "dev" | "local" | "hotfix" | "bootstrap"
 	pkgPublishBasedOn     string // "name@version" — official source artifact (for local builds)
@@ -191,6 +194,12 @@ func init() {
 	pkgBuildCmd.Flags().BoolVar(&pkgSkipMissingConfig, "skip-missing-config", true, "skip missing config directories")
 	pkgBuildCmd.Flags().BoolVar(&pkgSkipMissingSystemd, "skip-missing-systemd", true, "skip missing systemd units")
 	pkgBuildCmd.Flags().StringVar(&pkgDebsDir, "debs-dir", "", "directory of pre-downloaded .deb files (skips apt-get download for bundle_debs)")
+	// Release authority. Both are required once a package bundles debs: an
+	// official release must name WHICH source revision it may consume and WHICH
+	// platform it must install on. Absence is a refusal, not a skipped check.
+	pkgBuildCmd.Flags().StringVar(&pkgPackageSources, "package-sources", "", "release source manifest declaring the package-source repository and revision (required for packages bundling debs)")
+	pkgBuildCmd.Flags().StringVar(&pkgPlatformBaseline, "platform-baseline", "", "declared target platform baseline bundled debs must install on (required for packages bundling debs)")
+	pkgBuildCmd.Flags().BoolVar(&pkgAllowUnprovenDebs, "allow-unproven-deb-provenance", false, "DANGEROUS: assemble bundled debs whose provenance cannot be proven against a declared revision")
 
 	pkgVerifyCmd.Flags().StringVar(&pkgVerifyFile, "file", "", "path to a package tgz")
 	pkgValidateCmd.Flags().StringVar(&pkgVerifyFile, "file", "", "path to a package tgz")
@@ -255,22 +264,25 @@ func runPkgBuild(cmd *cobra.Command, args []string) error {
 	}
 
 	results, err := pkgpack.BuildPackages(pkgpack.BuildOptions{
-		InstallerRoot:      pkgInstallerRoot,
-		Root:               pkgRoot,
-		SpecPath:           pkgSpecPath,
-		SpecDir:            pkgSpecDir,
-		AssetsDir:          pkgAssetsDir,
-		BinDir:             pkgBinDir,
-		ConfigDir:          pkgConfigDir,
-		ScriptsDir:         pkgScriptsDir,
-		Version:            pkgVersion,
-		BuildNumber:        pkgBuildNumber,
-		Publisher:          pkgPublisher,
-		Platform:           pkgPlatform,
-		OutDir:             pkgOutDir,
-		DebsDir:            pkgDebsDir,
-		SkipMissingConfig:  pkgSkipMissingConfig,
-		SkipMissingSystemd: pkgSkipMissingSystemd,
+		InstallerRoot:              pkgInstallerRoot,
+		Root:                       pkgRoot,
+		SpecPath:                   pkgSpecPath,
+		SpecDir:                    pkgSpecDir,
+		AssetsDir:                  pkgAssetsDir,
+		BinDir:                     pkgBinDir,
+		ConfigDir:                  pkgConfigDir,
+		ScriptsDir:                 pkgScriptsDir,
+		Version:                    pkgVersion,
+		BuildNumber:                pkgBuildNumber,
+		Publisher:                  pkgPublisher,
+		Platform:                   pkgPlatform,
+		OutDir:                     pkgOutDir,
+		DebsDir:                    pkgDebsDir,
+		PackageSourcesPath:         pkgPackageSources,
+		PlatformBaselinePath:       pkgPlatformBaseline,
+		AllowUnprovenDebProvenance: pkgAllowUnprovenDebs,
+		SkipMissingConfig:          pkgSkipMissingConfig,
+		SkipMissingSystemd:         pkgSkipMissingSystemd,
 	})
 	printPkgBuildSummary(results)
 	return err

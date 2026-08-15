@@ -243,21 +243,140 @@ func buildRealDeb(t *testing.T, name, version, arch, depends string) []byte {
 	return b
 }
 
+// writeSources emits a release source manifest naming repo at revision rev.
+// Temp repos have no remote, so their identity is the directory basename.
+func writeSources(t *testing.T, repo, rev string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "package-sources.json")
+	body := `{"schema_version":1,"sources":{"packages":{"repository":"` +
+		filepath.Base(repo) + `","revision":"` + rev + `"}}}`
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
 // A declared baseline is required. Assembling a bundle whose installability
 // nobody checked must not be the quiet default.
 func TestMissingBaselineIsRefusedNotSkipped(t *testing.T) {
 	content := buildRealDeb(t, "x", "1.0", "amd64", "")
-	_, deb := newDebRepo(t, "metadata/x/debs/x_1.0_amd64.deb", content)
+	repo, deb := newDebRepo(t, "metadata/x/debs/x_1.0_amd64.deb", content)
+	sources := writeSources(t, repo, git(t, repo, "rev-parse", "HEAD"))
 
-	err := verifyBundledDebs([]string{deb}, BuildOptions{})
+	_, err := verifyBundledDebs([]string{deb}, BuildOptions{PackageSourcesPath: sources})
 	if err == nil {
 		t.Fatal("assembly proceeded with bundled debs and no declared baseline")
 	}
-	// It must fail for the right reason: provenance holds for this deb, so the
-	// refusal has to be about the undeclared baseline, not a provenance error.
+	// Provenance holds here, so the refusal must be about the undeclared
+	// baseline rather than a provenance error.
 	if !strings.Contains(err.Error(), "baseline") {
 		t.Fatalf("expected a baseline refusal, got: %v", err)
 	}
+}
+
+// A declared package source is equally required: without it the authorized
+// revision is unknown, and unknown must not proceed.
+func TestMissingPackageSourcesIsRefusedNotSkipped(t *testing.T) {
+	content := buildRealDeb(t, "x", "1.0", "amd64", "")
+	_, deb := newDebRepo(t, "metadata/x/debs/x_1.0_amd64.deb", content)
+
+	_, err := verifyBundledDebs([]string{deb}, BuildOptions{})
+	if err == nil {
+		t.Fatal("assembly proceeded with no declared package source")
+	}
+	if !strings.Contains(err.Error(), "package source manifest") {
+		t.Fatalf("expected a package-source refusal, got: %v", err)
+	}
+}
+
+// TestDeclaredRevisionWinsOverHEAD is the difference between "reproducible" and
+// "pinned". Two revisions hold different bytes at the same path; the release
+// declares the older one. Assembly must materialize the DECLARED revision's
+// bytes even though HEAD is newer and perfectly tracked.
+func TestDeclaredRevisionWinsOverHEAD(t *testing.T) {
+	authorized := buildRealDeb(t, "x", "1.0", "amd64", "")
+	repo, deb := newDebRepo(t, "metadata/x/debs/x_1.0_amd64.deb", authorized)
+	declaredRev := git(t, repo, "rev-parse", "HEAD")
+
+	// A later, fully tracked revision changes the bytes at the same path.
+	newer := buildRealDeb(t, "x", "2.0", "amd64", "")
+	if err := os.WriteFile(deb, newer, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git(t, repo, "add", "-A")
+	git(t, repo, "commit", "-qm", "bump deb")
+
+	sources := writeSources(t, repo, declaredRev)
+	prov, materialized, err := MaterializeDebFromSource(deb, mustLoadSources(t, sources), t.TempDir())
+	if err != nil {
+		t.Fatalf("materialize from declared revision: %v", err)
+	}
+	if prov.SourceRevision != declaredRev {
+		t.Errorf("provenance records %s, declared %s", prov.SourceRevision, declaredRev)
+	}
+	if prov.Version != "1.0" {
+		t.Errorf("materialized version %q — HEAD's bytes were assembled instead of the declared revision's", prov.Version)
+	}
+	got, err := os.ReadFile(materialized)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) == string(newer) {
+		t.Error("materialized bytes are HEAD's, not the declared revision's")
+	}
+}
+
+// A repository the release never declared must not supply package inputs, even
+// if its contents are perfectly tracked.
+func TestUndeclaredRepositoryIsRefused(t *testing.T) {
+	content := buildRealDeb(t, "x", "1.0", "amd64", "")
+	repo, deb := newDebRepo(t, "metadata/x/debs/x_1.0_amd64.deb", content)
+
+	path := filepath.Join(t.TempDir(), "package-sources.json")
+	body := `{"schema_version":1,"sources":{"packages":{"repository":"some-other-repo","revision":"` +
+		git(t, repo, "rev-parse", "HEAD") + `"}}}`
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, err := MaterializeDebFromSource(deb, mustLoadSources(t, path), t.TempDir())
+	if err == nil {
+		t.Fatal("a deb from an undeclared repository was accepted")
+	}
+	if !strings.Contains(err.Error(), "not named in the release source manifest") {
+		t.Fatalf("unexpected refusal reason: %v", err)
+	}
+}
+
+// Materializing from the declared revision means a dirty worktree cannot
+// contaminate a release — the packages checkout may legitimately carry
+// unrelated in-progress work.
+func TestDirtyWorktreeCannotContaminateMaterializedBytes(t *testing.T) {
+	authorized := buildRealDeb(t, "x", "1.0", "amd64", "")
+	repo, deb := newDebRepo(t, "metadata/x/debs/x_1.0_amd64.deb", authorized)
+	rev := git(t, repo, "rev-parse", "HEAD")
+
+	// The 2026-08-14 move: overwrite the worktree copy, never commit.
+	if err := os.WriteFile(deb, buildRealDeb(t, "x", "9.9", "amd64", ""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	prov, _, err := MaterializeDebFromSource(deb, mustLoadSources(t, writeSources(t, repo, rev)), t.TempDir())
+	if err != nil {
+		t.Fatalf("materialize should succeed and ignore the dirty worktree: %v", err)
+	}
+	if prov.Version != "1.0" {
+		t.Errorf("assembled version %q — uncommitted worktree bytes reached the release", prov.Version)
+	}
+}
+
+func mustLoadSources(t *testing.T, path string) *PackageSources {
+	t.Helper()
+	s, err := LoadPackageSources(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
 }
 
 // End-to-end through the real choke point: a properly provenanced deb whose
@@ -265,7 +384,8 @@ func TestMissingBaselineIsRefusedNotSkipped(t *testing.T) {
 func TestVerifyBundledDebs_RefusesUnsatisfiableAtChokePoint(t *testing.T) {
 	content := buildRealDeb(t, "libnss-resolve", "255.4-1ubuntu8.17", "amd64",
 		"libc6 (>= 2.39), systemd-resolved (= 255.4-1ubuntu8.17)")
-	_, deb := newDebRepo(t, "metadata/libnss-resolve/debs/libnss-resolve_255.4-1ubuntu8.17_amd64.deb", content)
+	repo, deb := newDebRepo(t, "metadata/libnss-resolve/debs/libnss-resolve_255.4-1ubuntu8.17_amd64.deb", content)
+	sources := writeSources(t, repo, git(t, repo, "rev-parse", "HEAD"))
 
 	baselinePath := filepath.Join(t.TempDir(), "baseline.json")
 	baseline := `{"id":"ubuntu-noble-release-20260518-amd64","image":"release-20260518",
@@ -274,7 +394,10 @@ func TestVerifyBundledDebs_RefusesUnsatisfiableAtChokePoint(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := verifyBundledDebs([]string{deb}, BuildOptions{PlatformBaselinePath: baselinePath})
+	_, err := verifyBundledDebs([]string{deb}, BuildOptions{
+		PackageSourcesPath:   sources,
+		PlatformBaselinePath: baselinePath,
+	})
 	if err == nil {
 		t.Fatal("unsatisfiable bundle passed the choke point — this is the 8.15-target failure, undetected")
 	}

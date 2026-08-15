@@ -1,0 +1,30 @@
+{
+  "_comment": [
+    "Release-owned declaration of WHICH package-source revision an official",
+    "release is entitled to consume. Authority lives here, in the release repo,",
+    "never in whatever checkout the builder happens to encounter.",
+    "",
+    "Before this file, provenance resolved R as the owning repo's HEAD: that",
+    "proves bytes are in git, but not WHICH revision a release may use. Checking",
+    "out an older packages commit would still have passed. Reproducible is not",
+    "the same as pinned.",
+    "",
+    "One revision pins the whole metadata corpus. Individual .deb files are not",
+    "pinned separately - the git revision already provides an immutable",
+    "namespace, and the per-deb blob OID + sha256 emitted by the provenance gate",
+    "supply the finer-grained proof.",
+    "",
+    "Release assembly materializes package bytes FROM this revision's git",
+    "objects. It does not read the sibling worktree and then check whether the",
+    "bytes happen to match. That distinction matters: the packages checkout may",
+    "legitimately carry unrelated in-progress work (it currently does), and that",
+    "work must be neither consumed by a release nor disturbed by one."
+  ],
+  "schema_version": 1,
+  "sources": {
+    "packages": {
+      "repository": "globulario/packages",
+      "revision": "6c8a28ad192366c77b0aced1fc38d0518a9a0f17"
+    }
+  }
+}

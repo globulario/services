@@ -36,6 +36,12 @@ type BuildOptions struct {
 	SkipMissingSystemd bool
 	DebsDir            string // pre-downloaded .deb directory; skips apt-get download when set
 
+	// PackageSourcesPath declares WHICH package-source revision this release may
+	// consume. Authority lives in the release repository, not in whatever
+	// checkout the builder encounters. Empty means "not declared", which refuses
+	// assembly of any package that bundles debs.
+	PackageSourcesPath string
+
 	// PlatformBaselinePath declares the target platform bundled debs must be
 	// installable on. Empty means "not declared", which refuses assembly of any
 	// package that bundles debs rather than assembling one whose installability
@@ -230,12 +236,17 @@ func BuildPackages(opts BuildOptions) ([]BuildResult, error) {
 		// installable, which is how the 2026-08-14 deb passed unnoticed on the
 		// builder that produced it.
 		if len(info.DebPaths) > 0 {
-			if err := verifyBundledDebs(info.DebPaths, opts); err != nil {
+			materialized, err := verifyBundledDebs(info.DebPaths, opts)
+			if err != nil {
 				res.Err = err
 				results = append(results, res)
 				fmt.Fprintf(os.Stderr, "[FAIL] %s: %v\n", info.ServiceName, err)
 				hadErr = true
 				continue
+			}
+			// Assemble the authorized bytes, not the worktree's.
+			if len(materialized) > 0 {
+				info.DebPaths = materialized
 			}
 		}
 
@@ -772,37 +783,65 @@ func sha256File(path string) (string, error) {
 }
 
 // verifyBundledDebs runs both halves of the release-input proof over the debs
-// that will actually be assembled, and fails closed on either.
+// that will actually be assembled, and fails closed on either. It returns the
+// materialized (authorized) deb paths to assemble in place of the worktree's.
 //
-// Order matters. Provenance is checked first because satisfiability computed
-// over substituted bytes answers a question nobody asked: it would tell you
-// whether the WRONG deb installs. Establish what the bytes are, then ask what
-// they can do.
-func verifyBundledDebs(debPaths []string, opts BuildOptions) error {
+// Order matters. Provenance is established first because satisfiability
+// computed over substituted bytes answers a question nobody asked: it would
+// tell you whether the WRONG deb installs. Establish what the bytes are, then
+// ask what they can do.
+//
+// Both authorities are mandatory once a package bundles debs. An official
+// release cannot be assembled without naming BOTH its package authority (which
+// source revision it may consume) and its target compatibility authority (which
+// platform it must install on). Absence of either is a refusal, never a silent
+// skip of validation.
+func verifyBundledDebs(debPaths []string, opts BuildOptions) ([]string, error) {
+	if opts.PackageSourcesPath == "" {
+		if !opts.AllowUnprovenDebProvenance {
+			return nil, fmt.Errorf("release input provenance: no package source manifest declared, "+
+				"so the authorized revision for %d bundled deb(s) is unknown; "+
+				"declare the source revision rather than consuming whatever the checkout holds", len(debPaths))
+		}
+		fmt.Fprintf(os.Stderr, "  WARNING: assembling bundled debs with no declared package source, via explicit override\n")
+		return nil, nil
+	}
+	sources, err := LoadPackageSources(opts.PackageSourcesPath)
+	if err != nil {
+		return nil, fmt.Errorf("release input provenance: %w", err)
+	}
+
+	destDir, err := os.MkdirTemp("", "pkg-authorized-debs-")
+	if err != nil {
+		return nil, fmt.Errorf("create materialization dir: %w", err)
+	}
+
 	provs := make([]*DebProvenance, 0, len(debPaths))
+	out := make([]string, 0, len(debPaths))
 	for _, p := range debPaths {
-		prov, err := VerifyDebProvenance(p)
+		prov, materialized, err := MaterializeDebFromSource(p, sources, destDir)
 		if err != nil {
 			if opts.AllowUnprovenDebProvenance {
 				fmt.Fprintf(os.Stderr, "  WARNING: unproven deb provenance accepted via explicit override: %v\n", err)
 				continue
 			}
-			return fmt.Errorf("release input provenance: %w", err)
+			return nil, fmt.Errorf("release input provenance: %w", err)
 		}
 		provs = append(provs, prov)
+		out = append(out, materialized)
 	}
 	if len(provs) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	if opts.PlatformBaselinePath == "" {
-		return fmt.Errorf("release input satisfiability: no platform baseline declared, "+
+		return nil, fmt.Errorf("release input satisfiability: no platform baseline declared, "+
 			"so the installability of %d bundled deb(s) cannot be established; "+
-			"pass a baseline rather than shipping an unchecked bundle", len(provs))
+			"declare a baseline rather than shipping an unchecked bundle", len(provs))
 	}
 	baseline, err := LoadPlatformBaseline(opts.PlatformBaselinePath)
 	if err != nil {
-		return fmt.Errorf("release input satisfiability: %w", err)
+		return nil, fmt.Errorf("release input satisfiability: %w", err)
 	}
 
 	// Debs shipped together can satisfy each other.
@@ -820,8 +859,8 @@ func verifyBundledDebs(debPaths []string, opts BuildOptions) error {
 		}
 	}
 	if len(refused) > 0 {
-		return fmt.Errorf("release input satisfiability: %s cannot install on declared baseline %s (%s) — "+
+		return nil, fmt.Errorf("release input satisfiability: %s cannot install on declared baseline %s (%s) — "+
 			"assembly refused", strings.Join(refused, ", "), baseline.ID, baseline.Image)
 	}
-	return nil
+	return out, nil
 }

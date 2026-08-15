@@ -48,6 +48,7 @@ package pkgpack
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -258,4 +259,147 @@ func gitRepoIdentity(top string) string {
 		return url
 	}
 	return filepath.Base(top)
+}
+
+// PackageSource declares one repository and the exact revision an official
+// release may consume from it.
+type PackageSource struct {
+	Repository string `json:"repository"`
+	Revision   string `json:"revision"`
+}
+
+// PackageSources is the release-owned source manifest. Authority lives in the
+// release repository, not in whatever checkout the builder encounters.
+type PackageSources struct {
+	SchemaVersion int                      `json:"schema_version"`
+	Sources       map[string]PackageSource `json:"sources"`
+}
+
+// LoadPackageSources reads the release source manifest. Missing or unparseable
+// is an error, never a skip — an official release must name its package
+// authority.
+func LoadPackageSources(path string) (*PackageSources, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read package sources manifest %s: %w", path, err)
+	}
+	var s PackageSources
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return nil, fmt.Errorf("parse package sources manifest %s: %w", path, err)
+	}
+	if len(s.Sources) == 0 {
+		return nil, fmt.Errorf("package sources manifest %s declares no sources", path)
+	}
+	for name, src := range s.Sources {
+		if src.Repository == "" || src.Revision == "" {
+			return nil, fmt.Errorf("package sources manifest %s: source %q must declare both repository and revision", path, name)
+		}
+	}
+	return &s, nil
+}
+
+// revisionFor returns the declared revision for a repository identity.
+func (s *PackageSources) revisionFor(repoIdentity string) (string, bool) {
+	for _, src := range s.Sources {
+		if src.Repository == repoIdentity {
+			return src.Revision, true
+		}
+	}
+	return "", false
+}
+
+// MaterializeDebFromSource reads the authorized bytes for debPath directly from
+// the DECLARED revision's git objects and writes them into destDir, returning
+// the provenance record and the path to the materialized file.
+//
+// This is deliberately not "read the worktree, then verify it matches". Both
+// are safe when verification is perfect, but materializing removes ambient
+// filesystem state from the data path entirely rather than policing it. The
+// packages checkout may carry unrelated legitimate in-progress work — it
+// currently does — and release assembly must neither consume nor disturb it.
+//
+// The worktree file is still used for one thing: to locate the owning
+// repository and the repo-relative path. Its CONTENT is never assembled.
+func MaterializeDebFromSource(debPath string, sources *PackageSources, destDir string) (*DebProvenance, string, error) {
+	abs, err := filepath.Abs(debPath)
+	if err != nil {
+		return nil, "", &ProvenanceError{Path: debPath, Reason: "cannot resolve absolute path", Detail: err.Error()}
+	}
+
+	top, err := gitToplevel(filepath.Dir(abs))
+	if err != nil {
+		return nil, "", &ProvenanceError{
+			Path:   debPath,
+			Reason: "no owning git repository — a bundled deb must come from a declared, revision-backed source, not ambient filesystem state",
+			Detail: err.Error(),
+		}
+	}
+	identity := gitRepoIdentity(top)
+
+	rev, ok := sources.revisionFor(identity)
+	if !ok {
+		return nil, "", &ProvenanceError{
+			Path:   debPath,
+			Reason: "owning repository is not named in the release source manifest — a release may only consume declared package sources",
+			Detail: fmt.Sprintf("owning repository: %s\ncheckout:          %s", identity, top),
+		}
+	}
+
+	rel, err := filepath.Rel(top, abs)
+	if err != nil {
+		return nil, "", &ProvenanceError{Path: debPath, Reason: "cannot compute repo-relative path", Detail: err.Error()}
+	}
+	rel = filepath.ToSlash(rel)
+
+	// Authorized bytes come from the declared revision, not from disk.
+	authorized, err := gitBlob(top, rev, rel)
+	if err != nil {
+		return nil, "", &ProvenanceError{
+			Path:   debPath,
+			Reason: "not present at this path in the DECLARED source revision — untracked or newly added content must not substitute for a declared package input",
+			Detail: fmt.Sprintf("repo:              %s\ndeclared revision: %s\npath:              %s\ngit:               %v", identity, rev, rel, err),
+		}
+	}
+	authorizedSum := debSHA256Hex(authorized)
+
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return nil, "", fmt.Errorf("create materialization dir: %w", err)
+	}
+	out := filepath.Join(destDir, filepath.Base(rel))
+	if err := os.WriteFile(out, authorized, 0o644); err != nil {
+		return nil, "", fmt.Errorf("materialize %s: %w", rel, err)
+	}
+
+	blobOID, _ := gitOutput(top, "rev-parse", rev+":"+rel)
+	prov := &DebProvenance{
+		SHA256:         authorizedSum,
+		SourceRepo:     identity,
+		SourceRevision: rev,
+		DeclaredSource: rel,
+		SourceBlobOID:  blobOID,
+		SourceSHA256:   authorizedSum,
+	}
+	if err := prov.readControl(out); err != nil {
+		return nil, "", &ProvenanceError{Path: debPath, Reason: "cannot read deb control metadata", Detail: err.Error()}
+	}
+
+	// Diagnostic only. A divergent worktree is not an error here — that is the
+	// whole point of materializing — but silently consuming different bytes
+	// than the developer is looking at would be its own trap.
+	if onDisk, rerr := os.ReadFile(abs); rerr == nil {
+		if sum := debSHA256Hex(onDisk); sum != authorizedSum {
+			fmt.Fprintf(os.Stderr,
+				"  NOTE: worktree copy of %s differs from declared revision %s; assembling the DECLARED bytes\n"+
+					"        declared:  %s\n        worktree:  %s\n",
+				rel, rev[:min(12, len(rev))], authorizedSum, sum)
+		}
+	}
+	return prov, out, nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
