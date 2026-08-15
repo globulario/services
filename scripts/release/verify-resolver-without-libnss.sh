@@ -66,18 +66,59 @@ echo "  ${hostsline:-<no hosts: line>}"
 if echo "${hostsline}" | grep -q 'resolve'; then
     note "nsswitch still lists 'resolve'; glibc should skip an unloadable source"
     note "and fall through to 'dns'. That fall-through is what this run tests."
-    if echo "${hostsline}" | grep -qE 'resolve\s*\[[^]]*UNAVAIL\s*=\s*return'; then
-        bad "explicit [UNAVAIL=return] on 'resolve' overrides the default continue — fall-through is BLOCKED"
+    # The leading '!' inverts the meaning and is the difference between safe and
+    # unsafe, so it must be matched precisely:
+    #
+    #   [!UNAVAIL=return]  "for any status that is NOT unavail, return"
+    #                      -> an unavailable module CONTINUES to dns. SAFE.
+    #                      This is the stock Ubuntu idiom.
+    #   [UNAVAIL=return]   "on unavail, return"
+    #                      -> lookup stops dead. Fall-through BLOCKED.
+    #
+    # An earlier version of this check matched [^]]* across the '!' and so
+    # reported the stock-safe form as blocked — inverting the verdict on every
+    # default Ubuntu host.
+    action=$(echo "${hostsline}" | sed -n 's/.*resolve[[:space:]]*\(\[[^]]*\]\).*/\1/p')
+    if [ -n "${action}" ]; then
+        note "explicit NSS action on 'resolve': ${action}"
+        if echo "${action}" | grep -qE '\[[^]!]*UNAVAIL[[:space:]]*=[[:space:]]*return'; then
+            bad "[UNAVAIL=return] on 'resolve' stops the lookup — fall-through BLOCKED, removal unsafe on this host"
+        else
+            ok "NSS action on 'resolve' permits fall-through to dns"
+        fi
+    else
+        ok "no explicit NSS action on 'resolve' — glibc default continues to dns"
     fi
 fi
 
 echo
 echo "== configuration: globular.internal routed to Globular DNS =="
-if [ -r /etc/systemd/resolved.conf.d/globular-dns.conf ]; then
-    ok "resolved.conf.d drop-in present"
-    grep -E '^(DNS|Domains)=' /etc/systemd/resolved.conf.d/globular-dns.conf | sed 's/^/        /'
-else
-    bad "no Globular resolved.conf.d drop-in — the prerequisite is unconfigured"
+# Assert the CONFIGURATION, never one filesystem topology. Drop-in filenames
+# differ by node type (globular.conf on joined nodes, plus globular-dns.conf on
+# the day-0 founder), resolv.conf may be a stub symlink, an uplink file or a
+# static file, and NetworkManager may participate in ownership. An earlier
+# version of this check hardcoded one filename and declared the prerequisite
+# unconfigured on every joined node in the fleet — while resolution demonstrably
+# worked. What matters is that SOMETHING routes the cluster domain at Globular
+# DNS, by whatever legitimate mechanism.
+routed=0
+if ls /etc/systemd/resolved.conf.d/*.conf >/dev/null 2>&1 &&
+   grep -qs "${CLUSTER_DOMAIN}" /etc/systemd/resolved.conf.d/*.conf; then
+    ok "resolved.conf.d routes ${CLUSTER_DOMAIN}: $(ls /etc/systemd/resolved.conf.d/*.conf | tr '\n' ' ')"
+    grep -hE '^(DNS|Domains)=' /etc/systemd/resolved.conf.d/*.conf | sed 's/^/        /'
+    routed=1
+fi
+if command -v resolvectl >/dev/null 2>&1 &&
+   resolvectl status 2>/dev/null | grep -q "${CLUSTER_DOMAIN}"; then
+    ok "systemd-resolved reports a route for ${CLUSTER_DOMAIN}"
+    routed=1
+fi
+if grep -qs "${CLUSTER_DOMAIN}" /etc/resolv.conf; then
+    ok "/etc/resolv.conf references ${CLUSTER_DOMAIN}"
+    routed=1
+fi
+if [ "${routed}" -eq 0 ]; then
+    bad "no configured route for ${CLUSTER_DOMAIN} found by any mechanism — the prerequisite is unconfigured"
 fi
 if command -v resolvectl >/dev/null 2>&1; then
     resolvectl status 2>/dev/null | grep -E 'DNS Domain|Current DNS Server' | head -4 | sed 's/^/        /'
