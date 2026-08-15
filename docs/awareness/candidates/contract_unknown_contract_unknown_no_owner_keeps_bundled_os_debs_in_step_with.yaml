@@ -3,7 +3,38 @@ contract_unknown:
     kind: contract_unknown
     title: No owner keeps bundled OS debs in step with the base image they must install onto
     description: libnss-resolve bundles a deb with an exact-version dependency on systemd-resolved, a package supplied by the base image. Refreshing the checked-in deb resets the clock but does not prevent the next base-image security update from breaking joins again. Nothing detects the divergence at build time.
-    proposed_contract: The release build must verify that every bundled deb's dependencies are satisfiable against the target base image, and fail the build when they are not — the same way check-glibc-floor verifies binaries against the platform floor.
+    proposed_contract: |-
+      Two obligations, one on each side of the release boundary. The original
+      formulation captured only the consumer half; occurrence #2 (2026-08-14)
+      proved that half is necessary but not sufficient, because a bundled deb
+      taken from an uncommitted working tree can be perfectly satisfiable and
+      still be unreproducible.
+
+      PRODUCER (packages repo — where the input originates):
+        Bundled package content must originate from a declared, reproducible
+        source that is independent of ambient builder state. Provenance must
+        resolve to something immutable — repo, revision, path, sha256 — so that
+        assembly can assert `filesystem bytes == declared revision bytes` before
+        accepting them. Note the narrow form: this is NOT "build only from a
+        clean repository", which would entangle unrelated source edits with
+        package acquisition. It is "untracked or modified filesystem content
+        must not silently substitute for a declared package input".
+
+      CONSUMER (services release assembly — where the input is used):
+        Every bundled deb's dependencies must be satisfiable against the
+        declared target platform baseline, and assembly must fail closed when
+        they are not — the same way check-glibc-floor verifies binaries against
+        the platform floor. The gate must inspect the ACTUAL selected .deb
+        files, not assumptions about where they came from, emitting per deb:
+        package, version, architecture, sha256, declared source, source_revision,
+        Depends/Pre-Depends, and the baseline satisfiability result.
+
+      Together: control where release inputs come from, then prove those
+      controlled inputs are compatible with the declared platform.
     revision_request: 'Decide the strategy: refresh-per-release with a build-time satisfiability gate, drop the strict-pin package in favour of host apt, or pin the base image. Affects the offline-install guarantee either way.'
     evidence:
       - Refreshing packages/metadata/libnss-resolve/debs to 255.4-1ubuntu8.17 unblocked Day-1 join, but the same class of break recurs on the next systemd point release. The release build already gates binaries against the platform floor (check-glibc-floor) and has no equivalent gate for bundled debs; the 8.16 deb sat checked in from Jun 8 until it broke joins on 2026-08-10.
+      - 'OCCURRENCE #2 (2026-08-14) supplies the producer half. That "refreshing to 8.17" remedy was never committed: the 8.17 deb was UNTRACKED in the packages repo while HEAD carried 8.16 and the tracked 8.16 was deleted in the working tree. The release therefore consumed bytes git could not reproduce, and the remedy for occurrence #1 became the delivery mechanism for occurrence #2 on hosts still at 8.15/8.16. A purely consumer-side satisfiability gate would NOT have caught this: the 8.17 deb was satisfiable on the builder, which is precisely why it passed unnoticed there.'
+      - 'Selection precedence makes the ambient-substitution path structural, not accidental: pkgpack/builder.go:157-160 treats a populated package-local debs/ directory as "the checked-in authoritative source" and short-circuits both --debs-dir and apt-get download. "Checked-in" is asserted by directory location, never verified against the revision — so a tracked file, a locally modified file, and an untracked replacement with the same name are indistinguishable to the producer. Resolving provenance to repo+revision+path+sha256 and asserting filesystem-bytes == declared-revision-bytes would have stopped occurrence #2 cold.'
+      - 'Committed evidence that ambient builder state has leaked into "authoritative" package sources before: packages/metadata/scylladb/debs/ contains 12 _i386.deb files (libc6, libsystemd0_255.4-1ubuntu8.15_i386, gcc-14-base, ...). Nothing declared i386; the build host merely had multiarch enabled, and apt-get download output was committed as-is. An arch filter was later written at pkgpack/debdownload.go:28-110 to compensate for the symptom rather than to control the source.'
+      - 'The exclusion list makes the current libnss-resolve bundle mathematically unsatisfiable except by coincidence: systemd-resolved is on the never-bundle list at pkgpack/debdownload.go:190, while the bundled libnss-resolve Depends on systemd-resolved (= <exact>). So the bundle can only install where the target already happens to carry that exact version. This is detectable at build time with zero cluster involvement, which is what makes the consumer gate cheap and decisive.'
