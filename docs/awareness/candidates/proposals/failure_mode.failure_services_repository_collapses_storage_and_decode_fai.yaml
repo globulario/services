@@ -4,6 +4,32 @@
 # after verifying the contract.
 proposal:
     status: awaiting_review
+    # ─────────────────────────────────────────────────────────────────────────
+    # PARTIALLY FIXED — 2026-08-14, commit 799eca97, hours after this was filed.
+    # This entry describes TWO instances. Their status now differs, so do not
+    # accept or reject it as a whole.
+    #
+    # 1. trusted_publisher.go:167-170 — storage failure -> "empty publisher set"
+    #    PARTIALLY FIXED. The return value is deliberately UNCHANGED (still
+    #    nil, nil): altering it would change the API for every caller to fix a
+    #    reporting gap. What changed is that the branch now calls
+    #    noteCatalogFallback, degrading the repo:catalog-fallback subsystem, so
+    #    a read failure is no longer indistinguishable from an empty namespace
+    #    in any observable surface. The COLLAPSE remains; the SILENCE is gone.
+    #    Whether that is sufficient depends on reading
+    #    fallback.must_emit_degraded_finding as requiring observability (now
+    #    satisfied) or requiring the caller to be able to distinguish the two
+    #    cases (still not satisfied). That is a genuine open question for the
+    #    reviewer, not something this annotation should decide.
+    #
+    # 2. signature_policy.go:109-134 — decode failure -> permissive defaults
+    #    NOT FIXED, entirely as described. A corrupt policy still silently
+    #    becomes no policy, and the fallback is the most permissive posture
+    #    available. Impact remains low today only because the live etcd key
+    #    /globular/repository/security/policy is absent and the publish path
+    #    does not gate on trust — both of which could change without this code
+    #    changing.
+    # ─────────────────────────────────────────────────────────────────────────
     proposed_by: agent
     kind: failure_mode
     id: failure.services.repository_collapses_storage_and_decode_failures_into_empty

@@ -4,6 +4,32 @@
 # after verifying the contract.
 proposal:
     status: awaiting_review
+    # ─────────────────────────────────────────────────────────────────────────
+    # ALREADY FIXED — 2026-08-14, commit 01bc3e9c, hours after this was filed.
+    #
+    # The description below is written in the present tense and is now FALSE of
+    # the code. golang/interceptors/ServerInterceptors.go no longer sets infos
+    # to an empty slice and continues; it returns
+    # (false, true, wrapScopeFailure(method, err)) — deny — when the resource
+    # scope cannot be determined.
+    #
+    # Promote as HISTORY, not as a live defect. The class is real and worth
+    # remembering (it is the reference instance of the parent invariant
+    # "authority uncertainty must not collapse to an empty scope at a verdict
+    # boundary"), but a reviewer who reads it as current will go looking for a
+    # hole that is closed and may conclude the graph is unreliable.
+    #
+    # Still true and NOT fixed, from the same description:
+    #   - the two sibling ProtoReflect branches in the same function still
+    #     proceed on failure; their consequence differs (infos non-empty with
+    #     unbound paths) and was deliberately not verified, so they were left
+    #     alone rather than changed on a guess.
+    #
+    # Pinned by tests in golang/interceptors/resource_scope_failclosed_test.go,
+    # which also pin the producer-side not-found classification the fix depends
+    # on — if that classification is ever removed, denying on error would start
+    # rejecting every unmapped method.
+    # ─────────────────────────────────────────────────────────────────────────
     proposed_by: agent
     kind: failure_mode
     id: failure.services.rbac_resource_info_lookup_failure_collapses_to_an_empty_scop
