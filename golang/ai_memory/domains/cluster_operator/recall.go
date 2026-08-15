@@ -13,6 +13,7 @@ import (
 // these into the memories table at startup. Returns nil when the artifact is
 // absent (e.g. an older build that predates the recall compile step).
 func RecallSeedEntries() ([]cok.RecallEntry, error) {
+	//go:uncertainty:declared-failsafe reads an embed.FS, so the only failure is "artifact not compiled into this build" — absence genuinely IS the answer, not a runtime uncertainty. Triaged 2026-08-14.
 	data, err := generatedFS.ReadFile("generated/" + cok.FileRecall)
 	if err != nil {
 		// Absent artifact is not an error — there is simply nothing to self-seed.

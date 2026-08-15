@@ -252,6 +252,7 @@ func printPromotionPlan(w io.Writer, in promotionPlanInput) {
 // readLocalOverrideForPromotion reads the LocalOverride record from etcd.
 // Returns (nil, nil) when no override exists for the service.
 func readLocalOverrideForPromotion(serviceName string) (*cluster_controllerpb.LocalOverride, error) {
+	//go:uncertainty:declared-failsafe planner-only read in a CLI. etcd-unavailable reads as "no local override", which makes promotion REFUSE (nothing to promote) rather than promote the wrong thing — the degradation direction is safe. Diagnostics are poor: the operator sees "no override" instead of "etcd unreachable". Triaged 2026-08-14.
 	cli, err := config.GetEtcdClient()
 	if err != nil {
 		return nil, nil // etcd unavailable is non-fatal for a planner

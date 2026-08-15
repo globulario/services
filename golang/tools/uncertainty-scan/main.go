@@ -260,10 +260,20 @@ func collectOptOuts(fset *token.FileSet, file *ast.File) map[int]string {
 				continue
 			}
 			reason := strings.TrimSpace(strings.TrimPrefix(txt, optOutPragma))
-			// Applies to the next line (the if) and its own line.
+			// Applies to its own line and the next few. A pragma naturally sits
+			// above the whole statement group it justifies, not glued to the
+			// `if` — e.g.
+			//
+			//	//go:uncertainty:declared-failsafe <reason>
+			//	out, err := cmd.Output()
+			//	if err != nil {
+			//
+			// A 1-line window silently failed to match those during the
+			// 2026-08-14 triage, so annotated sites kept being re-reported.
 			ln := fset.Position(c.Pos()).Line
-			out[ln] = reason
-			out[ln+1] = reason
+			for off := 0; off <= 4; off++ {
+				out[ln+off] = reason
+			}
 		}
 	}
 	return out
