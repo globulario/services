@@ -32,7 +32,6 @@ var kinds = map[string]string{
 	"globular-cli":         "command",
 	"keepalived":           "infrastructure",
 	"ldap":                 "service",
-	"libnss-resolve":       "command",
 	"log":                  "service",
 	"mail":                 "service",
 	"mc":                   "command",

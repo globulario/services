@@ -36,6 +36,18 @@ type BuildOptions struct {
 	SkipMissingSystemd bool
 	DebsDir            string // pre-downloaded .deb directory; skips apt-get download when set
 
+	// PackageSourceRoot is the package's REAL directory inside its owning
+	// repository, used to resolve provenance.
+	//
+	// It exists because the build stages a package by copying metadata/<name>/
+	// into a temp work dir, so the deb paths handed to the builder point at
+	// /tmp/... — outside any repository. Walking up from a staged copy finds no
+	// owning repo and fails closed, which is correct behaviour on the wrong
+	// input. The staged copy's CONTENT is never what gets assembled anyway:
+	// bytes come from the declared revision's git objects. This names where to
+	// look them up.
+	PackageSourceRoot string
+
 	// PackageSourcesPath declares WHICH package-source revision this release may
 	// consume. Authority lives in the release repository, not in whatever
 	// checkout the builder encounters. Empty means "not declared", which refuses
@@ -819,7 +831,16 @@ func verifyBundledDebs(debPaths []string, opts BuildOptions) ([]string, error) {
 	provs := make([]*DebProvenance, 0, len(debPaths))
 	out := make([]string, 0, len(debPaths))
 	for _, p := range debPaths {
-		prov, materialized, err := MaterializeDebFromSource(p, sources, destDir)
+		// Resolve a staged copy back to its authoritative location before
+		// asking git about it.
+		lookup := p
+		if opts.PackageSourceRoot != "" {
+			candidate := filepath.Join(opts.PackageSourceRoot, "debs", filepath.Base(p))
+			if _, statErr := os.Stat(candidate); statErr == nil {
+				lookup = candidate
+			}
+		}
+		prov, materialized, err := MaterializeDebFromSource(lookup, sources, destDir)
 		if err != nil {
 			if opts.AllowUnprovenDebProvenance {
 				fmt.Fprintf(os.Stderr, "  WARNING: unproven deb provenance accepted via explicit override: %v\n", err)

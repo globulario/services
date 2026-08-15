@@ -132,6 +132,7 @@ var (
 	pkgSkipMissingSystemd bool
 	pkgDebsDir            string
 	pkgPackageSources     string
+	pkgPackageSourceRoot  string
 	pkgPlatformBaseline   string
 	pkgAllowUnprovenDebs  bool
 
@@ -197,6 +198,7 @@ func init() {
 	// Release authority. Both are required once a package bundles debs: an
 	// official release must name WHICH source revision it may consume and WHICH
 	// platform it must install on. Absence is a refusal, not a skipped check.
+	pkgBuildCmd.Flags().StringVar(&pkgPackageSourceRoot, "package-source-root", "", "the package's real directory inside its owning repository (provenance is resolved there, not from a staged copy)")
 	pkgBuildCmd.Flags().StringVar(&pkgPackageSources, "package-sources", "", "release source manifest declaring the package-source repository and revision (required for packages bundling debs)")
 	pkgBuildCmd.Flags().StringVar(&pkgPlatformBaseline, "platform-baseline", "", "declared target platform baseline bundled debs must install on (required for packages bundling debs)")
 	pkgBuildCmd.Flags().BoolVar(&pkgAllowUnprovenDebs, "allow-unproven-deb-provenance", false, "DANGEROUS: assemble bundled debs whose provenance cannot be proven against a declared revision")
@@ -279,6 +281,7 @@ func runPkgBuild(cmd *cobra.Command, args []string) error {
 		OutDir:                     pkgOutDir,
 		DebsDir:                    pkgDebsDir,
 		PackageSourcesPath:         pkgPackageSources,
+		PackageSourceRoot:          pkgPackageSourceRoot,
 		PlatformBaselinePath:       pkgPlatformBaseline,
 		AllowUnprovenDebProvenance: pkgAllowUnprovenDebs,
 		SkipMissingConfig:          pkgSkipMissingConfig,
