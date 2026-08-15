@@ -1162,6 +1162,13 @@ func (srv *server) ListArtifacts(ctx context.Context, _ *repopb.ListArtifactsReq
 	}
 
 	// Legacy / single-node fallback: scan MinIO directory.
+	// TRIAGE 2026-08-14: partially compensated, residual violation.
+	// requireCapability(CapRepoQuery) at RPC entry already fails closed when
+	// ScyllaDB is down, so the severe case is handled. But when this fallback
+	// actually activates (Scylla healthy, legacy scan fails) it is NOT
+	// observable: a Debug line is not a degraded finding reaching authoritative
+	// output. That does not satisfy invariant fallback.must_emit_degraded_finding.
+	// Deliberately NOT annotated as a declared fail-safe.
 	entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
 	if err != nil {
 		slog.Debug("artifacts directory not found, returning empty catalog", "err", err)
@@ -1806,6 +1813,10 @@ func (srv *server) GetArtifactVersions(ctx context.Context, req *repopb.GetArtif
 	}
 
 	// Legacy / single-node fallback: scan MinIO directory.
+	// TRIAGE 2026-08-14: same as ListArtifacts, and worse — this branch logs
+	// NOTHING. The capability gate handles the ScyllaDB-down case; an activated
+	// fallback here is completely silent, so fallback.must_emit_degraded_finding
+	// is unsatisfied. Deliberately NOT annotated as a declared fail-safe.
 	entries, err := srv.Storage().ReadDir(ctx, artifactsDir)
 	if err != nil {
 		return &repopb.GetArtifactVersionsResponse{}, nil

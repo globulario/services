@@ -69,7 +69,12 @@ const optOutPragma = "//go:uncertainty:declared-failsafe"
 var sinkSubstrings = []string{
 	"authorize", "authoriz",
 	"validateaction", "validateaccess", "validatesubject",
-	"evaluate", "verify", "admit", "resolve", "certify",
+	"evaluate", "verify", "admit", "certify",
+	// NOTE: bare "resolve" was removed after the first triage (2026-08-14). It
+	// matched config.ResolveServiceAddr (DNS), resolveClusterNameFromEtcd (DNS)
+	// and binhash.ResolveServiceBinaryPath (filesystem) — none of which are
+	// authority decisions. Only authority-resolving variants are kept.
+	"resolvepermission", "resolvepolicy", "resolverole", "resolveaccess",
 	"policydecision", "signaturepolicy",
 	"checkpermission", "haspermission", "isallowed", "candoaction",
 	"decide", "decision",
