@@ -1,7 +1,13 @@
 # libnss-resolve removal — deferred runtime activation
 
-**Status:** code fix proven and committed; runtime deployment intentionally deferred to the next
-coordinated release. The cluster was deliberately left untouched.
+**Status:** code fix proven and committed; runtime deployment intentionally deferred. The cluster
+was deliberately left untouched.
+
+**Scope changed 2026-08-14:** this is no longer a four-binary package-catalog change. An
+interceptor fix (`01bc3e9c`) makes authorization deny when the resource scope cannot be
+determined, and `interceptors` reaches 35 packages via the shared `globular_service` lifecycle.
+The deployment unit is the platform, and the rollout is a **security-semantics activation**
+requiring a designed canary — not the choreography recorded below, which is superseded.
 
 Do not read this as unfinished work. The defect is solved and proven. What is deferred is only
 making the *running* state reflect the commit.
@@ -62,6 +68,10 @@ accidentally in order to shrink a deployment.
 
 ## Rollout order for the release window
 
+> **SUPERSEDED 2026-08-14 — do not inherit this plan.** The four-binary order below was correct for a
+> package-catalog change. It is no longer the deployment unit. See "The plan changed" immediately
+> after it.
+
 Control truth and observation tooling first; the executor last, because node-agent is the mechanism
 performing the rollout.
 
@@ -77,6 +87,75 @@ node-agent LAST
     -> roll remaining nodes sequentially
     -> full convergence proof
 ```
+
+## The plan changed: this is now a security-semantics activation
+
+A separate fix (`01bc3e9c`) landed in `golang/interceptors`: when the RBAC resource-info lookup
+fails, the interceptor now **denies** instead of continuing with an empty resource scope.
+
+```
+before                          after
+resource lookup fails           resource lookup fails
+  -> warning                      -> authorization scope unknown
+  -> resources = []               -> DENY
+  -> authorization continues
+  -> request may proceed
+     WITHOUT resource scope
+```
+
+That is the correct security direction, but it changes what this release *is*. `interceptors` is
+reached through the shared `globular_service` lifecycle by **35 packages** — effectively the whole
+platform, not four binaries. The deployment unit is now the platform.
+
+The specific operational risk: a latent RBAC/resource-info reliability problem that was previously
+invisible becomes visible as denied RPCs. That is not a reason to keep the fail-open. It is a reason
+to deploy the fail-closed behaviour **with observation**.
+
+### Canary semantics rollout (replaces the order above)
+
+Freeze code and build provenance first, then:
+
+```
+one NON-CRITICAL node
+    (node-agent / executor still late in that node's own sequence)
+    -> exercise representative RPC classes:
+         read, write, resource-scoped, unmapped-method negative control,
+         repository ops, controller calls, doctor collection, node-agent ops
+    -> observe
+second node
+    -> observe
+remaining non-executor services
+node-agent / executor LAST
+    -> fleet convergence
+    -> doctor + functional smoke suite
+```
+
+**The canary predicate is not "services stayed running."** It is:
+
+```
+normal request
+  -> resource infos obtained
+  -> scoped authorization succeeds
+  -> RPC succeeds
+```
+
+and, with the RBAC/resource-info lookup deliberately made unavailable:
+
+```
+resource-info lookup failed for <method> (authorization scope unknown)
+  -> request denied
+```
+
+Then grep the canary's logs for that exact signature. **Zero unexpected occurrences during normal
+operation** is far stronger evidence than green health, because health can stay green while scoped
+authorization quietly denies a minority of calls.
+
+### Release-level assertion before deploying
+
+Enumerate the binaries **actually linked** against the changed `globular_service` / `interceptors`
+code, from the build graph or the produced artifacts — not inferred from imports or package names.
+"35 packages" can quietly become 29 binaries or 42, and the rollout accounting drifts without anyone
+noticing. Produce the concrete list and roll against it.
 
 Per `docs/operational-knowledge/deploy-package-via-mcp.md`, each service keeps its **current
 version** and advances only `build_number` (+1), publisher `core@globular.io`. Never bump the version

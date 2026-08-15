@@ -97,7 +97,7 @@ func main() {
 	includeTests := flag.Bool("include-tests", false, "scan _test.go files too")
 	flag.Parse()
 
-	findings, err := scan(*root, *includeTests)
+	findings, cov, err := scanWithCoverage(*root, *includeTests)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "uncertainty-scan: %v\n", err)
 		os.Exit(2)
@@ -115,7 +115,7 @@ func main() {
 		enc.SetIndent("", "  ")
 		_ = enc.Encode(findings)
 	} else {
-		report(findings)
+		report(findings, cov)
 	}
 
 	if *strict && len(findings) > 0 {
@@ -123,11 +123,18 @@ func main() {
 	}
 }
 
-func report(findings []Finding) {
+// coverage is what the detector actually examined. Reported alongside findings
+// so a zero result cannot be read as a broader claim than it is.
+type coverage struct {
+	FilesScanned int
+	FilesSkipped int
+	Sinks        []string
+}
+
+func report(findings []Finding, cov coverage) {
 	if len(findings) == 0 {
-		fmt.Println("uncertainty-scan: no candidates found")
-		fmt.Println("  NOTE: zero findings is not proof of safety — this tool detects one shape")
-		fmt.Println("  (error -> zero value -> verdict). It does not audit centralised fail-safes.")
+		fmt.Println("0 candidates for the uncertainty-erasure pattern")
+		printCoverage(cov)
 		return
 	}
 	byRule := map[string]int{}
@@ -146,16 +153,40 @@ func report(findings []Finding) {
 	}
 	sort.Strings(rules)
 	for _, r := range rules {
-		fmt.Printf("  %-24s %d\n", r, byRule[r])
+		fmt.Printf("  %-30s %d\n", r, byRule[r])
 	}
 	fmt.Println("\nThese are CANDIDATES, not confirmed defects. Each needs a human decision:")
 	fmt.Println("  - real erasure           -> make the uncertainty reach the decision")
 	fmt.Println("  - declared fail-safe     -> annotate with " + optOutPragma + " <reason>")
 	fmt.Println("  - centralised elsewhere  -> verify the central mechanism, then annotate")
+	printCoverage(cov)
+}
+
+// printCoverage states what was actually examined. A result is only as broad as
+// the detector's reach, and a bare "0 candidates" invites a much larger claim
+// than this tool can support — that no fail-open behaviour exists. It supports
+// exactly one: no instances of the modelled erasure pattern, in the files it
+// parsed, reaching the sinks it knows about.
+func printCoverage(cov coverage) {
+	fmt.Printf("\ncoverage\n")
+	fmt.Printf("  files scanned:  %d (skipped %d: generated, unparseable, or *_test.go)\n",
+		cov.FilesScanned, cov.FilesSkipped)
+	fmt.Printf("  pattern:        error -> zero value -> verdict, and error erased on return\n")
+	fmt.Printf("  verdict sinks:  %s\n", strings.Join(cov.Sinks, " "))
+	fmt.Printf("  NOT covered:    fail-open shapes other than uncertainty-erasure; sinks not\n")
+	fmt.Printf("                  listed above; shell scripts; anything behind an annotated\n")
+	fmt.Printf("                  %s\n", optOutPragma)
+	fmt.Printf("  THIS IS NOT a general fail-open certification.\n")
 }
 
 func scan(root string, includeTests bool) ([]Finding, error) {
+	f, _, err := scanWithCoverage(root, includeTests)
+	return f, err
+}
+
+func scanWithCoverage(root string, includeTests bool) ([]Finding, coverage, error) {
 	var out []Finding
+	cov := coverage{Sinks: sinkSubstrings}
 	fset := token.NewFileSet()
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
@@ -176,16 +207,19 @@ func scan(root string, includeTests bool) ([]Finding, error) {
 			return nil
 		}
 		if strings.HasSuffix(path, ".pb.go") || strings.Contains(path, "_generated.go") {
+			cov.FilesSkipped++
 			return nil // generated code is not authored policy
 		}
 		f, perr := parser.ParseFile(fset, path, nil, parser.ParseComments)
 		if perr != nil {
+			cov.FilesSkipped++
 			return nil // unparseable file: skip rather than abort the sweep
 		}
+		cov.FilesScanned++
 		out = append(out, scanFile(fset, path, f)...)
 		return nil
 	})
-	return out, err
+	return out, cov, err
 }
 
 func scanFile(fset *token.FileSet, path string, file *ast.File) []Finding {
