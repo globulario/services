@@ -135,30 +135,90 @@ func TestEvaluate(t *testing.T) {
 			focusVerdict: VerdictFailed,
 		},
 		{
-			// A4 uses install commit timestamp, not proto InstalledUnix.
-			name:         "11 A4 process started before install-commit -> FAILED",
-			mutate:       func(in *Inputs) { in.Runtime.ProcessStartUnix = 500 },
-			wantOverall:  VerdictFailed,
-			focusID:      AssertionRestartAfterInstall,
-			focusVerdict: VerdictFailed,
-		},
-		{
-			name:           "12 A4 process start equals install-commit -> PROVEN (same-second is fresh)",
-			mutate:         func(in *Inputs) { in.Runtime.ProcessStartUnix = in.Installed.InstallCommittedUnix },
+			// THE REGRESSION TEST for the 2026-08-14 false positive.
+			//
+			// This case previously asserted FAILED, on the theory that a process
+			// older than the install must be stale. It is the exact shape the
+			// node-agent produces on a CORRECT install: the service is started
+			// and the receipt is committed afterwards, so process_start lands
+			// before install_commit. `event` on globule-nuc and globule-lenovo
+			// reported A4 FAILED this way while A0-A3 were PROVEN against a
+			// byte-identical checksum.
+			//
+			// Identity settles it. The install is an os.Rename over a temp file,
+			// so a genuinely pre-install process would still hold the superseded
+			// inode and could not hash to the installed checksum. It does, so it
+			// restarted.
+			name:           "11 A4 process start predates install-commit but identity matches -> PROVEN",
+			mutate:         func(in *Inputs) { in.Runtime.ProcessStartUnix = 500 },
 			wantOverall:    VerdictProven,
 			focusID:        AssertionRestartAfterInstall,
 			focusVerdict:   VerdictProven,
-			reasonContains: "same second",
+			reasonContains: "superseded inode",
 		},
 		{
-			// metadata installed_at absent -> A4 INDETERMINATE (no fallback to
-			// the preserved first-install proto InstalledUnix).
-			name:           "16 A4 install-commit timestamp absent -> INDETERMINATE",
-			mutate:         func(in *Inputs) { in.Installed.InstallCommittedUnix = 0 },
+			// A4 must still be able to say NO, otherwise the fix has merely
+			// replaced a false positive with a check that cannot fail. A process
+			// executing bytes other than the installed artifact is the real
+			// stale-process condition, and it is detected without any clock.
+			name:           "11b A4 running executable is not the installed artifact -> FAILED",
+			mutate:         func(in *Inputs) { in.Runtime.RunningExeSHA256 = "ec-OLD" },
+			wantOverall:    VerdictFailed,
+			focusID:        AssertionRestartAfterInstall,
+			focusVerdict:   VerdictFailed,
+			reasonContains: "not the installed artifact",
+		},
+		{
+			// A4 IS NOT A DUPLICATE OF A3.
+			//
+			// Here the node installed something other than the published
+			// artifact and is faithfully running exactly what it installed. A3
+			// (runtime vs PUBLISHED) fails, because the node is not running the
+			// release. A4 (runtime vs INSTALLED) passes, because the process did
+			// restart onto the bytes this install placed.
+			//
+			// Two different defects — "wrong artifact installed" and "right
+			// artifact installed, process never restarted" — need two different
+			// assertions, and this case is what keeps them separable.
+			name: "11c A4 runtime matches installed but not published -> A4 PROVEN, A3 FAILED",
+			mutate: func(in *Inputs) {
+				in.Installed.EntrypointChecksum = "ec-OLD"
+				in.Runtime.RunningExeSHA256 = "ec-OLD"
+			},
+			wantOverall:  VerdictFailed,
+			focusID:      AssertionRestartAfterInstall,
+			focusVerdict: VerdictProven,
+		},
+		{
+			// Same-second used to need a special case, because a tie under the
+			// old ordering rule was unresolvable and produced a permanent
+			// UNKNOWN. Identity has no tie.
+			name:         "12 A4 process start equals install-commit -> PROVEN",
+			mutate:       func(in *Inputs) { in.Runtime.ProcessStartUnix = in.Installed.InstallCommittedUnix },
+			wantOverall:  VerdictProven,
+			focusID:      AssertionRestartAfterInstall,
+			focusVerdict: VerdictProven,
+		},
+		{
+			// Timestamps are corroboration, not the verdict: losing them entirely
+			// must not change the answer, because they were never carrying it.
+			name:         "16 A4 install-commit timestamp absent -> still PROVEN by identity",
+			mutate:       func(in *Inputs) { in.Installed.InstallCommittedUnix = 0 },
+			wantOverall:  VerdictProven,
+			focusID:      AssertionRestartAfterInstall,
+			focusVerdict: VerdictProven,
+		},
+		{
+			// The one case that legitimately cannot be answered. It is
+			// INDETERMINATE and never FAILED: with no identity evidence there is
+			// nothing to convict on, and timestamp ordering is not evidence for
+			// this installer. A0-A3 still carry the boundary verdict.
+			name:           "16b A4 runtime checksum unavailable -> INDETERMINATE, not FAILED",
+			mutate:         func(in *Inputs) { in.Runtime.RunningExeSHA256 = "" },
 			wantOverall:    VerdictIndeterminate,
 			focusID:        AssertionRestartAfterInstall,
 			focusVerdict:   VerdictIndeterminate,
-			reasonContains: "install-commit time unavailable",
+			reasonContains: "wall-clock ordering is not evidence",
 		},
 		{
 			name:         "13 wrapper package -> NOT_APPLICABLE",
@@ -252,6 +312,60 @@ func TestEvaluate_WrapperNeverFailed(t *testing.T) {
 			if a.Verdict == VerdictFailed {
 				t.Errorf("wrapper assertion %s = FAILED, must never fail for unhashable package", a.ID)
 			}
+		}
+	}
+}
+
+// TestA4_LiveFalsePositive_2026_08_14 replays the evidence that exposed the
+// defect, copied verbatim from `release_verify_boundary(service_id="event",
+// node_id="681710ee-6966-5df3-b155-3cef8b4e1a96")` on the production cluster.
+//
+// The old predicate returned FAILED "process started before the artifact was
+// installed (stale process)" on a one-second gap, while A0-A3 were all PROVEN
+// against the same checksum on all three layers — repository, installed, and
+// running. Nothing was stale. The install committed its receipt one second
+// after starting the process, which is what a correct install does.
+//
+// The literal numbers are kept rather than reduced to a synthetic 500/1000
+// pair, so that a future change to the ordering rule has to confront the real
+// margin the installer actually produces.
+func TestA4_LiveFalsePositive_2026_08_14(t *testing.T) {
+	const ec = "98fa59cf37d82a6345a447b76c32db1fece697f9f2d680ec2de2b90c7462f89b"
+	in := Inputs{
+		ServiceName:    "event",
+		NodeName:       "globule-nuc",
+		DesiredBuildID: "019ffcdd-d51e-7649-953b-07b0faa811aa",
+		Manifest: &ManifestEvidence{
+			BuildID:            "019ffcdd-d51e-7649-953b-07b0faa811aa",
+			PublishState:       publishStatePublished,
+			EntrypointChecksum: ec,
+		},
+		Repository: &RepositoryEvidence{Present: true, Verified: true},
+		Installed: &InstalledEvidence{
+			BuildID:              "019ffcdd-d51e-7649-953b-07b0faa811aa",
+			EntrypointChecksum:   ec,
+			InstallCommittedUnix: 1786753640,
+		},
+		Runtime: &RuntimeEvidence{
+			Running:          true,
+			RunningExeSHA256: ec,
+			ProcessStartUnix: 1786753639, // one second BEFORE install-commit
+		},
+	}
+
+	rep := Evaluate(in)
+	a4 := assertionByID(t, rep, AssertionRestartAfterInstall)
+	if a4.Verdict != VerdictProven {
+		t.Errorf("A4 = %q (%s), want PROVEN — this is the live false positive", a4.Verdict, a4.Reason)
+	}
+	if rep.Verdict != VerdictProven {
+		t.Errorf("overall = %q, want PROVEN — every layer carries the same checksum", rep.Verdict)
+	}
+	// The identity evidence must be visible in the report. A verdict whose
+	// grounds are not printed cannot be audited by the operator who receives it.
+	for _, k := range []string{"running_exe_sha256", "installed_entrypoint_checksum"} {
+		if a4.Evidence[k] == "" {
+			t.Errorf("A4 evidence missing %q; the report must show what the verdict rests on", k)
 		}
 	}
 }

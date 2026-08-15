@@ -286,22 +286,29 @@ func StampMigrationFromLegacySidecar(pkg *node_agentpb.InstalledPackage, unitPat
 	pkg.Metadata[KeyMigrationSource] = MigrationSourceLegacySidecar
 	// installed_at is the artifact's install-commit time and is owned by the
 	// install path. Migration installs nothing — it adopts a unit that was
-	// already on disk — so stamping time.Now() here mints an install-commit
-	// that is ALWAYS later than the start of the process already running that
-	// artifact. release_boundary evalA4 ("process started after the artifact
-	// was installed") then reports FAILED "stale process" for every adopted
-	// service, permanently, on a correctly-installed node.
+	// already on disk — so stamping time.Now() here would record an
+	// install-commit for work this path did not perform, violating
+	// invariant:installed_state_requires_successful_owner_install_receipt.
 	// forbidden_fix:use_wall_clock_for_installed_unix_timestamp.
 	//
 	// Anchor to the unit file's mtime instead: a real observation of when the
-	// installer materialized this package, not the observer's clock. This
-	// preserves the genuine stale-process signal — a unit rewritten by a later
-	// install without a restart still yields mtime > process start → FAILED.
+	// installer materialized this package, not the observer's clock. When the
+	// mtime is unreadable, leave installed_at ABSENT rather than fabricate one.
+	// An installed_at already stamped by the canonical install path is never
+	// overwritten here.
 	//
-	// When the mtime is unreadable, leave installed_at ABSENT so A4 reports
-	// INDETERMINATE (honest unknown) rather than a fabricated verdict. An
-	// installed_at already stamped by the canonical install path is never
-	// overwritten with a fabricated value here.
+	// HISTORICAL NOTE (2026-08-15): this rule was originally justified by its
+	// effect on the release-boundary A4 assertion, which compared
+	// process_start against install_commit and so reported FAILED "stale
+	// process" for every adopted service. A4 no longer reads timestamps — it
+	// compares the running executable's hash against the installed entrypoint
+	// checksum — so that consequence no longer follows, and the old claim that
+	// mtime "preserves the genuine stale-process signal" is no longer true:
+	// A4 detects that condition by identity, not by ordering.
+	//
+	// The rule stands on its own authority regardless. A path that installs
+	// nothing must not mint an install-commit timestamp. Do not relax this
+	// because the downstream consumer changed.
 	if mtime, err := fileMTimeUnix(unitPath); err == nil {
 		pkg.Metadata[KeyInstalledAt] = strconv.FormatInt(mtime, 10)
 	}
