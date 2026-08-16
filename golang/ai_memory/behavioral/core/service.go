@@ -31,7 +31,13 @@ func New(st store.Store, reg *domain.Registry) *Service {
 	if reg == nil {
 		reg = domain.NewRegistry()
 	}
-	return &Service{store: st, registry: reg}
+	s := &Service{registry: reg}
+	// Every CheckAction already persists through RecordActionCheck. Decorate that
+	// single audit seam so ungoverned checks become learnable without adding a
+	// second caller-specific learning path. The decorator forwards the complete
+	// Store interface and changes no governance verdict.
+	s.store = &learningAuditStore{Store: st, service: s}
+	return s
 }
 
 // Ingestion RPCs → ingestion.go (PR-2); governance RPCs → governance.go (PR-3);
