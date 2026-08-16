@@ -38,7 +38,7 @@ From `golang/`:
 
 ```bash
 go test ./oci/...
-go build -o ../dist/bin/globular-oci-runner ./oci/cmd/globular-oci-runner
+go build -o ../dist/.staging/bin/globular-oci-runner ./oci/cmd/globular-oci-runner
 ```
 
 ## Commands

@@ -45,7 +45,7 @@ jobs:
       - name: Build runner
         run: scripts/build-oci-runner.sh
       - name: Validate reference specification
-        run: dist/bin/globular-oci-runner validate --spec docs/examples/oci/minimal-service.example.json
+        run: dist/.staging/bin/globular-oci-runner validate --spec docs/examples/oci/minimal-service.example.json
 
   docker-smoke:
     runs-on: ubuntu-latest

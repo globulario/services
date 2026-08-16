@@ -58,20 +58,43 @@ MIRROR_HEADER = "# Generated mirror of packages/registry.yaml.\n# Do not edit th
 WEBROOT_MIRROR_SCHEMA = "globular.webroot.mirror/v1"
 PACKAGECATALOG_SCHEMA = "globular.packagecatalog.mirror/v1"
 LEGACY_SPEC_ROOTS = (Path("../specs/specs"),)
+# Sanctioned consumers of services/generated/specs.
+#
+# KNOWN GAP, recorded here rather than hidden: the *_test.go entries all read
+# generated/specs from disk and t.Skipf when it is absent. services/generated is
+# gitignored and CI never produces it, so those tests never execute there — they
+# report SKIP, which reads like PASS in a green run. That includes
+# native_dep_check_test.go's TestSpecgenBundlesNativeDebsForSQL, the regression
+# test for the native-dependency bundling whose absence failed
+# install_workloads_compute and with it every compute-profile node.join. Making
+# them hermetic is blocked on a prior question: deploy.GenerateSpec (catalog
+# driven) and specgen.sh (binary --describe driven) produce DIFFERENT specs for
+# sql — only the latter emits bundle_debs — so which one is authoritative has to
+# be settled first.
 ALLOWED_GENERATED_SPECS_REFS = {
     "README-BUILD.md",
     "build-all-packages.sh",
+    "golang/cmd/affectedtests/census_test.go",
     "golang/deploy/deploy.go",
     "golang/deploy/deploy_test.go",
     "golang/globularcli/pkgpack/packagespec_real_test.go",
     "golang/globularcli/tools/pkggen/pkggen.sh",
     "golang/globularcli/tools/specgen/specgen.sh",
+    "golang/node_agent/node_agent_server/native_dep_check_test.go",
+    "scripts/build-local-release.sh",
     "scripts/validate-package-authority.py",
     "scripts/regenerate-release-inputs.sh",
 }
+# Sanctioned participants in release binary staging (services/dist/.staging/).
+# globular-oci-runner is a release package (v1.0.0 in package-versions.txt), so
+# its build output belongs in staging with every other release binary — see the
+# dist/bin correction that accompanied this list's expansion.
 ALLOWED_DIST_STAGING_REFS = {
+    ".github/workflows/oci-runtime.yml",
     ".github/workflows/release.yml",
     "golang/build/detect-changes.py",
+    "golang/oci/README.md",
+    "scripts/build-oci-runner.sh",
     "scripts/build-release.sh",
     "scripts/validate-package-authority.py",
 }
@@ -115,18 +138,54 @@ def rel(path: Path, root: Path) -> str:
         return str(path)
 
 
-def rg_files(pattern: str, roots: list[str], cwd: Path) -> set[str]:
+class ScannerUnavailable(RuntimeError):
+    """The scan could not be performed, so its result proves nothing."""
+
+
+def files_matching(pattern: str, roots: list[str], cwd: Path) -> set[str]:
+    """Tracked files under `roots` whose contents match `pattern`.
+
+    This used to shell out to ripgrep and, on FileNotFoundError, return an empty
+    set. ripgrep is installed on developer machines and was never installed in
+    CI, so every check built on it returned "no findings" in the one environment
+    that gates merges. Three policy checks were dead there for as long as they
+    have existed: on 2026-08-16, this file reported 7 violations locally and 0
+    in CI for the identical commit, and the 5 that vanished were real. That is
+    failure mode awareness.scanner_zero_findings_conflates_clean_with_dead — a
+    dead rule reports zero exactly like clean code.
+
+    Installing ripgrep in CI would have fixed the symptom and left the trapdoor
+    for the next environment. Instead the external dependency is gone: files are
+    enumerated with `git ls-files` (git is definitionally present in a checkout,
+    and tracked-file scope is what a policy about repository content means) and
+    matched in Python. If enumeration fails the caller gets ScannerUnavailable
+    and the gate fails loudly — a scan that cannot run must never look clean.
+    """
     try:
         proc = subprocess.run(
-            ["rg", "-l", pattern, *roots],
-            cwd=cwd,
-            check=False,
-            capture_output=True,
-            text=True,
+            ["git", "ls-files", "-z", "--", *roots],
+            cwd=cwd, check=True, capture_output=True, text=True, timeout=60,
         )
-    except FileNotFoundError:
-        return set()
-    return {line.strip() for line in proc.stdout.splitlines() if line.strip()}
+    except (subprocess.SubprocessError, OSError) as exc:
+        raise ScannerUnavailable(f"cannot enumerate tracked files under {roots}: {exc}") from exc
+
+    try:
+        regex = re.compile(pattern)
+    except re.error as exc:
+        raise ScannerUnavailable(f"invalid scan pattern {pattern!r}: {exc}") from exc
+
+    matches: set[str] = set()
+    for name in proc.stdout.split("\0"):
+        name = name.strip()
+        if not name:
+            continue
+        try:
+            text = (cwd / name).read_text(encoding="utf-8", errors="ignore")
+        except (OSError, ValueError):
+            continue  # unreadable or vanished between enumeration and read
+        if regex.search(text):
+            matches.add(name)
+    return matches
 
 
 def load_registry(path: Path) -> list[dict]:
@@ -375,7 +434,7 @@ def check_installer_packagecatalog(
 
 
 def check_generated_specs_consumers(errors: list[str], services_root: Path) -> None:
-    refs = rg_files("generated/specs", ["golang", "scripts", "build-all-packages.sh", "README.md", "README-BUILD.md"], services_root)
+    refs = files_matching("generated/specs", ["golang", "scripts", "build-all-packages.sh", "README.md", "README-BUILD.md"], services_root)
     for path in sorted(refs - ALLOWED_GENERATED_SPECS_REFS):
         fail(errors, f"{path} references services/generated/specs but is not an allowlisted generator/build helper")
 
@@ -401,11 +460,11 @@ def check_generated_workspace_inputs(errors: list[str], services_root: Path, reg
 
 
 def check_release_staging_consumers(errors: list[str], services_root: Path) -> None:
-    stale_bin_refs = rg_files(r"dist/bin", [".github", "golang", "scripts", "README.md", "README-BUILD.md"], services_root)
+    stale_bin_refs = files_matching(r"dist/bin", [".github", "golang", "scripts", "README.md", "README-BUILD.md"], services_root)
     for path in sorted(stale_bin_refs - ALLOWED_DIST_STAGING_REFS):
         fail(errors, f"{path} references services/dist/bin — release binary staging must live under services/dist/.staging/bin")
 
-    staging_refs = rg_files(r"dist/\.staging/bin|dist/packages", [".github", "golang", "scripts"], services_root)
+    staging_refs = files_matching(r"dist/\.staging/bin|dist/packages", [".github", "golang", "scripts"], services_root)
     for path in sorted(staging_refs - ALLOWED_DIST_STAGING_REFS):
         fail(errors, f"{path} consumes services/dist staging paths outside the release assembly allowlist")
 
@@ -656,9 +715,15 @@ def main() -> int:
             fail(errors, f"registry runtime package {entry['name']} has no canonical metadata spec to mirror")
 
     check_installer_packagecatalog(errors, repo_root, installer_root, registry_path, registry_entries, canonical_specs)
-    check_generated_specs_consumers(errors, services_root)
+    # A content scan that cannot run proves nothing, so it must not pass quietly.
+    # These two checks previously returned "no findings" in CI for years because
+    # their scanner was unavailable there; that is the one outcome forbidden now.
+    try:
+        check_generated_specs_consumers(errors, services_root)
+        check_release_staging_consumers(errors, services_root)
+    except ScannerUnavailable as exc:
+        fail(errors, f"content scan could not run, so its result proves nothing: {exc}")
     check_generated_workspace_inputs(errors, services_root, registry_entries)
-    check_release_staging_consumers(errors, services_root)
     check_forbidden_spec_locations(errors, repo_root, packages_root)
     check_packages_bin_hygiene(errors, repo_root, packages_root, declared_bins)
     check_required_staged_binaries(errors, repo_root, packages_root, declared_bins, args.require_staged_binary)
