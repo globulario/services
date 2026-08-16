@@ -227,6 +227,12 @@ func TestCorrectKindFromRepo(t *testing.T) {
 // genuinely being published with kind=COMMAND. correctKindFromRepoAndCatalog
 // must correct via the packagekind registry (a local, always-available,
 // build-time source) even when repoKind is completely empty.
+//
+// libnss-resolve — the package that produced the original incident — was
+// removed from packages/registry.yaml on 2026-08-14, so it is no longer a
+// registered kind and cannot serve as a case here. The ratchet is unchanged:
+// sha256sum and yt-dlp exercise the same empty-repoKind correction path
+// through the registry.
 func TestCorrectKindFromRepoAndCatalog_RepoKindNeverPopulated(t *testing.T) {
 	cases := []struct {
 		name        string
@@ -235,8 +241,9 @@ func TestCorrectKindFromRepoAndCatalog_RepoKindNeverPopulated(t *testing.T) {
 		packageName string
 		want        string
 	}{
-		{"infra_corrected_via_packagekind_despite_empty_repo_kind", "INFRASTRUCTURE", "", "libnss-resolve", "COMMAND"},
-		{"infra_corrected_via_packagekind_for_other_known_commands", "INFRASTRUCTURE", "", "sha256sum", "COMMAND"},
+		{"infra_corrected_via_packagekind_despite_empty_repo_kind", "INFRASTRUCTURE", "", "sha256sum", "COMMAND"},
+		{"infra_corrected_via_packagekind_for_other_known_commands", "INFRASTRUCTURE", "", "restic", "COMMAND"},
+		{"deregistered_package_is_not_corrected", "INFRASTRUCTURE", "", "libnss-resolve", "INFRASTRUCTURE"},
 		{"service_corrected_via_packagekind_despite_empty_repo_kind", "SERVICE", "", "yt-dlp", "COMMAND"},
 		{"repo_kind_still_honored_when_packagekind_unknown", "INFRASTRUCTURE", "COMMAND", "totally-unregistered-name", "COMMAND"},
 		{"unrelated_infra_package_not_corrected", "INFRASTRUCTURE", "", "etcd", "INFRASTRUCTURE"},
