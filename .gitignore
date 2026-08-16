@@ -82,3 +82,16 @@ scripts/__pycache__/
 # Runtime tool noise (behavioral-memory import error dumps, awg local state)
 import_behavioral_memory_signals.err*
 .awg/
+
+# Sensei runtime markers. These are per-checkout, per-process descriptors the
+# awareness-graph service writes when it binds — sensei's own changelog (v1.5.0)
+# describes a checkout's graph-authority.json being overwritten with state read
+# from a foreign service. They rewrite themselves whenever the graph is merely
+# CONSULTED, so tracking them dirtied the tree on every session and blocked
+# every branch switch, and their seven commits were all "re-certify"/"refresh"
+# chores — never a reviewed change. Nothing in this repo reads them; the
+# authored awareness corpus is docs/awareness/, and .sensei/config.yaml,
+# .sensei/project/ and .sensei/skills/ stay tracked.
+.sensei/graph-authority.json
+.sensei/graph-authority.transaction.tsv
+.sensei/graph-closure-report.json
