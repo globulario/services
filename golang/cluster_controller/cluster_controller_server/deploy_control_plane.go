@@ -43,8 +43,8 @@ func (srv *server) DeployControlPlanePackage(ctx context.Context, req *cluster_c
 	if !srv.isLeader() {
 		return reject("this instance is not the leader — send to leader node"), nil
 	}
-	if srv.workflowClient == nil {
-		return reject("workflow service not configured"), nil
+	if srv.getWorkflowClient() == nil {
+		return reject("workflow service not reachable"), nil
 	}
 
 	// ── Resolve build from repository ──
