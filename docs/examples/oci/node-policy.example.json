@@ -1,0 +1,29 @@
+{
+  "allowed_mount_roots": [
+    "/var/lib/globular/oci",
+    "/var/lib/globular/data",
+    "/var/lib/globular/cache",
+    "/etc/globular"
+  ],
+  "allowed_writable_roots": [
+    "/var/lib/globular/oci",
+    "/var/lib/globular/data",
+    "/var/lib/globular/cache"
+  ],
+  "allowed_secret_roots": [
+    "/etc/globular/oci/secrets",
+    "/run/globular/secrets"
+  ],
+  "allowed_registry_hosts": [
+    "docker.io",
+    "ghcr.io",
+    "nvcr.io"
+  ],
+  "allow_host_network": false,
+  "allow_privileged": false,
+  "allow_docker_socket_mount": false,
+  "allow_added_capabilities": false,
+  "max_gpu_count": 2,
+  "max_memory_bytes": 25769803776,
+  "max_nano_cpus": 8000000000
+}

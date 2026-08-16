@@ -1,0 +1,87 @@
+{
+  "api_version": "globular.io/oci/v1alpha1",
+  "kind": "OCIService",
+  "metadata": {
+    "name": "example-api",
+    "labels": {
+      "application": "example"
+    }
+  },
+  "spec": {
+    "image": {
+      "repository": "registry.example.com/team/example-api",
+      "tag": "1.2.3",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "pull_policy": "if-not-present"
+    },
+    "environment": [
+      {
+        "name": "LOG_LEVEL",
+        "value": "info"
+      }
+    ],
+    "mounts": [
+      {
+        "source": "/var/lib/globular/oci/example-api/data",
+        "target": "/var/lib/example-api",
+        "create_if_missing": true
+      }
+    ],
+    "network": {
+      "mode": "bridge",
+      "ports": [
+        {
+          "container_port": 8080,
+          "host_port": 18080,
+          "protocol": "tcp"
+        }
+      ]
+    },
+    "resources": {
+      "memory_bytes": 536870912,
+      "nano_cpus": 1000000000
+    },
+    "security": {
+      "read_only_root_filesystem": true,
+      "no_new_privileges": true,
+      "drop_capabilities": [
+        "ALL"
+      ]
+    },
+    "health": {
+      "startup": {
+        "type": "tcp",
+        "address": "127.0.0.1",
+        "port": 18080,
+        "interval_millis": 500,
+        "timeout_millis": 500,
+        "failure_threshold": 60
+      },
+      "readiness": {
+        "type": "http",
+        "address": "127.0.0.1",
+        "port": 18080,
+        "path": "/ready",
+        "expected_status_min": 200,
+        "expected_status_max": 299,
+        "interval_millis": 1000,
+        "timeout_millis": 1000,
+        "failure_threshold": 30
+      },
+      "liveness": {
+        "type": "http",
+        "address": "127.0.0.1",
+        "port": 18080,
+        "path": "/health",
+        "interval_millis": 10000,
+        "timeout_millis": 2000,
+        "failure_threshold": 3
+      }
+    },
+    "lifecycle": {
+      "stop_timeout_seconds": 30,
+      "remove_on_stop": false,
+      "retain_failed_container": true
+    }
+  }
+}
