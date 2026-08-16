@@ -84,6 +84,7 @@ func newBehavioralHandler(st store.Store) *behavioralHandler {
 // registerBehavioralService registers the BehavioralMemoryService on the given
 // gRPC server, backed by the given store.
 func registerBehavioralService(gs *grpc.Server, st store.Store) {
+	seedRegisteredBehavioralDomains(st)
 	bpb.RegisterBehavioralMemoryServiceServer(gs, newBehavioralHandler(st))
 }
 
