@@ -53,6 +53,8 @@ package main
 // parameters and produces the expected response shapes.
 
 import (
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/globulario/services/golang/config"
@@ -260,4 +262,52 @@ func TestDetectUnits_IncludeMinioForMember(t *testing.T) {
 	// This is a no-panic/smoke test in the test environment; the important
 	// behaviour (minio present in baseline) is covered by the constructor.
 	_ = detectUnits(t.Context(), "", false)
+}
+
+// TestApplyPackageMinioGate_EnforcesHoldNotJustSkipsStart closes Path B's gap.
+//
+// The threat model above records Path B as "GATED: returns installed_held when
+// !nodeIPInPool". That was true of the START, but not of the RUNNING STATE: the
+// minio package's own post-install script starts the service before this gate
+// is reached (its output literally reads "[minio/post-install] ✓ MinIO already
+// running"). Declining to start a service that is already running enforces
+// nothing.
+//
+// Observed on a clean 5-node bring-up 2026-08-10: node-2 logged
+//
+//	apply-package: minio installed on non-member node c8a09d9e… (ip=10.10.0.12)
+//	  — skipping service start (held_not_in_topology)
+//
+// and MinIO kept serving on that node until the syncTicker sweep stopped it
+// ~96s later. During that window cluster-doctor reported
+// objectstore.minio.active_on_non_member and
+// objectstore.minio.standalone_splitbrain, both CRITICAL, with four nodes
+// running isolated data stores against a desired topology of one.
+//
+// The fix routes the branch through enforceMinioHeld — the same idempotent,
+// non-destructive stop that reconcileMinioSystemdConfig already applies — so
+// the hold is effective at install time rather than up to one sweep later.
+func TestApplyPackageMinioGate_EnforcesHoldNotJustSkipsStart(t *testing.T) {
+	src, err := os.ReadFile("apply_package_release.go")
+	if err != nil {
+		t.Fatalf("read apply_package_release.go: %v", err)
+	}
+
+	const marker = `if name == "minio" {`
+	i := strings.Index(string(src), marker)
+	if i < 0 {
+		t.Fatal("minio topology gate not found in apply_package_release.go — renamed? update this test")
+	}
+	// Bound the scan to the gate block: the next top-level section marker.
+	branch := string(src)[i:]
+	if j := strings.Index(branch, "── Self-update edge case"); j >= 0 {
+		branch = branch[:j]
+	}
+
+	if !strings.Contains(branch, "enforceMinioHeld(") {
+		t.Fatal("minio non-member branch must call enforceMinioHeld: the package post-install script starts MinIO before this gate runs, so skipping the start leaves an unauthorized instance serving an isolated data store until the next syncTicker sweep")
+	}
+	if !strings.Contains(branch, `Status:      "installed_held"`) {
+		t.Fatal("minio non-member branch must still report installed_held — the hold is a reported state, not a silent stop")
+	}
 }

@@ -203,6 +203,20 @@ check-operator-skill:
 
 # ── Aggregate check target ───────────────────────────────────────────────────
 
+# uncertainty-scan — REPORT ONLY. Deliberately NOT part of check-services.
+#
+# Finds places where authority uncertainty is collapsed into a zero value and
+# then flowed into a verdict (Authorize / Evaluate / Verify / Admit / Resolve /
+# Certify). Reports CANDIDATES, not defects: some empty values are the declared
+# fail-safe, and a gate that cannot tell them apart would push people to "fix"
+# correct code. Promote individual rule classes to -strict only once a labelled
+# corpus proves them high-confidence.
+#
+# Calibrated 2026-08-14 against real findings: `false` in an error branch is NOT
+# treated as a collapse, because marking failure honestly is fail-CLOSED.
+uncertainty-scan:
+	@cd golang && go run ./tools/uncertainty-scan -root ./
+
 check-services: check-controller-no-exec check-nodeagent-exec-boundary check-proto-authz check-no-misplaced-pb check-no-tracked-binaries check-package-kinds check-package-authority check-day0-package-contract check-identity-authority check-operator-skill
 
 # ── Test targets ─────────────────────────────────────────────────────────────

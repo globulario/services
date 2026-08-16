@@ -366,32 +366,83 @@ func evalA4(in Inputs) AssertionReport {
 		Name:     "restart after install",
 		Evidence: map[string]string{},
 	}
-	if in.Runtime == nil || !in.Runtime.Running || in.Runtime.ProcessStartUnix == 0 {
+	if in.Runtime == nil || !in.Runtime.Running {
 		r.Verdict = VerdictIndeterminate
-		r.Reason = "process start time unavailable"
+		r.Reason = "process is not running"
 		return r
 	}
-	if in.Installed == nil || in.Installed.InstallCommittedUnix == 0 {
+	if in.Installed == nil {
 		r.Verdict = VerdictIndeterminate
-		r.Reason = "install-commit time unavailable (metadata installed_at absent)"
+		r.Reason = "installed evidence missing"
 		return r
 	}
-	r.Evidence["process_start_unix"] = int64Str(in.Runtime.ProcessStartUnix)
-	r.Evidence["install_committed_unix"] = int64Str(in.Installed.InstallCommittedUnix)
-	switch {
-	case in.Runtime.ProcessStartUnix < in.Installed.InstallCommittedUnix:
+
+	// Timestamps are recorded as CORROBORATION only. They are never the verdict.
+	if in.Runtime.ProcessStartUnix != 0 {
+		r.Evidence["process_start_unix"] = int64Str(in.Runtime.ProcessStartUnix)
+	}
+	if in.Installed.InstallCommittedUnix != 0 {
+		r.Evidence["install_committed_unix"] = int64Str(in.Installed.InstallCommittedUnix)
+	}
+
+	// ── the causal predicate ──────────────────────────────────────────────
+	//
+	// A4 asks: is this process executing the bytes THIS install placed, or a
+	// pre-install process that never restarted? That is a question about
+	// identity, and it is answered by identity.
+	//
+	// The node-agent installs a binary by writing a temp file and os.Rename-ing
+	// it into place (actions/artifact.go:692-730, :1186-1231, :1239-1253), so
+	// the install ALWAYS produces a new inode. A process that started before
+	// the install still holds an open fd to the superseded inode, and
+	// /proc/<pid>/exe therefore resolves to the OLD bytes. Its hash cannot
+	// equal the newly installed artifact's checksum.
+	//
+	// So "running executable hash == installed entrypoint checksum" IS the
+	// restart-after-install proof, and it holds regardless of clocks.
+	//
+	// This is distinct from A3, which compares runtime against the PUBLISHED
+	// manifest. A4 compares runtime against what was INSTALLED on this node —
+	// the two differ whenever installed state and published state disagree, and
+	// A4's job is the second question.
+	if in.Runtime.RunningExeSHA256 != "" && in.Installed.EntrypointChecksum != "" {
+		r.Evidence["running_exe_sha256"] = in.Runtime.RunningExeSHA256
+		r.Evidence["installed_entrypoint_checksum"] = in.Installed.EntrypointChecksum
+		if in.Runtime.RunningExeSHA256 == in.Installed.EntrypointChecksum {
+			r.Verdict = VerdictProven
+			r.Reason = "running executable is the installed artifact (atomic-replace install means a pre-install process would resolve to the superseded inode)"
+			return r
+		}
 		r.Verdict = VerdictFailed
-		r.Reason = "process started before the artifact was installed (stale process)"
-	case in.Runtime.ProcessStartUnix == in.Installed.InstallCommittedUnix:
-		// Same-second tie: fresh, not stale. A process cannot predate its own
-		// binary; a stale process would carry a prior install's start second,
-		// which cannot equal the current install-commit second.
-		r.Verdict = VerdictProven
-		r.Reason = "process started in the same second as install-commit (fresh; cannot predate its own binary)"
-	default:
-		r.Verdict = VerdictProven
-		r.Reason = "process started after the artifact was installed"
+		r.Reason = "running executable is not the installed artifact — the process did not restart after install, or is executing different bytes"
+		return r
 	}
+
+	// ── no identity evidence ──────────────────────────────────────────────
+	//
+	// Deliberately INDETERMINATE, never FAILED.
+	//
+	// This branch used to compare process_start_unix against
+	// install_committed_unix and FAIL when the process started first. That
+	// predicate is semantically invalid for this installer: the node-agent
+	// starts the service and THEN commits the receipt
+	// ("workflow-runner: <svc> started after install" is logged before
+	// "stored entrypoint_checksum"), so a correct install routinely produces
+	// process_start = install_commit - 1s. It fired on `event` on two nodes on
+	// 2026-08-14 while A0-A3 were all PROVEN with byte-identical checksums.
+	//
+	// It also had a worse property: restarting the service flipped the verdict
+	// to PROVEN without changing the provenance of the running binary, so the
+	// obvious remediation laundered a false positive into a green result.
+	//
+	// Without identity evidence the honest answer is "unknown", and the
+	// boundary verdict is carried by A2/A3.
+	r.Verdict = VerdictIndeterminate
+	if in.Runtime.RunningExeSHA256 == "" {
+		r.Reason = "runtime executable checksum unavailable — cannot establish restart causally, and wall-clock ordering is not evidence for this installer"
+		return r
+	}
+	r.Reason = "installed entrypoint checksum unavailable — cannot establish restart causally, and wall-clock ordering is not evidence for this installer"
 	return r
 }
 

@@ -315,6 +315,7 @@ func runDescribe(ctx context.Context, binPath string) (*describePayload, error) 
 	// the join looped forever. A describe must never hold the install hostage.
 	dctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+	//go:uncertainty:declared-failsafe protocol negotiation, not an authority decision. Non-zero exit, startup failure and the 5s bound are treated identically to "binary does not speak --describe"; the consequence either way is falling back to normal port allocation. Triaged 2026-08-14.
 	cmd := exec.CommandContext(dctx, binPath, "--describe")
 	out, err := cmd.Output()
 	if err != nil {
@@ -327,6 +328,7 @@ func runDescribe(ctx context.Context, binPath string) (*describePayload, error) 
 	if len(strings.TrimSpace(string(out))) == 0 {
 		return nil, nil
 	}
+	//go:uncertainty:declared-failsafe same protocol negotiation as the exec branch above — non-JSON stdout means the binary does not speak --describe, and the consequence is normal port allocation, not an authority decision. Triaged 2026-08-14.
 	var payload describePayload
 	if err := json.Unmarshal(out, &payload); err != nil {
 		// Non-JSON stdout (log lines, ANSI, etc.) — not a describe

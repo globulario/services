@@ -308,10 +308,16 @@ func TestStampMigrationFromLegacySidecar_Basic(t *testing.T) {
 //
 // Regression: Day-0 wrote the binary and unit at T, systemd started the
 // service at T+2s, then node-agent adopted the unit at T+170s and stamped
-// installed_at=now. release_boundary evalA4 ("process started after the
-// artifact was installed") then read process_start(T+2) < install_commit(T+170)
-// and reported FAILED "stale process" for all 24 services on a node that was
-// installed perfectly. The anchor must come from the artifact, not the clock.
+// installed_at=now — recording an install-commit for work it did not perform.
+// The symptom that exposed it was release_boundary A4 reporting FAILED "stale
+// process" for all 24 services on a perfectly installed node.
+//
+// A4 no longer decides on timestamps (2026-08-15), so that symptom is gone.
+// This test is NOT retired with it: the defect was the fabricated timestamp,
+// not the assertion that noticed it, and an adoption path minting an
+// install-commit still violates
+// invariant:installed_state_requires_successful_owner_install_receipt.
+// The anchor must come from the artifact, not the clock.
 func TestStampMigrationFromLegacySidecar_InstalledAtIsArtifactAnchoredNotWallClock(t *testing.T) {
 	dir := t.TempDir()
 	unit := writeTmpFile(t, dir, "foo.service", []byte("[Unit]\n"))

@@ -7570,3 +7570,256 @@ failure_modes:
           initial configuration. All three nodes UN/NORMAL with NRestarts=0, so the hazard is latent: a wiped
           restart of node-1 with self-only seeds would re-bootstrap an isolated ring. Surfaced by cluster-doctor
           scylla.config_valid (severity 1).'
+    - id: failure.globular.release_gate_ran_after_publish_so_a_rejected_bundle_shipped
+      title: Release gate ran after publish, so a rejected bundle shipped anyway
+      severity: high
+      description: 'build-local-release.sh copied the bundle into dist/ and only then ran check-glibc-floor.sh. When the gate failed it printed ''RELEASE REJECTED — the bundle is left in place for inspection but MUST NOT be published'' while the bundle was already in dist/, byte-identical in placement to a good release. Nothing downstream can tell the difference: the docker simulation consumed one on 2026-08-05. A gate that runs after the irreversible step is not a gate; it is a log line.'
+      protects:
+        files:
+          - scripts/build-local-release.sh
+      evidence:
+        - 1.2.296 build printed RELEASE REJECTED yet dist/globular-1.2.296-linux-amd64.tar.gz (766214631 bytes) existed
+        - publish at line 853, gate at line 885 in the pre-fix script
+        - '1.2.297 build after the fix: gate printed "check-glibc-floor: OK — 50 binaries, all within GLIBC_2.35" BEFORE "=== Pack tarball ===" and "=== Publish to .../dist ==="'
+      required_tests:
+        - golang/config/build_release_gate_order_test.go:TestPlatformFloorGatePrecedesPublish
+      contract: a gate must precede the irreversible step it guards
+    - id: install.failed_transaction_promoted_to_installed_by_observer
+      title: A failed install transaction is promoted to installed by an observer
+      description: 'The node-agent heartbeat''s syncInstalledStateFromLocalPackageCache created an installed-state record with status=installed for a package whose install had already FAILED, because the unpacked entrypoint binary matched the manifest checksum. The install owner never reached its receipt stamp, so the record carried no installed_by. Symptom chain: the failure is silently absorbed (degraded_is_explicit_not_hidden), the cluster reports the package installed while its unit is inactive+disabled and cannot execute, convergence sees nothing to retry, and the only surviving signal is cluster-doctor''s fail-closed unit_receipt_drift rule. Detection asymmetry makes this dangerous: the record looks complete to every reader that does not check for a receipt.'
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/heartbeat.go
+      related_invariants:
+        - installed_state_requires_successful_owner_install_receipt
+      required_tests:
+        - golang/node_agent/node_agent_server/installed_state_owner_receipt_test.go:TestFailedInstallIsNeverPromotedToInstalledByObserver
+      evidence:
+        - '2026-08-05 node-4 (6400b443): 21:23:16 ''actor[node-agent]: FAILED sql (NATIVE_LIBRARY_DEPENDENCY_MISSING: libodbc.so.2)'' then 21:27:53 ''nodeagent: synced installed-state SERVICE/sql from local package cache''. Resulting etcd record: status=installed, version=1.2.298, metadata={entrypoint_checksum, proof_source=local_package_cache} and NO installed_by. Of 19 SERVICE records on that node, 18 had installed_by+unit_file_sha256; only sql had neither. node.join had FAILED on 3 of 4 joiners while the cluster reported ''[cluster] Healthy (5 nodes heartbeating)''.'
+    - id: release.changed_package_shipped_with_failing_suite
+      title: A changed package shipped into a distro with its suite already failing
+      description: 'Two commits landed with tests already failing in the package they changed, and one was built into a distro and deployed. The failures were superseded assertions rather than product regressions, but the process defect is independent of what the failures meant: the release path had no step that ran the suite of a package it had just changed, so nothing could distinguish a superseded assertion from a real regression. The same silence covers both.'
+      protects:
+        files:
+          - scripts/build-local-release.sh
+      related_invariants:
+        - release.affected_package_suites_must_pass_before_publish
+      required_tests:
+        - golang/config/build_release_gate_order_test.go:TestAffectedTestGatePrecedesPublish
+      evidence:
+        - '2026-08-05: c98310b8 (NODE_BASELINE) left TestNodeJoinProfilePlacementSkipsUnauthorizedPackages failing in golang/component_catalog; the commit was built into distro 1.2.298 and deployed to a five-node docker cluster. a93a85b left TestJoinScript_TarballDownloadPrefersGateway failing in Globular internal/gateway/handlers/cluster after --progress-bar was added to the gateway fetch. Both were found only when an unrelated full-package run was executed days later.'
+    - id: failure.controller_node_self_binding_omits_globular_controller_sa_so
+      title: Controller node self-binding omits globular-controller-sa, so every workflow dispatch is PermissionDenied
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/plan_signer.go
+      required_tests:
+        - golang/security/controller_dispatch_role_test.go:TestControllerSAGrantsWorkflowDispatch
+      evidence:
+        - 'clean 5-node bring-up 2026-08-10: 2112 ''permission denied: workflow.dispatch'' on the controller; subject=node-1 bound only to globular-node-executor, which grants workflow.admin but not workflow.dispatch. release.apply.package dead for every infra package; node.bootstrap dead for every joiner. Masked by the bootstrap phase machine and node-agent local repair, so all nodes still reached workload_ready and the cluster looked healthy.'
+      contract: intent:workflow.source_of_operational_truth — all cluster mutations flow through workflows; the controller must therefore always hold workflow.dispatch for its own mTLS identity
+    - id: failure.sql_install_aborts_on_missing_libodbc_so_2_failing_node_join
+      title: sql install aborts on missing libodbc.so.2, failing node.join for every compute-profile node
+      protects:
+        files:
+          - golang/globularcli/tools/specgen/specgen.sh
+      required_tests:
+        - golang/node_agent/node_agent_server/native_dep_check_test.go:TestSpecgenBundlesNativeDebsForSQL
+      evidence:
+        - 'clean 5-node bring-up: ''actor[node-agent]: FAILED sql (NATIVE_LIBRARY_DEPENDENCY_MISSING: libodbc.so.2)'' -> step install_workloads_compute FAILED -> node.join FAILED on node-4 and node-5. globular-sql.service was already written to /etc/systemd/system with no installed_state receipt; the heartbeat later backfilled installed_state from the local package cache, producing doctor unit_receipt_drift.installed_state_missing_or_unproven (CRITICAL) x2 plus installed_state_runtime_mismatch x2. sql is the only Globular service linking a native library; its generated spec was the generic pure-Go template with no bundle_debs.'
+      contract: intent:install.result_requires_durable_commit — a package that cannot install must not leave a half-installed unit, and node.join must not be failed by a dependency the release can bundle
+    - id: failure.verify_runtime_demands_minio_active_on_a_node_the_topology_g
+      title: verify_runtime demands minio active on a node the topology gate deliberately holds stopped, abandoning the correlation
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/workflow_release.go
+      evidence:
+        - release.apply.package step verify_runtime probes globular-minio.service and requires state=active. On non-member nodes the node-agent gate stops it on purpose (held_not_in_topology), so the step deferred 5/5 and permanently abandoned correlation InfrastructureRelease/core@globular.io/minio on a healthy 5-node cluster. Same shape as the pre-existing keepalived/ingress-disabled waiver, whose comment already describes this exact abandonment mode.
+      contract: intent:objectstore.topology_requires_contract — MinIO may run only on nodes admitted to ObjectStoreDesiredState; a runtime probe must not require a node to violate that contract
+    - id: failure.service_old_pid_after_upgrade_fires_for_a_stopped_service_wi
+      title: service.old_pid_after_upgrade fires for a stopped service with running_pid=0
+      protects:
+        files:
+          - golang/verifier/verifier.go
+      required_tests:
+        - golang/verifier/verifier_stopped_service_test.go:TestVerifyTarget_StoppedService_NoOldPidFinding
+      evidence:
+        - globular-minio.service is stopped on purpose by the topology gate on non-member nodes. The verifier still emitted service.old_pid_after_upgrade (ERROR) on three nodes with running_pid=0, comparing a residual process_start_time from the last run against the apply boundary. An error raised for behaving as designed, unclearable by any remediation because the correct state is stopped.
+      contract: absence of evidence is not evidence of failure — a finding asserting a stale RUNNING pid requires a running pid
+    - id: failure.integration_tests_fail_the_release_gate_when_their_backing_s
+      title: Integration tests fail the release gate when their backing store is merely unreachable
+      protects:
+        files:
+          - golang/dns/dns_server/dns_txt_udp_test.go
+      evidence:
+        - 'Building 1.2.299 was rejected because golang/dns/dns_server TXT tests failed with ''dial tcp 10.0.0.63:9042: connect: connection refused'' — the developer''s cluster address resolved from local config. The tests already declared ''requires ScyllaDB'' but honoured it only under -short, which the gate does not pass, so an absent dependency read as a failing product and blocked a release whose changes were in node-agent/sql/file.'
+      contract: release.affected_package_suites_must_pass_before_publish — the gate must distinguish a product regression from an absent dependency
+    - id: failure.bundled_libnss_resolve_deb_pins_an_exact_systemd_resolved_ve
+      title: Bundled libnss-resolve deb pins an exact systemd-resolved version and aborts Day-1 join once the host is patched
+      protects:
+        files:
+          - scripts/release/install-day0.sh
+      evidence:
+        - '2026-08-10 clean 5-node bring-up on a freshly built image: all four joiners failed with ''dpkg: libnss-resolve:amd64 depends on systemd-resolved (= 255.4-1ubuntu8.16); however: Version of systemd-resolved on system is 255.4-1ubuntu8.17'' -> ''install local debs: packages not installed after dpkg: libnss-resolve'' -> ''[bootstrap] FATAL: join failed''. Zero globular units active on every joiner. The deb is checked in at packages/metadata/libnss-resolve/debs/ (dated Jun 8) and is authoritative over --debs-dir, so refreshing it is the only way to move it. Ubuntu shipped 8.17 as a security update, so this breaks joins on any patched Ubuntu 24.04 host, not only in the simulation.'
+        - 'OCCURRENCE #2, 2026-08-14, same mechanism with the version window moved: joining globule-dell (systemd-resolved 8.16) failed at install_commands with ''dpkg: libnss-resolve:amd64 depends on systemd-resolved (= 255.4-1ubuntu8.17); however: Version of systemd-resolved on system is 255.4-1ubuntu8.16'' -> bootstrap_phase=bootstrap_failed, join_workflow_failed, then a permanent retry loop. The recurrence chain is the important part: the remedy applied to occurrence #1 CAUSED occurrence #2. The 8.17 deb that shipped was UNTRACKED in the packages repo (mtime 2026-08-10 12:50, the day of occurrence #1); HEAD still carried 8.16 and the tracked 8.16 was deleted in the working tree. So the release input had no authority in git at all — a clean checkout builds 8.16, while the cluster installed 8.17. Refreshing the checked-in deb is not merely insufficient (as occurrence #1 recorded); done as an uncommitted working-tree edit it is itself the delivery mechanism for the next occurrence. Forensics preserved: 8.17 sha256 bf7c09bdf683283db48abc6e125455c49138fa54654ba5d19c2dd802bbd4cbef, HEAD 8.16 sha256 39ea88a159de18c9d2712371a00327742296bfa29c66e96ece723b194b301412. Working tree has since been restored to HEAD without blessing 8.17. Related ambient-state contamination already committed: packages/metadata/scylladb/debs/ holds 12 _i386.deb files pulled in only because a build host had multiarch enabled.'
+        - 'No regression test is linked yet (awareness.failure_mode_requires_test_or_reason): the tests that would prove this are the deliverables of the in-flight release-provenance repair — a provenance adversary (untracked deb at the declared package location must not be consumed), an architecture adversary (ambient multiarch must not expand release contents), and a dependency adversary (authoritative-but-unsatisfiable input must fail assembly closed), plus an end-to-end witness on a pinned Ubuntu Noble release-20260518 / systemd 255.4-1ubuntu8.15 image. Until those land this entry is evidence-backed but test-unbacked, and it has now fired twice.'
+      contract: packages must install offline on any supported host; a bundled OS deb whose dependency is an exact-version equality on a base-image package cannot satisfy that once the base image is patched
+    - id: failure.expired_service_cert_is_not_re_issued_pki_invariant_repair_d
+      title: 'Expired service cert is not re-issued: PKI invariant repair does not restore the node within its window'
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/pki_reconciler.go
+      evidence:
+        - 'Exposed 2026-08-10 once the chaos fixture was fixed to inject a genuinely expired cert (notAfter Jan 2 2025, days_remaining=-586). cert-expiry-detection then failed at wait_for_repair and cert_valid_after_repair: after the scenario''s 900s window node-3 still presented the expired CN=chaos-expired cert. Previously the fixture wrote a cert valid for 1 day (OpenSSL 3.0 rejects -days 0 and the failure was swallowed by a trailing true), so the scenario failed on its own fixture at the first assertion and the repair path was never actually exercised on any run.'
+      contract: PKI invariant enforcement claims to detect an expired/invalid service cert and repair it by restarting node-agent so the cert is re-issued from the cluster CA
+    - id: failure.service_config_tls_field_reads_false_while_the_service_serve
+      title: Service config TLS field reads False while the service serves mTLS, inviting false 'plaintext service' conclusions
+      protects:
+        files:
+          - golang/globular_service/services.go
+      evidence:
+        - 'On a healthy 5-node cluster 18 of 20 authoritative service configs (/var/lib/globular/services/<uuid>.json, the Name-bearing ones) carry TLS=False, yet direct mTLS handshakes succeed against every one tested: dns:10003, monitoring:10005, log:10100, persistence:10035, authentication:10002, event:10050. Only cluster_doctor carries TLS=True. During this session the field plus a stale legacy seed file led to a written-up conclusion that 18 services were serving plaintext and that HARD RULE 3 was being violated cluster-wide; that conclusion was false and was withdrawn. The field is not a reliable signal of transport security.'
+      contract: A config field named TLS should describe whether the service serves TLS; the lifecycle manager enables TLS from the service cert regardless of it
+    - id: failure.etcd_endpoint_reconciler_rewrites_the_cluster_endpoint_key_f
+      title: etcd endpoint reconciler rewrites the cluster endpoint key forever, publishing a rotating subset that omits live members
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/reconcile_etcd_endpoints.go
+      required_tests:
+        - golang/cluster_controller/cluster_controller_server/reconcile_etcd_endpoints_churn_test.go:TestEndpointListKeepsConvergingCoreNodes
+      evidence:
+        - 'Observed 2026-08-10 on a converging 5-node cluster. The reconciler derived desired endpoints from node CONVERGENCE STATUS (snapshotCoreNodes keeps only Status ready/admitted) but measured drift against etcd LIVE MEMBERSHIP, so the two could never agree while any core node was mid-convergence: drift was true every tick and the write could not clear it. Logs show live=5 on every pass while the published list was rewritten to a rotating 3-member subset — [.12 .14 .15], [.11 .14 .15], [.13 .14 .15] — each omitting two members that were live in etcd and labelling them stale. A service reading the key during such a window can be handed endpoints it cannot reach.'
+      contract: invariant:etcd.endpoint_reachability — every service must be able to reach its configured etcd endpoint; and intent:etcd.is_source_of_truth — etcd membership is the authority, no silent forks
+    - id: failure.doctor_reads_installed_as_expected_active_so_profile_placed
+      title: Doctor reads installed as expected-active, so profile-placed packages that were never desired warn forever
+      protects:
+        files:
+          - golang/cluster_doctor/cluster_doctor_server/rules/installed_state_runtime_mismatch.go
+      required_tests:
+        - golang/cluster_doctor/cluster_doctor_server/rules/installed_not_desired_test.go:TestInstalledButNotDesired_NoFindingFromEitherRule
+      evidence:
+        - 'On a healthy 5-node cluster 2026-08-10, 29 of 31 findings were the same class: node.join''s install_workloads_compute places seven workload packages (sql, catalog, ldap, mail, blog, conversation, echo) on every compute-profile node, none of which appear in the cluster''s 48-package desired set. They sit installed-and-disabled, and both installed_state_runtime_mismatch and node.systemd.units_running reported each one — twice per package, permanently. Neither is clearable: no convergence pass starts a service the cluster never desired, and no remediation can fix it. Both rules already carried hand-maintained per-case waivers (keepalived/ingress-disabled, minio/sidekick non-member, storage-plane on non-storage nodes), which is the same exemption re-derived case by case instead of consulting desired state.'
+      contract: intent:desired_state.is_authority — desired state decides what should run; intent:runtime_observation_must_not_mutate_desired
+    - id: failure.scylla_admin_api_address_split_between_consumers_silently_di
+      title: Scylla admin API address split between consumers silently disables nodetool
+      description: scylla.yaml rendered api_address as the node LAN IP while nodetool and scylla-manager-agent addressed the admin API on a different address (nodetool defaults to loopback; the health probe picked an arbitrary local IP by ranging over a Go map, so the choice varied run to run). The admin API address is one identity with several consumers and must have one canonical source.
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/infra_health_probe.go
+      related_invariants:
+        - identity.has_single_canonical_source_and_is_immutable
+      required_tests:
+        - scylla_admin_api_loopback_test.go:TestStaleNodeIPAgentConfigIsRewrittenToLoopback
+      evidence:
+        - 'probe-scylla-health: nodetool failed: exit status 2 (Connection refused) on a node whose /storage_service/operation_mode returned NORMAL; the REST fallback masked it so the probe still reported healthy'
+    - id: failure.join_gate_proved_scylladb_ready_from_a_cql_port_probe_not_fr
+      title: Join gate proved ScyllaDB ready from a CQL port probe, not from the node's own join state
+      description: The Day-1 join gate waited on a TCP connect to 9042 and a CQL query. That proves a socket accepts connections, not that the node finished bootstrapping into the ring. ScyllaDB publishes its own join state on the admin REST API — /storage_service/operation_mode reaches NORMAL and /storage_service/native_transport reports true — which is the node's own statement about itself and what nodetool speaks. Gate on that instead. The gate lives in the Globular repo at Globular/internal/gateway/handlers/cluster/join_script.go, embedded into the gateway binary at build; it is named here in prose rather than under protects.files because that path is not resolvable from this repository, the same convention the clean-node.sh teardown scar follows.
+      related_invariants:
+        - diagnostics.must_measure_reality
+      required_tests:
+        - join_script_test.go:TestJoinScript_ScyllaReadinessUsesOperationMode
+      evidence:
+        - Nodes wedged in operation_mode=STARTING immediately after 'init - join cluster', never entering gossip (node-1's live set excluded them), while the join script had already moved on because port 9042 was reachable. Observed 3 times across node-2 and node-3.
+    - id: failure.controllergatewayhost_reads_only_the_legacy_node_agent_state
+      title: controllerGatewayHost reads only the legacy node-agent state path, so it returns empty on every migrated node
+      description: node-agent's canonical state path is /var/lib/globular/node-agent/state.json; /var/lib/globular/nodeagent/ is the pre-Project-O legacy path that MigrateLegacyStatePathOnce relocates and removes. config.controllerGatewayHost() still reads the legacy path, so it degrades to empty string rather than erroring. Its caller is the fallback used when the local gateway is unreachable and when routing a CSR to the CA-holding node (security/tls.go), i.e. the degraded path where the fallback is the whole point. Both readers of a single state file must resolve the path the same way.
+      protects:
+        files:
+          - golang/config/config.go
+      related_invariants:
+        - identity.has_single_canonical_source_and_is_immutable
+      evidence:
+        - 'Observed 2026-08-11 on a fresh 5-node 1.2.305 cluster: node-1 (node-agent started, migration ran) has /var/lib/globular/node-agent/state.json and NO legacy dir; nodes 2-5 (join script wrote state, agent not yet started) still have /var/lib/globular/nodeagent/state.json. config.controllerGatewayHost() hardcodes the LEGACY path, and MigrateLegacyStatePathOnce deletes the legacy dir after a successful migration, so the function silently returns empty exactly on correctly-migrated nodes.'
+    - id: failure.bundled_deb_install_fails_on_the_first_dpkg_lock_collision_f
+      title: Bundled-deb install fails on the first dpkg lock collision, failing node.join
+      description: install_workloads_compute installs seven packages concurrently, so a bundled-deb install routinely runs while another package's dpkg holds the packaging lock. dpkg has no --wait and exits immediately in that case. Treating the first collision as a hard error made a routine, self-clearing condition fail the whole join. Wait for the lock (bounded) and pass apt-get -o DPkg::Lock::Timeout; retry ONLY on lock contention so a genuinely broken package still fails fast.
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/internal/actions/native_debs_install.go
+      related_invariants:
+        - install.join_path_must_complete_install_contract
+      required_tests:
+        - native_debs_install_test.go:TestDpkgLockContentionIsRecognisedAsRetryable
+      evidence:
+        - 'node-4, 2026-08-11: ''dpkg -i failed (exit status 2) and apt-get -f install failed (exit status 100): E: Could not get lock /var/lib/dpkg/lock-frontend. It is held by process 5220 (dpkg)'' -> ''step install_workloads_compute FAILED'' -> ''workflow-runner: node.join FAILED after 49.107s''. sql was left at status=artifact_present with no installed_by and no unit_file_sha256 while its six sibling compute packages all reached status=installed; the doctor reported unit_receipt_drift.installed_state_missing_or_unproven CRITICAL for globular-sql.service.'
+    - id: failure.certificate_repair_on_a_non_issuer_node_was_a_no_op_that_rep
+      title: Certificate repair on a non-issuer node was a no-op that reported success
+      description: 'Existence is not validity. Two short-circuits blocked renewal cluster-wide: this one, and getServerCredentialConfig reusing the leaf whenever the CA fingerprint was unchanged - but the CA outlives its leaves by design (10-year CA, 1-year leaves), so an expired leaf under a current CA was reused forever and the CSR-to-CA-gateway re-issue path below it was unreachable. Certificates therefore never renewed anywhere; a node would simply stop speaking mTLS a year after joining. Gate reuse on NeedsCertRegeneration (presence, key/cert coherence, chain, expiry, SANs), and never report a repair without re-validating.'
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/certificate.go
+      related_invariants:
+        - diagnostics.must_measure_reality
+      required_tests:
+        - server_test.go:TestEnsureNetworkCertsNonIssuerDoesNotClaimRepairOnInvalidCert
+      evidence:
+        - 'cert-expiry-detection failed on every run: an expired leaf injected on node-3 was never re-issued within 900s. Trace: ensureRuntimeTLSConvergence detects the invalid chain and logs ''runtime TLS chain invalid'', calls ensureNetworkCerts, getCertKV() returns nil (unwired TODO: ''Plan store removed - etcd KV for cert operations needs separate wiring''), so the kv==nil && !isIssuerNode() branch runs waitForFiles() - which only os.Stat()s the paths and checks size>0. The expired files exist, so it returns nil and the caller logs ''repaired runtime TLS certificate'' having touched nothing.'
+    - id: failure.targeted_rebuild_ships_a_fix_that_the_affected_service_never
+      title: Targeted --rebuild ships a fix that the affected service never receives
+      description: 'build-local-release.sh --rebuild <list> copies every package NOT in the list forward from the previous bundle. A change is therefore only deployed if its own package is named, and shared packages make that non-obvious: editing golang/config or golang/security changes every binary that links them, not just the service being worked on. Before deploying, verify the running version of the service whose behaviour is under test (<binary> --version) rather than assuming the release carries the edit; when a shared library changed, rebuild with --all.'
+      protects:
+        files:
+          - scripts/build-local-release.sh
+      related_invariants:
+        - desired_installed_runtime_identity_must_match
+      evidence:
+        - '2026-08-11: the minio topology waiver in workflow_release.go was written and tested, but the cluster kept abandoning minio releases 67 times with ''health check minio on node 35ac3821: status=inactive (want active)''. cluster_controller_server --version reported 1.2.303 while node-agent and backup-manager were 1.2.306 — the 1.2.305 and 1.2.306 builds used --rebuild node-agent,scylladb,gateway and --rebuild node-agent,backup-manager,scylladb,gateway, so cluster-controller was carried forward from the base bundle and the gate never ran anywhere. Time was then spent debugging the controller''s behaviour against source that was not the source it was running.'
+    - id: failure.certificate_subsystem_gated_on_a_field_only_tests_ever_set_s
+      title: Certificate subsystem gated on a field only tests ever set, so it never ran in production
+      description: 'srv.lastSpec is the ClusterNetworkSpec the controller is expected to push. Nothing pushes it, so it is permanently nil and every consumer fails closed AND silent: TLS repair, ACME renewal and CA-drift regeneration are all dead code in production. The unit tests pass because they build the struct literal with lastSpec already populated — they exercise a state production never reaches, which is precisely why a whole subsystem could be inert without a single failing test. Derive the spec from cluster config (domain + protocol) when none was pushed, and treat ''no spec'' as a reportable cannot-converge state rather than a silent skip.'
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/certificate.go
+      related_invariants:
+        - diagnostics.must_measure_reality
+      required_tests:
+        - network_spec_derivation_test.go:TestCurrentNetworkSpecDerivesWhenNoneWasPushed
+      evidence:
+        - '2026-08-11, 1.2.307 five-node cluster: ZERO ''tls-convergence'' log lines on any node since boot, while node-3 carried an injected certificate with notAfter=Jan 2 2025. grep for an assignment to srv.lastSpec across the repo returns only three test files (cert_watcher_test.go x3) constructing NodeAgentServer{lastSpec: &ClusterNetworkSpec{...}}; there is no assignment in any production path. ensureRuntimeTLSConvergence returns at ''if srv.lastSpec == nil'' before reading a single certificate, checkAndRenewCertificate returns before the ACME check, and caCertDriftLoop logs ''no lastSpec available''.'
+    - id: failure.cluster_invariant_enforcement_was_never_dispatched_so_fencin
+      title: cluster.invariant.enforcement was never dispatched, so fencing, quorum alerting and PKI repair never ran
+      description: 'The workflow is authored, seeded to etcd, posture-classified as WorkClassLiveness, has implemented handlers and unit tests — and nothing schedules it. Its handler tests pass because they invoke the handlers directly, so the missing piece is invisible to them: what was absent is the CALL SITE. Dispatch it from a leader-gated periodic lane, and assert the wiring (a real call site, started at boot) rather than only the handlers. Verify such a wiring test can actually fail — the first version of this one passed with the call commented out, because a substring match still matched the commented line.'
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/workflow_invariant.go
+      related_invariants:
+        - diagnostics.must_measure_reality
+      required_tests:
+        - invariant_lane_wiring_test.go:TestInvariantEnforcementLaneIsStartedAtBoot
+      evidence:
+        - '2026-08-11: grep for RunInvariantEnforcementWorkflow across the repo returns only its own doc comment — no call site. The leader (node-2) shows ZERO ''invariant-workflow'' log lines since boot; the only invariant output is ''invariant[disk]'', which comes from checkDiskHealthLocked in the reconcile tick, documented as a best-effort fallback for when the workflow cannot run. Consequences observed: two nodes stopped 17.5 min were never fenced (partition_fenced_since empty in /globular/clustercontroller/state, one node 1151s stale past the 900s CRITICAL threshold), no /globular/cluster/alerts/quorum_loss key was written, and cert-expiry-detection never saw PKI repair. ''globular workflow list'' reported no runs at all.'
+    - id: failure.workflow_when_guards_on_nested_report_fields_were_always_fal
+      title: Workflow when-guards on nested report fields were always false, so guarded steps never ran
+      description: 'A step guard of the form len(report.field) > 0 is the standard shape for gating a repair step on what the preceding validate step found. Both the path resolution and the length computation failed closed and silent, so EVERY guarded step in EVERY workflow using a dotted path was dead: fencing, quorum alerting, and minio repair among them. A guard whose answer depends on the handler''s concrete Go type, or that cannot address the field it names, is not a guard. Walk dotted paths through nested maps and compute length by reflection over any slice/array/map/string.'
+      protects:
+        files:
+          - golang/workflow/engine/conditions.go
+      related_invariants:
+        - diagnostics.must_measure_reality
+      required_tests:
+        - conditions_typed_collection_test.go:TestLenGuardFiresOnTypedCriticalList
+      evidence:
+        - '2026-08-11: fence_unreachable_nodes never executed even with its own dependency logging ''node_reachability — quorum_at_risk=true'' for 6 consecutive minutes on a node stopped 17 minutes; partition_fenced_since was never written and no fence log line appeared. Two independent defects in conditions.go made every such guard false: (1) resolveVar performed only whole-key lookups, so ''reachability_report.critical'' was searched as one literal key, missed, and returned nil — len(nil)=0; (2) collectionLength type-switched on []any/[]string/map[string]any and returned 0 for anything else, and the handler returns critical as []map[string]any. Verified after the fix: the same expression evaluates true with 2 critical entries, and len(minio_report.violations) > 0 — which had also never fired — now resolves too.'
+    - id: failure.quorum_loss_alert_and_partition_fences_latch_forever_because
+      title: Quorum-loss alert and partition fences latch forever because the release path is gated on the raise condition
+      description: 'A signal must be retired by the same condition that raised it. Gating the handler that RELEASES state on the condition that CREATED it guarantees the release half never runs: once nodes recover the guard is false, so fences stay set and a CRITICAL alert latches permanently — which is how operators learn to ignore an alert. Run the fence/unfence handler on every pass (it is idempotent and no-ops when there is nothing to do) and delete the alert key when no node is critical.'
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/workflow_invariant.go
+      related_invariants:
+        - diagnostics.must_measure_reality
+      evidence:
+        - '2026-08-11, 1.2.309: dual-node-failure finally fenced both nodes and wrote /globular/cluster/alerts/quorum_loss (all three assertions passed for the first time), then failed in cleanup — clear_alert_key waited 180s for alert_present=false and the key was still set after both nodes returned and were healthy. invariantTriggerEmergencyBackup only ever Puts that key; no code path Deletes it. The fence step, which also implements auto-unfence, was gated when len(reachability_report.critical) > 0, so on recovery it did not run either and partition_fenced_since stayed set.'
+    - id: failure.minio_topology_attestation_judges_non_pool_member_nodes_agai
+      title: MinIO topology attestation judges non-pool-member nodes against the pool contract
+      description: 'attestMinioTopologyMatchesDesired compared every node''s rendered MINIO_VOLUMES against the desired pool topology, including nodes absent from ExpectedPeers. A non-member cannot form an isolated store or reformat a pool drive — its unit is held stopped — so the comparison has no subject and yields a permanent false CRITICAL that also drives the lifecycle to STALLED via hasCritical. Skip the comparison when this node is not among ExpectedPeers, and keep it in force when the pool is unpublished so a waiver is never granted on missing evidence. Members remain fully checked: a member rendered standalone, or with a drive-count mismatch, is still the split-brain/reformat hazard the rule exists for.'
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/infra_truth/minio_attestation.go
+      related_invariants:
+        - objectstore.topology_contract
+      required_tests:
+        - minio_nonmember_test.go:TestNonMemberIsNotJudgedAgainstPoolTopology
+      evidence:
+        - '2026-08-11: migrating the quickstart cluster standalone -> distributed (3 storage nodes x 2 drives, generation 1, converged and HEALTHY) immediately produced 4 CRITICAL doctor findings on the two COMPUTE nodes (35ac3821, 6400b443): minio.topology_matches_desired x2 (''desired topology is distributed (3 nodes) but the rendered MINIO_VOLUMES is standalone'') and minio.not_stalled x2. Neither node is a storage-profile node, neither is in ObjectStoreDesiredState.Nodes, and both have globular-minio held stopped by the node-agent topology gate.'

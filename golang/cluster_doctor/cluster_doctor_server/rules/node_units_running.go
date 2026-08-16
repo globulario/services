@@ -82,6 +82,23 @@ func (nodeUnitsRunning) Evaluate(snap *collector.Snapshot, cfg Config) []Finding
 			if isStoragePlaneUnit(u.GetName()) && !storageNode {
 				continue
 			}
+			// A unit whose package is installed but was never DESIRED is
+			// inactive by design too — same principle as the waivers above:
+			// placement intent is controller-owned and the doctor observes
+			// runtime against that intent, never against "it is on disk, so it
+			// should run". node.join places seven workload packages (sql,
+			// catalog, ldap, mail, blog, conversation, echo) on every
+			// compute-profile node; none are in the cluster's desired set, so
+			// they stayed installed-and-disabled and produced a permanent,
+			// unclearable warning each.
+			//
+			// Guarded: an empty desired set means desired state could not be
+			// read, not that nothing is desired — suppressing then would hide
+			// every genuinely-down unit at once
+			// (fm doctor.rule_silently_suppressed_on_data_source_error).
+			if unitInstalledButNotDesired(snap, u.GetName()) {
+				continue
+			}
 
 			severity := cluster_doctorpb.Severity_SEVERITY_WARN
 			if state == UnitStateFailed {
@@ -155,4 +172,35 @@ func isStoragePlaneUnit(unitName string) bool {
 		return true
 	}
 	return false
+}
+
+// unitInstalledButNotDesired reports whether unitName belongs to a Globular
+// package that the cluster's desired state never asked to run.
+//
+// Returns false (i.e. keep the finding) whenever desired state is unknown, so a
+// collector failure can never silence a genuinely-down unit. Only globular-*
+// units are considered: OS units (keepalived.service, scylla-server.service)
+// are not named by desired state and keep their existing waivers.
+func unitInstalledButNotDesired(snap *collector.Snapshot, unitName string) bool {
+	if snap == nil || len(snap.DesiredServiceTargets) == 0 {
+		return false // desired state unknown — never suppress on missing evidence
+	}
+	// Scope strictly to globular-<name>.service. OS units (keepalived.service,
+	// scylla-server.service) are never named by desired state, so treating them
+	// as "not desired" would silently override their own dedicated waivers and
+	// hide a genuinely dead ingress or storage plane.
+	if !strings.HasPrefix(unitName, "globular-") || !strings.HasSuffix(unitName, ".service") {
+		return false
+	}
+	name := strings.TrimSuffix(strings.TrimPrefix(unitName, "globular-"), ".service")
+	if name == "" {
+		return false
+	}
+	canon := normalizeInstalledName(name)
+	for svc := range snap.DesiredServiceTargets {
+		if normalizeInstalledName(svc) == canon {
+			return false // desired — a down unit here is a real finding
+		}
+	}
+	return true
 }

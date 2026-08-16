@@ -90,9 +90,9 @@ func (s *scyllaStore) listInstalledRevisions(ctx context.Context, publisherID, n
 		publisherID, name, platform).WithContext(ctx)
 	iter := q.Iter()
 	var (
-		installedAt int64
+		installedAt                                                                              int64
 		revID, kindStr, version, buildID, checksum, node, prev, cfgSnap, ssb, ssa, runID, action string
-		buildNumber int64
+		buildNumber                                                                              int64
 	)
 	var out []*repopb.InstalledPackageRevision
 	for iter.Scan(&installedAt, &revID, &kindStr, &version, &buildID,

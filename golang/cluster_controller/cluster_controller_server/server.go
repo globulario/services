@@ -177,6 +177,12 @@ type server struct {
 	leader                     atomic.Bool
 	leaderID                   atomic.Value
 	leaderAddr                 atomic.Value
+	// leaderSinceUnix is when this process most recently BECAME leader (0 when
+	// not leader). Heartbeat staleness must be judged relative to it: a fresh
+	// leader loads LastSeen from persisted state, which is stale by
+	// construction, so without this it concludes healthy nodes are unreachable
+	// before it has ever had a chance to hear from them.
+	leaderSinceUnix atomic.Int64
 	leaderEpoch                atomic.Int64
 	leaderCtx                  context.Context    // cancelled when leadership is lost
 	leaderCancel               context.CancelFunc // called by setLeader(false, ...)
@@ -824,6 +830,15 @@ func (srv *server) isLeader() bool {
 }
 
 func (srv *server) setLeader(isLeader bool, id, addr string) {
+	if isLeader {
+		// Only stamp on the transition INTO leadership, so repeated
+		// affirmations do not keep pushing the reference forward.
+		if !srv.leader.Load() || srv.leaderSinceUnix.Load() == 0 {
+			srv.leaderSinceUnix.Store(time.Now().Unix())
+		}
+	} else {
+		srv.leaderSinceUnix.Store(0)
+	}
 	srv.leader.Store(isLeader)
 	srv.leaderID.Store(id)
 	srv.leaderAddr.Store(addr)

@@ -126,8 +126,8 @@ func TestArtifactManifest_RoundTripsConfigs(t *testing.T) {
 		Ref: &repopb.ArtifactRef{Name: "echo"},
 		Configs: []*repopb.PackageConfigFile{
 			{
-				Path:       "/etc/globular/foo.json",
-				ConfigKind: repopb.ConfigKind_CONFIG_OPERATOR_OVERRIDE,
+				Path:          "/etc/globular/foo.json",
+				ConfigKind:    repopb.ConfigKind_CONFIG_OPERATOR_OVERRIDE,
 				MergeStrategy: repopb.MergeStrategy_MERGE_PRESERVE,
 			},
 		},

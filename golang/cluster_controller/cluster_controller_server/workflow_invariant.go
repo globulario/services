@@ -442,16 +442,25 @@ func (srv *server) invariantRepairMinioStorage(ctx context.Context, minioReport 
 
 		needsRestart := false
 
-		// Fix: node has storage profile but not in pool → reset join phase
-		// so the pool manager picks it up on next reconcile.
+		// A storage profile does NOT authorize pool membership — the
+		// published ObjectStoreDesiredState does. This branch used to reset
+		// the join phase for every storage-profile node absent from the pool
+		// "so the pool manager picks it up", which quietly GROWS the pool.
+		//
+		// Growing standalone -> distributed rewrites .minio.sys and is exactly
+		// the class of change intent:objectstore.destructive_changes_require_
+		// approval reserves for an operator with a matching generation. When
+		// this workflow finally started being dispatched (it had never run),
+		// this branch fired on a healthy standalone cluster and drove the pool
+		// toward distributed on its own: 7 CRITICAL findings within one pass —
+		// minio.not_stalled x3 ("desired topology is distributed (2 nodes)"),
+		// minio.topology_matches_desired x3 (format.json risk),
+		// objectstore.minio.unapproved_path — i.e. fm:objectstore.minio.
+		// standalone_to_distributed_grow_deadlock, self-inflicted.
+		//
+		// Repair means converging a node the contract ALREADY places in the
+		// pool. Deciding who belongs in the pool is not repair.
 		if !ipInPool(ip, poolNodes) {
-			n.MinioJoinPhase = MinioJoinNone
-			n.MinioJoinError = ""
-			repaired = append(repaired, map[string]any{
-				"node_id":  n.NodeID,
-				"hostname": n.Identity.Hostname,
-				"action":   "reset_join_phase_for_pool_join",
-			})
 			continue
 		}
 
@@ -914,13 +923,22 @@ func (srv *server) invariantRepairDiskSpace(ctx context.Context, diskReport map[
 // Node reachability / partition detection invariant
 // --------------------------------------------------------------------------
 
+// quorumAtRiskCount is the quorum-at-risk threshold, named once: ≥2 critical
+// nodes means the cluster may be heading toward losing etcd write quorum.
+//
+// Raising the quorum_loss alert and retiring it must read the SAME predicate.
+// When the two drifted apart (raise at >=2, retire at ==0) the alert latched
+// across an unrelated single-node partition. A threshold with two spellings is
+// a threshold that will disagree with itself.
+func quorumAtRiskCount(criticalNodes int) bool { return criticalNodes >= 2 }
+
 // invariantValidateNodeReachability classifies nodes by heartbeat staleness:
 //   - healthy: LastSeen within warnAfter
 //   - warn:    stale > warnAfter (node is unresponsive, reconcile blocked)
 //   - critical: stale > criticalAfter (likely network partition)
 //
-// quorum_at_risk is set when ≥2 nodes are critical — at that point the
-// cluster may be heading toward losing etcd write quorum.
+// quorum_at_risk is set per quorumAtRiskCount — at that point the cluster may
+// be heading toward losing etcd write quorum.
 func (srv *server) invariantValidateNodeReachability(_ context.Context, warnAfterSec, criticalAfterSec int) (map[string]any, error) {
 	srv.lock("invariantValidateNodeReachability")
 	defer srv.unlock()
@@ -931,11 +949,33 @@ func (srv *server) invariantValidateNodeReachability(_ context.Context, warnAfte
 
 	var warn, critical []map[string]any
 
+	// Absence of a heartbeat BEFORE we became leader is not evidence that a node
+	// is unreachable — we were not the one listening. A newly-elected leader
+	// loads LastSeen from persisted controller state, where the values are
+	// stale by construction, so judging against them fences healthy nodes the
+	// moment leadership moves.
+	//
+	// Observed 2026-08-11 seconds after leadership moved to node-3:
+	//   22:58:32 fencing node-4 … 22:59:37 quorum at risk: [node-2 node-5]
+	//   23:00:41 unfencing node-2 … node-5 — heartbeat resumed
+	// Three healthy nodes fenced and a CRITICAL quorum_loss alert written, all
+	// retracted ~90s later once real heartbeats arrived.
+	//
+	// So measure staleness from the later of (last heartbeat, leadership start).
+	leaderSince := time.Time{}
+	if ls := srv.leaderSinceUnix.Load(); ls > 0 {
+		leaderSince = time.Unix(ls, 0)
+	}
+
 	for id, n := range srv.state.Nodes {
 		if n.LastSeen.IsZero() {
 			continue // never reported; not yet a reachability issue
 		}
-		stale := now.Sub(n.LastSeen)
+		since := n.LastSeen
+		if !leaderSince.IsZero() && since.Before(leaderSince) {
+			since = leaderSince
+		}
+		stale := now.Sub(since)
 		if stale < warnAfter {
 			continue // healthy
 		}
@@ -956,7 +996,7 @@ func (srv *server) invariantValidateNodeReachability(_ context.Context, warnAfte
 		}
 	}
 
-	quorumAtRisk := len(critical) >= 2
+	quorumAtRisk := quorumAtRiskCount(len(critical))
 
 	return map[string]any{
 		"warn":           warn,
@@ -1005,9 +1045,13 @@ func (srv *server) invariantFenceUnreachableNodes(_ context.Context, report map[
 		if criticalSet[id] && !alreadyFenced {
 			// New partition detected — fence this node.
 			n.Metadata["partition_fenced_since"] = now
-			stale, _ := report["critical"]
-			_ = stale
-			log.Printf("invariant-reachability: fencing %s (%s) — heartbeat absent >%s",
+			// crit_threshold arrives as float64, not int: the report crosses the
+			// workflow engine and every number comes back JSON-typed. Formatting
+			// it with %s printed "heartbeat absent >%!s(float64=900)" — the
+			// operator-facing explanation of WHY a node was fenced, unreadable.
+			// Same trap as the critical_count float64 assertion below; format the
+			// value through %v so it survives whatever numeric type it arrives as.
+			log.Printf("invariant-reachability: fencing %s (%s) — heartbeat absent >%vs",
 				n.Identity.Hostname, id, report["crit_threshold"])
 			srv.emitClusterEvent("controller.invariant.node_partitioned", map[string]interface{}{
 				"node_id":             id,
@@ -1041,11 +1085,58 @@ func (srv *server) invariantFenceUnreachableNodes(_ context.Context, report map[
 		}
 	}
 
+	// Quorum no longer at risk: retire the durable alert.
+	//
+	// invariantTriggerEmergencyBackup writes
+	// /globular/cluster/alerts/quorum_loss when >=2 nodes go critical, and
+	// nothing ever removed it. Its own step is gated on quorum_at_risk == true,
+	// so on recovery it does not run and the key simply stays — a CRITICAL
+	// alert latched forever after a transient partition, which is how an alert
+	// becomes something people learn to ignore. The condition that raised it is
+	// the condition that must retire it.
+	//
+	// Retire on the NEGATION of the raise condition (critical < 2), not on
+	// critical == 0. Clearing only at zero is stricter than raising at two, and
+	// that gap is a second latch: a cluster that recovers from a two-node
+	// outage into an unrelated single-node partition never passes through zero,
+	// so a CRITICAL "quorum at risk" alert keeps flying while quorum is not at
+	// risk. Observed 2026-08-11 in the resilience suite: dual-node-failure
+	// legitimately raised the alert, and network-partition-fencing — which
+	// partitions exactly ONE node, so the trigger step cannot have run — then
+	// failed its no_quorum_loss_alert assertion on the stale key.
+	if !quorumAtRiskCount(len(criticalSet)) {
+		clearQuorumLossAlert()
+	}
+
 	return map[string]any{
 		"fenced":       fenced,
 		"unfenced":     unfenced,
 		"fenced_count": len(fenced),
 	}, nil
+}
+
+// clearQuorumLossAlert removes the durable quorum-loss alert key. Best-effort:
+// a failure to clear is logged, never fatal — the alert being stale is bad, but
+// failing the enforcement pass over it would be worse.
+func clearQuorumLossAlert() {
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		log.Printf("invariant-reachability: cannot clear quorum_loss alert: %v", err)
+		return
+	}
+	// Shared singleton — must not be closed. See writeQuorumLossAlert.
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := cli.Delete(ctx, "/globular/cluster/alerts/quorum_loss")
+	if err != nil {
+		log.Printf("invariant-reachability: failed to clear quorum_loss alert: %v", err)
+		return
+	}
+	if resp.Deleted > 0 {
+		log.Printf("invariant-reachability: quorum restored — quorum_loss alert cleared")
+	}
 }
 
 // invariantTriggerEmergencyBackup fires when ≥2 nodes are critically
@@ -1058,8 +1149,12 @@ func (srv *server) invariantFenceUnreachableNodes(_ context.Context, report map[
 // hard dependency on a service that may itself be degraded when quorum is at
 // risk. The etcd key is the signal; the backup manager reads it and acts.
 func (srv *server) invariantTriggerEmergencyBackup(_ context.Context, report map[string]any) error {
-	criticalCount, _ := report["critical_count"].(int)
 	critical := extractReachabilityList(report, "critical")
+	// critical_count survives the workflow engine as float64 (JSON round-trip),
+	// so a plain .(int) assertion silently yielded 0 — the log then read
+	// "CRITICAL — 0 nodes unreachable, quorum at risk: [node-2 node-5]", which
+	// says two contradictory things at once. Derive it from the list instead.
+	criticalCount := len(critical)
 
 	var criticalHostnames []string
 	for _, e := range critical {
@@ -1087,7 +1182,11 @@ func (srv *server) invariantTriggerEmergencyBackup(_ context.Context, report map
 		log.Printf("invariant-reachability: cannot write quorum_loss alert to etcd: %v", err)
 		return nil // best-effort — do not abort workflow
 	}
-	defer cli.Close()
+	// NOTE: do NOT Close() this client. GetEtcdClient returns the process-wide
+	// SHARED singleton; closing it tears down etcd access for every other
+	// caller in the controller, which then spins on
+	// "grpc: the client connection is closing". NewEtcdClient() is the
+	// caller-owned variant that must be closed.
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -1136,4 +1235,65 @@ func extractReachabilityList(report map[string]any, key string) []map[string]any
 		}
 	}
 	return out
+}
+
+// Invariant enforcement lane cadence. The workflow's own thresholds are 5 min
+// (WARN) and 15 min (CRITICAL) of heartbeat staleness, so a one-minute tick is
+// frequent enough to fence promptly once a node crosses the line, and cheap:
+// each run is a bounded read-and-classify pass.
+var (
+	invariantLaneInterval     = 60 * time.Second
+	invariantLaneInitialDelay = 90 * time.Second
+	invariantLaneRunTimeout   = 5 * time.Minute
+)
+
+// StartInvariantEnforcementLane periodically dispatches
+// cluster.invariant.enforcement on the leader.
+//
+// Nothing called RunInvariantEnforcementWorkflow. The workflow was authored,
+// seeded into etcd, classified for posture gating (WorkClassLiveness) and unit
+// tested — but no scheduler ever dispatched it, so on a live cluster it had
+// never run once: zero "invariant-workflow" log lines since boot. Everything it
+// owns was therefore dead:
+//
+//   - node reachability classification (WARN >5 min, CRITICAL >15 min)
+//   - partition fencing (Metadata["partition_fenced_since"])
+//   - the quorum-loss emergency alert key
+//   - the PKI invariant (fm:failure.expired_service_cert_is_not_re_issued...)
+//
+// Two nodes stopped for 17.5 minutes were never fenced and no alert was
+// written, which is exactly what the workflow exists to prevent.
+//
+// The loop is sequential: the next tick cannot start until the previous run
+// returns, so a slow run delays enforcement rather than stacking goroutines
+// (invariant:error_path.no_unbounded_fire_and_forget_goroutine). Each run is
+// bounded so a wedged dispatch cannot silence the lane forever.
+func (srv *server) StartInvariantEnforcementLane(ctx context.Context) {
+	go srv.runInvariantEnforcementLane(ctx, invariantLaneInterval)
+}
+
+func (srv *server) runInvariantEnforcementLane(ctx context.Context, interval time.Duration) {
+	if interval <= 0 {
+		interval = invariantLaneInterval
+	}
+	timer := time.NewTimer(invariantLaneInitialDelay)
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+			// Followers must not enforce: fencing writes cluster state, and two
+			// controllers deciding reachability would race.
+			if srv.isLeader() {
+				runCtx, cancel := context.WithTimeout(ctx, invariantLaneRunTimeout)
+				if err := srv.RunInvariantEnforcementWorkflow(runCtx); err != nil {
+					log.Printf("invariant-lane: enforcement run failed: %v", err)
+				}
+				cancel()
+			}
+			timer.Reset(interval)
+		}
+	}
 }

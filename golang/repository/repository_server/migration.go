@@ -16,9 +16,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/security"
+	"github.com/google/uuid"
 )
 
 // syntheticBuildIDNamespace is the fixed UUIDv5 namespace for generating
@@ -119,7 +119,7 @@ func (srv *server) MigrateToTrustModel(ctx context.Context) {
 	if len(unclaimedList) > 0 {
 		unclaimedData, _ := json.MarshalIndent(map[string]any{
 			"unclaimed_namespaces": unclaimedList,
-			"migrated_at":         time.Now().UTC().Format(time.RFC3339),
+			"migrated_at":          time.Now().UTC().Format(time.RFC3339),
 		}, "", "  ")
 		if err := srv.Storage().WriteFile(ctx, unclaimedNamespacesFile, unclaimedData, 0o644); err != nil {
 			slog.Warn("migration: unclaimed namespaces file write failed", "err", err)

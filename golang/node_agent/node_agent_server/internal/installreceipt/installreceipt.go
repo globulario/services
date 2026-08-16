@@ -100,6 +100,58 @@ func Keys() []string {
 	return out
 }
 
+// HasOwnerReceipt reports whether pkg carries evidence that an installation
+// OWNER ran to completion and committed the install transaction.
+//
+// This is the single predicate behind the state contract:
+//
+//	installed  ⇔  a successful owner-produced installation receipt exists
+//
+// KeyInstalledBy is the discriminator because Stamp writes it unconditionally
+// and only on the success path — it is the last thing an install transaction
+// records. KeyMigrationSource is accepted as the one sanctioned equivalent:
+// StampMigrationFromLegacySidecar seeds it for packages installed before the
+// receipt refactor, whose owner did complete but predates the chokepoint.
+//
+// What this deliberately does NOT accept as proof: the entrypoint binary being
+// present on disk and matching the manifest checksum. That proves ARTIFACT
+// IDENTITY — some bytes were unpacked — and nothing more. It does not prove
+// that native-dependency validation passed, that configuration completed, that
+// the unit rendered, or that the transaction committed.
+//
+// The distinction is not academic. On 2026-08-05 node-4's sql install failed at
+// package.check_native_deps (libodbc.so.2 missing) AFTER the binary had been
+// unpacked and the unit rendered. The heartbeat's local-package-cache sync saw
+// a matching entrypoint checksum, accepted it as proof, and wrote
+// status="installed" into etcd four minutes after the installer had logged
+// FAILED. The cluster then reported a service as installed that could not
+// execute. Of 19 SERVICE records on that node, 18 carried an owner receipt;
+// only the failed one did not.
+//
+// See invariant installed_state_requires_successful_owner_install_receipt and
+// failure mode install.failed_transaction_promoted_to_installed_by_observer.
+func HasOwnerReceipt(pkg *node_agentpb.InstalledPackage) bool {
+	if pkg == nil {
+		return false
+	}
+	md := pkg.GetMetadata()
+	if strings.TrimSpace(md[KeyInstalledBy]) != "" {
+		return true
+	}
+	return strings.TrimSpace(md[KeyMigrationSource]) == MigrationSourceLegacySidecar
+}
+
+// StatusArtifactPresent is the honest status for "the artifact is unpacked on
+// disk and its identity matches the manifest, but no owner receipt proves the
+// installation transaction ever committed."
+//
+// It exists so an observer never has to choose between lying (writing
+// "installed") and destroying evidence (writing nothing). Convergence treats
+// any non-"installed" status as not-installed and retries, which is exactly the
+// desired behaviour: a half-finished install should be reattempted, not
+// laundered into success.
+const StatusArtifactPresent = "artifact_present"
+
 // ReceiptOpts declares the on-disk evidence the install path produced.
 //
 // Paths are absolute. An empty path means "this kind of evidence is not
@@ -234,22 +286,29 @@ func StampMigrationFromLegacySidecar(pkg *node_agentpb.InstalledPackage, unitPat
 	pkg.Metadata[KeyMigrationSource] = MigrationSourceLegacySidecar
 	// installed_at is the artifact's install-commit time and is owned by the
 	// install path. Migration installs nothing — it adopts a unit that was
-	// already on disk — so stamping time.Now() here mints an install-commit
-	// that is ALWAYS later than the start of the process already running that
-	// artifact. release_boundary evalA4 ("process started after the artifact
-	// was installed") then reports FAILED "stale process" for every adopted
-	// service, permanently, on a correctly-installed node.
+	// already on disk — so stamping time.Now() here would record an
+	// install-commit for work this path did not perform, violating
+	// invariant:installed_state_requires_successful_owner_install_receipt.
 	// forbidden_fix:use_wall_clock_for_installed_unix_timestamp.
 	//
 	// Anchor to the unit file's mtime instead: a real observation of when the
-	// installer materialized this package, not the observer's clock. This
-	// preserves the genuine stale-process signal — a unit rewritten by a later
-	// install without a restart still yields mtime > process start → FAILED.
+	// installer materialized this package, not the observer's clock. When the
+	// mtime is unreadable, leave installed_at ABSENT rather than fabricate one.
+	// An installed_at already stamped by the canonical install path is never
+	// overwritten here.
 	//
-	// When the mtime is unreadable, leave installed_at ABSENT so A4 reports
-	// INDETERMINATE (honest unknown) rather than a fabricated verdict. An
-	// installed_at already stamped by the canonical install path is never
-	// overwritten with a fabricated value here.
+	// HISTORICAL NOTE (2026-08-15): this rule was originally justified by its
+	// effect on the release-boundary A4 assertion, which compared
+	// process_start against install_commit and so reported FAILED "stale
+	// process" for every adopted service. A4 no longer reads timestamps — it
+	// compares the running executable's hash against the installed entrypoint
+	// checksum — so that consequence no longer follows, and the old claim that
+	// mtime "preserves the genuine stale-process signal" is no longer true:
+	// A4 detects that condition by identity, not by ordering.
+	//
+	// The rule stands on its own authority regardless. A path that installs
+	// nothing must not mint an install-commit timestamp. Do not relax this
+	// because the downstream consumer changed.
 	if mtime, err := fileMTimeUnix(unitPath); err == nil {
 		pkg.Metadata[KeyInstalledAt] = strconv.FormatInt(mtime, 10)
 	}

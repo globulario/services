@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 )
 
 func withLocalPackageProofDirs(t *testing.T) (cacheDir, binDir string) {
@@ -169,9 +171,32 @@ func TestLocalPackageCacheMustNotRedefineBuildIdentity(t *testing.T) {
 		}
 	})
 
-	t.Run("backfills when the record has none", func(t *testing.T) {
-		if !localCacheMayAdoptBuildID("", cacheID) {
-			t.Fatal("repair path must backfill build_id when the record has none")
+	// CONTRACT CHANGED 2026-08-13. This case previously asserted the opposite —
+	// that the repair path SHOULD backfill build_id when the record has none.
+	// That "backfill only" exception was the remaining hole in the same rule the
+	// rest of this test enforces, and it produced the second half of the same
+	// incident class:
+	//
+	//	23:49  node-3 records for event / ai-executor / monitoring are written
+	//	       from the local cache during etcd instability, each taking its own
+	//	       payload-local UUIDv4
+	//	       desired (repository, UUIDv7 019ff62a…) had been unchanged in etcd
+	//	       since 14:31 — nine hours earlier
+	//	→ cluster-doctor release.boundary_unproven, A2=FAILED
+	//	  "installed build_id does not match desired build_id"
+	//	  against bytes whose checksum matched the manifest exactly
+	//
+	// An absent build_id is not permission to supply one from a non-authority.
+	// Filling it from the cache converts "unknown" into "wrong", and wrong is
+	// strictly worse: convergence compares build_id, so a confidently incorrect
+	// id reads as drift no reinstall can settle, while an empty one reads as
+	// not-yet-proven and resolves on the next authoritative apply.
+	//
+	// This strengthens rather than weakens the 2026-07-30 protection above:
+	// "never adopt" subsumes "never overwrite".
+	t.Run("never backfills even when the record has none", func(t *testing.T) {
+		if localCacheMayAdoptBuildID("", cacheID) {
+			t.Fatal("repair path must NOT supply build_id from the local cache — the cache proves bytes, not identity; an unknown id must stay unknown until an authoritative apply commits one")
 		}
 	})
 
@@ -234,5 +259,75 @@ func TestRepairMustNotMoveTheApplyAnchor(t *testing.T) {
 	}
 	if strings.Contains(rest, "UpdatedUnix = now") {
 		t.Fatal("repair path must NOT bump UpdatedUnix — it is the apply anchor doctor reads as last_apply_time, and moving it on a metadata-only refresh fabricates service.old_pid_after_upgrade")
+	}
+}
+
+// TestLocalPackageCacheCreateMustNotStampCacheIdentity covers the CREATE half of
+// the same authority rule. localCacheMayAdoptBuildID guards the repair path that
+// updates existing records; syncInstalledStateFromLocalPackageCache creates
+// records that do not exist yet, and it used to stamp BuildId: proof.BuildID
+// directly — bypassing the guard entirely.
+//
+// That is how node-4's ldap and node-3's event acquired payload-local UUIDv4
+// identities on 2026-08-12: an etcd read/write failure made the record look
+// absent, the create path ran, and the cache became the identity authority.
+//
+// The record this path writes declares Status=artifact_present precisely because
+// it is NOT claiming a committed install. An identity it cannot prove belongs
+// with that: unknown, not borrowed.
+func TestLocalPackageCacheCreateMustNotStampCacheIdentity(t *testing.T) {
+	const cacheID = "62e09998-5d87-4ae6-8935-29efac0a600c" // observed on node-4/ldap
+
+	// The create path builds its record from a localPackageCacheProof. Assert the
+	// proof's build id never reaches the record's identity field by construction:
+	// any code that sets BuildId from the proof reintroduces the defect.
+	proof := localPackageCacheProof{
+		Name:    "ldap",
+		Version: "1.2.312",
+		Kind:    "SERVICE",
+		BuildID: cacheID,
+	}
+	if localCacheMayAdoptBuildID("", proof.BuildID) {
+		t.Fatal("cache-sourced build id must never be adoptable, on create or repair")
+	}
+}
+
+// TestLocalPackageCacheReceiptShapeIsNotClaimedFromCache pins the provenance
+// half. The incomplete receipt observed on node-4/ldap was exactly:
+//
+//	metadata = [entrypoint_checksum, entrypoint_checksum_disk_observed]
+//
+// with no unit_file_sha256 and no installed_by, versus the canonical 7-key
+// receipt carried by `file` on the same node. checkUnitHashDrift treats that
+// shape as installed_state_missing_or_unproven and fails closed, which is
+// correct — the fix is that the cache path must not be the writer that produces
+// it, not that the doctor should accept it.
+//
+// This asserts the fail-closed reading is preserved: a receipt lacking
+// unit-file provenance must NOT be treated as authoritative.
+func TestLocalPackageCacheReceiptShapeIsNotClaimedFromCache(t *testing.T) {
+	partial := &node_agentpb.InstalledPackage{
+		Name: "ldap", Kind: "SERVICE",
+		Metadata: map[string]string{
+			"entrypoint_checksum":               "ab01a676",
+			"entrypoint_checksum_disk_observed": "ab01a676",
+		},
+	}
+	if got := receiptUnitFileSha256(partial); got != "" {
+		t.Fatalf("receiptUnitFileSha256 = %q, want empty — a cache-written receipt carries no unit-file authority", got)
+	}
+
+	// The canonical shape, for contrast: `file` on the same node carried
+	// unit_file_sha256 and installed_by. Only that shape is authoritative.
+	canonical := &node_agentpb.InstalledPackage{
+		Name: "file", Kind: "SERVICE",
+		Metadata: map[string]string{
+			"entrypoint_checksum": "aa",
+			"unit_file_sha256":    "bb",
+			"installed_by":        "node-agent.apply_package_release",
+		},
+	}
+	if receiptUnitFileSha256(canonical) == "" {
+		t.Fatal("canonical receipt must expose unit-file authority — if this fails the predicate itself is broken, not the fixture")
 	}
 }

@@ -18,7 +18,7 @@ func seedTwoRevisions(t *testing.T, srv *server) (*repopb.InstalledPackageRevisi
 
 	old := &repopb.InstalledPackageRevision{
 		PublisherId: "core@globular.io", Name: "echo", Platform: "linux_amd64",
-		Kind: repopb.ArtifactKind_SERVICE,
+		Kind:    repopb.ArtifactKind_SERVICE,
 		Version: "1.0.0", BuildId: "v1", BuildNumber: 1,
 		Checksum: "sha256:abc", InstalledAtUnix: time.Now().Unix() - 3600,
 		NodeId: "n1", Action: "install",
@@ -28,7 +28,7 @@ func seedTwoRevisions(t *testing.T, srv *server) (*repopb.InstalledPackageRevisi
 	}
 	current := &repopb.InstalledPackageRevision{
 		PublisherId: "core@globular.io", Name: "echo", Platform: "linux_amd64",
-		Kind: repopb.ArtifactKind_SERVICE,
+		Kind:    repopb.ArtifactKind_SERVICE,
 		Version: "1.1.0", BuildId: "v2", BuildNumber: 2,
 		Checksum: "sha256:def", InstalledAtUnix: time.Now().Unix(),
 		NodeId: "n1", PreviousRevisionId: old.GetRevisionId(), Action: "upgrade",

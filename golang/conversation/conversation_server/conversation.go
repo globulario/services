@@ -303,6 +303,7 @@ func (srv *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 		return nil, status.Errorf(codes.Unauthenticated, "%s", Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	//go:uncertainty:declared-failsafe not-owner is a business outcome, not an erased error: the branch performs the LEAVE path instead of DELETE. If RBAC were unavailable the caller is downgraded to leave, i.e. the less destructive action, so the degradation direction is safe. Triaged 2026-08-14.
 	if _, _, err := srv.validateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid); err != nil {
 		// Not owner → leave
 		if err := srv.removeConversationParticipant(clientId, rqst.ConversationUuid); err != nil {

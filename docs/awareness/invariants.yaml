@@ -11595,3 +11595,35 @@ invariants:
       before editing docs/awareness/. The degraded-mode fallback documented in THIS FILE''s own header
       is therefore gated behind the very surface that is degraded: while the graph is stale, the repository
       cannot record that the graph is stale.'
+- id: installed_state_requires_successful_owner_install_receipt
+  title: installed state requires a successful owner-produced install receipt
+  status: active
+  description: A package record may carry status=installed only when an installation OWNER completed the install transaction and stamped a receipt (installed_by, or the sanctioned legacy_sidecar migration marker). Artifact identity — an unpacked entrypoint binary whose checksum matches the manifest — proves only that bytes were unpacked. It does not prove native-dependency validation passed, configuration completed, the unit rendered, receipt stamping occurred, or that the transaction committed. Observers (the node-agent heartbeat local-package-cache paths) may RECORD what they see as artifact_present, and may repair identity metadata, but must never create or promote a record to installed. artifact_present / installation_failed / installation_incomplete / installed_unverified must stay distinguishable from installed so convergence can retry from the failed or incomplete state.
+  protects:
+    files:
+      - golang/node_agent/node_agent_server/heartbeat.go
+      - golang/node_agent/node_agent_server/internal/installreceipt/installreceipt.go
+  required_tests:
+    - golang/node_agent/node_agent_server/installed_state_owner_receipt_test.go:TestFailedInstallIsNeverPromotedToInstalledByObserver
+  contract: installed ⇔ a successful owner-produced installation receipt exists
+- id: repository.cached_artifact_must_not_be_visible_before_verified_commit
+  title: A cached artifact must not be visible at its final path before it is verifiably complete
+  status: active
+  description: 'The producer of the local package cache owns the definition of completeness and must publish transactionally: write to a temporary path ON THE SAME FILESYSTEM as the destination, verify the expected digest, fsync the file, atomically rename into the final cache path, fsync the directory, then write a completion receipt last. Consumers must never infer completeness from mtime, size, a sleep, or retry folklore — a partial artifact must be STRUCTURALLY invisible, not merely unlikely to be read. Corollary: mv is atomic only within one filesystem; across a boundary it degrades to copy+unlink and publishes a half-written file at its final discoverable name with mtime already set from the archive, so nothing about it looks unfinished. A join workflow may WAIT for publication but must not own the definition of package completeness.'
+  protects:
+    files:
+      - golang/repository/repository_server/blob_seed.go
+  required_tests:
+    - internal/gateway/handlers/cluster/join_script_staging_test.go:TestAtomicPublishNeverExposesPartialArtifact
+  contract: a package in the local cache is either absent or complete; never observably partial
+- id: release.affected_package_suites_must_pass_before_publish
+  title: A release must run the test suites of every package it changed, before the irreversible step
+  status: active
+  description: 'The release path must derive the affected Go packages from the changed files and require their suites to pass before packing or publishing. The gate must report an explicit census — changed files discovered, affected packages resolved, suites executed, passed, failed — because ''affected tests passed'' is otherwise ambiguous between ''the suites ran and were green'' and ''no suites ran at all''. It must fail on: a changed Go file that maps to no package; a package discovered but never executed; a compile failure (classified SEPARATELY from test failure, because a package that never built reports the same zero failing tests as a healthy one); failing tests; a discovery command that died (an empty result from failed discovery is not evidence of a clean tree); a resolver returning an empty answer for non-empty input. Deleted/renamed files must be named, not dropped — git reports the old path, and silently skipping a vanished directory is how a renamed package stops being tested. Exemptions (docs, generated, declarative) are permitted but must be counted and named.'
+  protects:
+    files:
+      - scripts/build-local-release.sh
+      - golang/cmd/affectedtests/census.go
+  required_tests:
+    - golang/cmd/affectedtests/census_test.go:TestScarOne_NodeAgentPlacementSuiteIsDiscoveredAndRun
+  contract: no path may exist from a changed package with a failing suite to a released artifact

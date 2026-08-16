@@ -1,0 +1,9 @@
+contract_unknown:
+  - id: contract_unknown.nothing_re_renders_scylladb_seeds_after_the_ring_grows_past
+    kind: contract_unknown
+    title: Nothing re-renders ScyllaDB seeds after the ring grows past the founding node
+    description: The scylladb package post-install writes a single SEED_IP at install time and never runs again. On the founding node there are no peers at Day-0, so its seed list is self forever, even after four more nodes join the ring. No component owns refreshing it.
+    proposed_contract: A node's rendered scylla.yaml seed list must name at least one non-self ring member once such a member exists. Seeds are read only at process start, so refreshing the file is non-destructive and needs no restart — it changes only what a FUTURE start would discover.
+    revision_request: 'Decide the owner: a node-agent reconcileScyllaSeeds alongside reconcileMinioSystemdConfig, or controller-published desired seeds consumed at render time. Requires deciding which peer set is authoritative (etcd node list vs observed gossip).'
+    evidence:
+      - 'doctor scylla.config_valid (INFO) on node-1 of a clean 5-node cluster: ''seeds contains only self (10.10.0.11) ... a wiped restart with self-only seeds would re-bootstrap an isolated ring''. Renderer: packages/metadata/scylladb/scripts/post-install.sh:346. node-agent already runs periodic reconcilers in the heartbeat loop and /etc/scylla/ is an allowed write path, so the hook exists — the reconciler does not.'

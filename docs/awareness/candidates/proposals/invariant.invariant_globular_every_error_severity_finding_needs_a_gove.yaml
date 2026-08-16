@@ -1,0 +1,25 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: invariant
+    id: invariant.globular.every_error_severity_finding_needs_a_governed_repair_path_or
+    title: Every ERROR-severity finding needs a governed repair path or an explicit non-self-healing declaration
+    description: 'A diagnostic that classifies a condition as ERROR asserts that something is wrong and ought to change. If no transition exists that can consume the violated predicate, the finding is an alarm wired to a door no actuator can open: it fires forever, no operator action short of manual state surgery clears it, and over time people learn to read it as background noise — which then hides the instances that DO matter. Either a governed repair path exists, or the finding must declare itself non-self-healing so its permanence is a stated property rather than a discovered disappointment. This is checkable in the graph: for a finding declared repairable, some transition must accept the predicate it violates.'
+    severity: high
+    source_files:
+        - golang/cluster_doctor/cluster_doctor_server/rules/
+    related_failures:
+        - poisoned_build_identity_is_detected_but_never_re_driven_detection_and_healing_are_separate_capabilities
+        - alert_retire_condition_stricter_than_its_raise_condition_latches_the_alert
+    forbidden_fixes:
+        - Ship an ERROR-severity finding with no repair path and no non-self-healing declaration
+        - Silence an unactionable finding by lowering its severity rather than giving it a repair path or declaring it operator-only
+    evidence:
+        - release.boundary_unproven fires on build-identity mismatch and no convergence actor consumes that predicate — proven by controlled reproduction 2026-08-13, 16 minutes with zero actor evaluation while the doctor reported ERROR throughout.
+        - reconcile.lane_timeout fired on a monotonic lifetime counter with no retirement path, making one transient timeout a permanent ERROR (fixed in b2cd6bce) — the same shape from the retirement side rather than the repair side.
+    domain: github.com/globulario/services
+    contract: A finding at ERROR severity must either name a governed repair path capable of consuming its violated predicate, or explicitly declare itself non-self-healing and requiring operator intervention. Detection without either is an unactionable alarm.

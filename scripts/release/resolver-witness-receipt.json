@@ -1,0 +1,15 @@
+{
+  "witness": "verify-resolver-without-libnss",
+  "verdict": "PASS",
+  "pass": 7,
+  "fail": 0,
+  "expected_systemd": "255.4-1ubuntu8.15",
+  "observed_systemd": "255.4-1ubuntu8.15",
+  "observed_systemd_resolved": "255.4-1ubuntu8.15",
+  "cluster_domain": "globular.internal",
+  "node_fqdn": "globule-nuc.globular.internal",
+  "libnss_state": "absent",
+  "hosts_line": "hosts:          files dns",
+  "recorded_at_unix": 1786799896,
+  "recorded_by": "tester@noble-815-witness"
+}

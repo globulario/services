@@ -97,12 +97,12 @@ func TestRepositoryDoctorCollisionFindingIncludesForbiddenFixes(t *testing.T) {
 	}
 	m1 := &repopb.ArtifactManifest{
 		Ref: ref, BuildNumber: 1, BuildId: "build-A",
-		Checksum: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Checksum:  "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		SizeBytes: 100,
 	}
 	m2 := &repopb.ArtifactManifest{
 		Ref: ref, BuildNumber: 2, BuildId: "build-B",
-		Checksum: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		Checksum:  "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		SizeBytes: 100,
 	}
 	seedPublishedArtifactDirect(t, srv, m1)

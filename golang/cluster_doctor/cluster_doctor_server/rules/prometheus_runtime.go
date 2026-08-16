@@ -356,18 +356,42 @@ func (promRuntime) Evaluate(snap *collector.Snapshot, _ Config) []Finding {
 
 	// ── Reconcile lane isolation signals (Phase: starvation prevention) ──────
 
-	if timeouts, ok := snap.PromMetrics["reconcile_lane_timeouts_cluster"]; ok && timeouts > 0 {
+	// Fire on RECENT timeouts, not on the lifetime total.
+	//
+	// This finding's own wording is "timed out N time(s)" — an event-recency
+	// diagnostic, not a statement about current lane health. It used to read
+	// the monotonic lifetime counter and fire on `> 0`, which a counter can
+	// never undo: one transient timeout became a permanent ERROR. Observed
+	// 2026-08-13 — a single cluster_reconcile timeout at 00:34:44 during a
+	// certification run held this at ERROR indefinitely while the lane's own
+	// record said {"phase":"OK","running":false}. The two disagreed because
+	// they answer different questions, and the rule was answering neither.
+	//
+	// The 15m window mirrors workflow_dispatch_rejected_rate_15m above and
+	// auto-clears, so the finding retires itself the way the condition that
+	// raised it does. The lifetime total is preserved as evidence rather than
+	// reset — deleting telemetry to clear a doctor finding would destroy the
+	// history that makes "has this lane ever timed out" answerable.
+	//
+	// Gating on lane phase != OK was considered and rejected: it would change
+	// what the finding MEANS (current health rather than recent events) while
+	// keeping its text, which is how a diagnostic quietly starts lying.
+	if recent, ok := snap.PromMetrics["reconcile_lane_timeouts_cluster_15m"]; ok && recent > 0 {
+		lifetime := snap.PromMetrics["reconcile_lane_timeouts_cluster"]
 		findings = append(findings, Finding{
 			FindingID:   FindingID("reconcile.lane_timeout", "cluster", "cluster_reconcile"),
 			InvariantID: "reconcile.lane_timeout",
 			Severity:    cluster_doctorpb.Severity_SEVERITY_ERROR,
 			Category:    "control_plane",
 			EntityRef:   "cluster_reconcile",
-			Summary:     fmt.Sprintf("Reconcile lane cluster_reconcile timed out %.0f time(s) — lane execution exceeded timeout and was marked degraded", timeouts),
+			Summary:     fmt.Sprintf("Reconcile lane cluster_reconcile timed out %.0f time(s) in the last 15m — lane execution exceeded timeout and was marked degraded", recent),
 			Evidence: []*cluster_doctorpb.Evidence{kvEvidence("prometheus", "reconcile_lane_timeouts_total", map[string]string{
-				"lane":      "cluster_reconcile",
-				"timeouts":  fmt.Sprintf("%.0f", timeouts),
-				"timestamp": snap.PromTS.UTC().Format(time.RFC3339),
+				"lane":             "cluster_reconcile",
+				"timeouts_15m":     fmt.Sprintf("%.0f", recent),
+				"timeouts_ever":    fmt.Sprintf("%.0f", lifetime),
+				"prometheus_query": `sum(increase(globular_controller_reconcile_lane_timeouts_total{lane="cluster_reconcile"}[15m]))`,
+				"auto_clear":       "no lane timeout within the 15m window",
+				"timestamp":        snap.PromTS.UTC().Format(time.RFC3339),
 			})},
 			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 		})

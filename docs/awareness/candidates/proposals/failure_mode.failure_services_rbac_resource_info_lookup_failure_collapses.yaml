@@ -1,0 +1,68 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    # ─────────────────────────────────────────────────────────────────────────
+    # ALREADY FIXED — 2026-08-14, commit 01bc3e9c, hours after this was filed.
+    #
+    # The description below is written in the present tense and is now FALSE of
+    # the code. golang/interceptors/ServerInterceptors.go no longer sets infos
+    # to an empty slice and continues; it returns
+    # (false, true, wrapScopeFailure(method, err)) — deny — when the resource
+    # scope cannot be determined.
+    #
+    # Promote as HISTORY, not as a live defect. The class is real and worth
+    # remembering (it is the reference instance of the parent invariant
+    # "authority uncertainty must not collapse to an empty scope at a verdict
+    # boundary"), but a reviewer who reads it as current will go looking for a
+    # hole that is closed and may conclude the graph is unreliable.
+    #
+    # Still true and NOT fixed, from the same description:
+    #   - the two sibling ProtoReflect branches in the same function still
+    #     proceed on failure; their consequence differs (infos non-empty with
+    #     unbound paths) and was deliberately not verified, so they were left
+    #     alone rather than changed on a guess.
+    #
+    # Pinned by tests in golang/interceptors/resource_scope_failclosed_test.go,
+    # which also pin the producer-side not-found classification the fix depends
+    # on — if that classification is ever removed, denying on error would start
+    # rejecting every unmapped method.
+    # ─────────────────────────────────────────────────────────────────────────
+    proposed_by: agent
+    kind: failure_mode
+    id: failure.services.rbac_resource_info_lookup_failure_collapses_to_an_empty_scop
+    title: RBAC resource-info lookup failure collapses to an empty scope, degrading resource-scoped authorization to unscoped
+    description: |-
+        golang/interceptors/ServerInterceptors.go:448-452 turns a resource-info lookup failure into an empty scope and proceeds with authorization.
+
+            infos, err := getActionResourceInfos(domain, method)
+            if err != nil {
+                slog.Warn("getActionResourceInfos returned error; proceeding with empty resource infos", ...)
+                infos = make([]*rbacpb.ResourceInfos, 0)
+            }
+
+        The action-level permission check still runs, so this is not a total bypass. What is dropped is the per-resource binding that scopes the action to specific resources: a caller is evaluated as though the method touched no resources at all. After the assignment nothing downstream can distinguish "this method has no applicable resources" from "I could not find out which resources apply".
+
+        This is the purest instance of the producer/consumer split. The producer preserves fidelity on purpose and cites the meta principle for doing so; the consumer discards it eight lines later.
+
+        Trigger conditions: RBAC unavailable or slow (startup, restart, stale connection, partition) or a GetRbacClient failure — precisely when authorization data is least trustworthy, scope enforcement quietly relaxes.
+
+        Not yet measured: how much authorization in practice depends on resource binding versus the action check alone. That determines whether this is scope-widening or sharper, and should be established before choosing a fix.
+    severity: high
+    source_files:
+        - golang/interceptors/ServerInterceptors.go
+    related_invariants:
+        - authority_uncertainty_must_not_collapse_to_an_empty_scope_at
+        - meta.fail_safe_defaults_when_authority_is_uncertain
+        - meta.connection_errors_must_not_be_absorbed
+    forbidden_fixes:
+        - Silence the warning or widen the timeout instead of making the uncertainty reach the authorization decision
+    evidence:
+        - ServerInterceptors.go:448-452 — on error the interceptor logs a warning, assigns an empty []*rbacpb.ResourceInfos, and continues into validateAction
+        - ServerInterceptors.go:340-343 — the producer deliberately preserves a context.DeadlineExceeded sentinel, commented 'so callers can distinguish timeout from generic Unavailable. Enforces meta.connection_errors_must_not_be_absorbed'; no caller ever inspects it
+        - ServerInterceptors.go:455-462 — ProtoReflect failure and a non-Message reflect result both skip the action resource check and proceed
+        - ServerInterceptors.go:398-419 — the SAME file's ValidateAction timeout path denies, commented 'a stalled authorization service must NOT silently grant'; the verdict path fails closed while the scope path fails open
+        - scripts/check_proto_authz.sh passes — all RPCs carry (globular.auth.authz) annotations, so the separate unmapped-method pass-through is bounded by a CI gate rather than a runtime property
+    domain: github.com/globulario/services
