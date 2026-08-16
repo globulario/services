@@ -34,11 +34,26 @@ jobs:
           repository: globulario/globular-installer
           path: globular-installer
 
+      # The packages revision is PINNED by scripts/release/package-sources.json.
+      # check-package-kinds and check-package-authority validate services against
+      # the packages corpus, so checking out a moving branch made those gates
+      # non-deterministic: the same services commit could pass today and fail
+      # tomorrow, and a push to packages could turn every services PR red with no
+      # services commit involved. Adopting a new corpus is now a reviewable diff.
+      - name: Resolve pinned packages revision
+        id: packages_pin
+        working-directory: services
+        run: |
+          rev="$(scripts/release/packages-revision.sh)"
+          echo "rev=${rev}" >> "$GITHUB_OUTPUT"
+          echo "packages pinned at ${rev}"
+
       - name: Checkout packages
         uses: actions/checkout@v4
         with:
           repository: globulario/packages
           path: packages
+          ref: ${{ steps.packages_pin.outputs.rev }}
 
       # awareness-graph is PRIVATE, so the default GITHUB_TOKEN cannot reach it
       # (the other sibling repos are public). Non-fatal: if checkout fails the

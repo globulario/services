@@ -133,6 +133,26 @@ check-package-kinds:
 check-package-authority:
 	@python3 scripts/validate-package-authority.py
 
+# ── packages revision pin ──────────────────────────────────────────────────
+#
+# scripts/release/package-sources.json declares WHICH globulario/packages
+# revision this repo validates and releases against. CI checks the sibling out
+# at exactly that SHA, so check-package-kinds and check-package-authority are
+# deterministic: a push to packages can no longer turn services red on its own,
+# and adopting a new corpus is a reviewable diff instead of a side effect.
+#
+#   make packages-pin              show the pinned revision
+#   make bump-packages-pin         adopt packages origin/main
+#   make bump-packages-pin REV=<x> adopt a specific revision
+#
+# Bumping refuses any revision not reachable from a remote branch of packages.
+
+packages-pin:
+	@echo "$$(scripts/release/packages-revision.sh --repo) @ $$(scripts/release/packages-revision.sh)"
+
+bump-packages-pin:
+	@scripts/release/bump-packages-pin.sh $(REV)
+
 # ── Day-0 package contract ─────────────────────────────────────────────────
 #
 # install-day0.sh must bootstrap every registry day0_required package and the

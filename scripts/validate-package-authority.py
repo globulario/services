@@ -187,6 +187,49 @@ def declared_staged_binaries(registry_entries: list[dict], canonical_specs: dict
     return allowed, by_package
 
 
+def check_packages_pin(services_root: Path, packages_root: Path) -> None:
+    """Report when the local packages checkout is not the pinned revision.
+
+    scripts/release/package-sources.json declares which packages revision this
+    repo validates and releases against, and CI checks the sibling out at
+    exactly that SHA. Locally the sibling is a working repo — it legitimately
+    carries in-progress work — so a mismatch is NOT an error here.
+
+    It is, however, the difference that made 2026-08-15 confusing: the kind
+    projections were verified against a local packages checkout whose registry
+    edit had never been pushed, so the gates agreed locally and disagreed in CI,
+    and the commit message truthfully said the entry had been removed "first"
+    while the published corpus still carried it. Nothing reported the gap. This
+    does — a warning, every run, naming both revisions.
+    """
+    sources = services_root / "scripts" / "release" / "package-sources.json"
+    if not sources.is_file():
+        return
+    try:
+        pinned = json.loads(sources.read_text())["sources"]["packages"]["revision"].strip()
+    except (KeyError, TypeError, ValueError, OSError):
+        warn(f"{rel(sources, services_root)} unreadable — cannot compare the packages pin")
+        return
+
+    try:
+        head = subprocess.run(
+            ["git", "-C", str(packages_root), "rev-parse", "HEAD"],
+            capture_output=True, text=True, check=True, timeout=10,
+        ).stdout.strip()
+    except (subprocess.SubprocessError, OSError):
+        warn("cannot read the packages checkout HEAD — the pin was not verified locally")
+        return
+
+    if head == pinned:
+        return
+
+    warn(
+        f"local packages checkout is at {head[:12]}, pinned revision is {pinned[:12]} — "
+        "CI validates against the pin, so local gate results may not match CI. "
+        "Adopt the local revision with `make bump-packages-pin` once it is pushed."
+    )
+
+
 def check_legacy_roots(errors: list[str], services_root: Path) -> None:
     for legacy_root in LEGACY_SPEC_ROOTS:
         candidate = (services_root / legacy_root).resolve()
@@ -596,6 +639,7 @@ def main() -> int:
         return 0
 
     errors: list[str] = []
+    check_packages_pin(services_root, packages_root)
     check_legacy_roots(errors, services_root)
     try:
         registry_entries = load_registry(registry_path)
