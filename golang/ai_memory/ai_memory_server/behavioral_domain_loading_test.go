@@ -6,6 +6,7 @@ import (
 
 	"github.com/globulario/services/golang/ai_memory/behavioral/api"
 	"github.com/globulario/services/golang/ai_memory/behavioral/store"
+	"google.golang.org/grpc"
 )
 
 // TestRegisteredBehavioralDomainsArePersisted guards the split-brain startup
@@ -76,5 +77,25 @@ func TestProgrammingCatalogPersistsFromRegisteredDomains(t *testing.T) {
 	}
 	if len(auths) == 0 {
 		t.Fatal("programming is registered but persisted 0 authorities")
+	}
+}
+
+// TestRegisterBehavioralServiceSeedsProgramming proves the real composition
+// root invokes the shared loader. A helper-only test would stay green if someone
+// later removed the production hook and recreated the original split-brain bug.
+func TestRegisterBehavioralServiceSeedsProgramming(t *testing.T) {
+	ctx := context.Background()
+	st := store.NewMemoryStore()
+	gs := grpc.NewServer()
+	defer gs.Stop()
+
+	registerBehavioralService(gs, st)
+
+	auths, err := st.ListAuthorities(ctx, behavioralSeedProject, "programming", 0)
+	if err != nil {
+		t.Fatalf("list programming authorities after service registration: %v", err)
+	}
+	if len(auths) == 0 {
+		t.Fatal("registerBehavioralService left programming catalog empty")
 	}
 }
