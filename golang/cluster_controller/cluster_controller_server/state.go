@@ -142,6 +142,12 @@ type controllerState struct {
 	// always proceeds. Tagged json:"-" so it never round-trips to etcd or
 	// disk; it's a runtime-only deduplication cache.
 	lastPersistedHash [sha256.Size]byte `json:"-"`
+
+	// lastPersistedAt is when saveToEtcd last wrote successfully. Paired with
+	// observationPersistFloor so that state which is semantically unchanged but
+	// whose observation fields have drifted still reaches etcd periodically
+	// rather than never. Runtime-only, like lastPersistedHash.
+	lastPersistedAt time.Time `json:"-"`
 }
 
 // minioCredentials holds the MinIO root credentials for the cluster.
@@ -781,14 +787,29 @@ func (s *controllerState) saveToEtcd(cli *clientv3.Client) error {
 	if err != nil {
 		return err
 	}
-	hash := sha256.Sum256(data)
+	hash := semanticStateHash(data)
 
-	// Skip when content is byte-identical to the last successful persist.
-	// The zero-value check ensures the FIRST call after startup always
-	// writes — even if some prior process wrote the same bytes, the
-	// current process has no record of that and must take ownership.
+	// Skip when the SEMANTIC content is unchanged since the last successful
+	// persist. The zero-value check ensures the FIRST call after startup always
+	// writes — even if some prior process wrote the same bytes, the current
+	// process has no record of that and must take ownership.
+	//
+	// The hash deliberately ignores per-node observation fields (see
+	// semanticStateHash). Hashing the raw bytes made this skip almost never
+	// fire: every node heartbeat moves last_seen/reported_at/checked_at and
+	// nudges disk_free_bytes, so the full ~78 KB blob was rewritten ~4x/minute
+	// with no state change at all. That is ~30 MB/hour of MVCC history, and on
+	// 2026-08-16 it was the largest contributor to filling etcd's 2 GiB backend
+	// quota — NOSPACE on 4 of 5 members, control plane read-only, no desired
+	// state could be written until compact+defrag+disarm.
+	//
+	// Those fields are Layer-4 runtime observation living inside a Layer-2
+	// state record (infra.heartbeat_not_desired_authority,
+	// four_layer.layer_has_single_writing_actor). They are still PERSISTED —
+	// this only stops them from being the REASON to write.
 	var zero [sha256.Size]byte
-	if s.lastPersistedHash != zero && s.lastPersistedHash == hash {
+	unchanged := s.lastPersistedHash != zero && s.lastPersistedHash == hash
+	if unchanged && time.Since(s.lastPersistedAt) < observationPersistFloor {
 		slog.Debug("state.persist_skipped_unchanged",
 			"key", etcdStateKey,
 			"size_bytes", len(data),
@@ -796,6 +817,10 @@ func (s *controllerState) saveToEtcd(cli *clientv3.Client) error {
 		)
 		return nil
 	}
+	// Semantically unchanged but the floor has elapsed: write once so the
+	// observation fields in etcd do not drift arbitrarily far from reality.
+	// A reader that needs live liveness must use the node's own runtime keys;
+	// this blob is a state record that happens to carry a last-known sample.
 
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
@@ -805,12 +830,75 @@ func (s *controllerState) saveToEtcd(cli *clientv3.Client) error {
 		return err
 	}
 	s.lastPersistedHash = hash
+	s.lastPersistedAt = time.Now()
 	slog.Debug("state.persist_written",
 		"key", etcdStateKey,
 		"size_bytes", len(data),
 		"hash", hex.EncodeToString(hash[:8]),
 	)
 	return nil
+}
+
+// observationPersistFloor bounds how often a write may be triggered by nothing
+// but observation drift. Semantic changes are never delayed — they fail the
+// hash comparison and write immediately. This only puts a ceiling on writes
+// caused by heartbeat timestamps and disk-free jitter, taking the controller
+// state blob from roughly 4 writes/minute to at most one per floor.
+const observationPersistFloor = 5 * time.Minute
+
+// volatileNodeObservationFields are per-node fields that change on every
+// heartbeat without expressing any change of state. They are excluded from the
+// persistence-trigger hash so that observation drift alone does not rewrite the
+// whole state blob. Anything genuinely state-bearing must NOT be listed here:
+// adding a field to this set makes changes to it invisible to the write
+// trigger, which would leave etcd stale until the floor elapses.
+var volatileNodeObservationFields = []string{
+	"last_seen",   // heartbeat arrival, moves every cycle
+	"reported_at", // agent-side stamp on the same heartbeat
+}
+
+// semanticStateHash hashes the state with per-node observation fields removed,
+// so the result changes only when something state-bearing changes.
+//
+// It works on the marshalled JSON rather than a struct copy: nodeState is held
+// by pointer in the Nodes map, so zeroing fields on the live object to hash it
+// would corrupt the very state being persisted, and a deep copy would silently
+// miss fields added later. On failure to parse it falls back to hashing the raw
+// bytes — degrading to the old always-write behaviour, never to a false "no
+// change" that would suppress a real write.
+func semanticStateHash(data []byte) [sha256.Size]byte {
+	var doc map[string]any
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return sha256.Sum256(data)
+	}
+	nodes, ok := doc["nodes"].(map[string]any)
+	if !ok {
+		return sha256.Sum256(data)
+	}
+	for _, raw := range nodes {
+		node, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		for _, f := range volatileNodeObservationFields {
+			delete(node, f)
+		}
+		// disk_free_bytes drifts by a few hundred KB continuously as the node
+		// writes logs; it is a capacity sample, not a state transition.
+		if caps, ok := node["capabilities"].(map[string]any); ok {
+			delete(caps, "disk_free_bytes")
+		}
+		// checked_at stamps when the admission proof was last EVALUATED; the
+		// proof's verdict is the state, and that is left in the hash.
+		if proof, ok := node["last_admission_proof"].(map[string]any); ok {
+			delete(proof, "checked_at")
+		}
+	}
+	normalized, err := json.Marshal(doc)
+	if err != nil {
+		return sha256.Sum256(data)
+	}
+	return sha256.Sum256(normalized)
 }
 
 // loadFromEtcd loads the controller state from etcd.

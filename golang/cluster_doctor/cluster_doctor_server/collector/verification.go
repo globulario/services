@@ -18,6 +18,7 @@ package collector
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"log"
 	"strings"
@@ -820,12 +821,34 @@ func (c *Collector) persistVerificationResults(ctx context.Context, snap *Snapsh
 	defer cancel()
 
 	var writeErrors int
+	var skipped int
+	live := make(map[string]struct{}, len(r.Verdicts))
 	for _, v := range r.Verdicts {
 		key := verifier.EtcdKeyForVerification(v.Target.NodeID, v.Target.Service)
+		live[key] = struct{}{}
 		payload, err := json.Marshal(v)
 		if err != nil {
 			log.Printf("verification: marshal verdict for %s/%s: %v",
 				v.Target.NodeID, v.Target.Service, err)
+			continue
+		}
+		// Skip the Put when this key's payload is byte-identical to the last
+		// one we successfully wrote. A verdict only changes when the thing it
+		// describes changes, so in a steady cluster nearly every cycle rewrites
+		// the same bytes: on 2026-08-16 this path was measured at ~7.3 writes/s
+		// across 232 keys — roughly 20 MB/hour of MVCC history, the second
+		// largest contributor to etcd reaching its 2 GiB backend quota (NOSPACE
+		// on 4 of 5 members, control plane read-only). Two samples of the same
+		// key taken 20s apart were identical.
+		//
+		// This does NOT make the write lawful. cluster-doctor is observer-only
+		// (invariant cluster_doctor.observer_only_never_writes_etcd, critical)
+		// and this Put is a known, allowlisted violation — see
+		// cluster_doctor_etcd_authority_test.go, whose migration target is typed
+		// verdict persistence on the owner (cluster_controller). This only stops
+		// the violation from also being an availability risk while that lands.
+		if c.shouldSkipVerificationWrite(key, payload) {
+			skipped++
 			continue
 		}
 		if _, err := cli.Put(writeCtx, key, string(payload)); err != nil {
@@ -837,10 +860,54 @@ func (c *Collector) persistVerificationResults(ctx context.Context, snap *Snapsh
 			// during transient etcd hiccups).
 			// See meta.critical_path_no_non_critical_dependency.
 			writeErrors++
+			continue
 		}
+		c.recordVerificationWrite(key, payload)
 	}
+	c.pruneVerificationWriteHashes(live)
 	if writeErrors > 0 {
 		log.Printf("verification: %d/%d etcd writes failed (non-critical, verdicts still in snapshot)",
 			writeErrors, len(r.Verdicts))
+	}
+	if skipped > 0 {
+		log.Printf("verification: %d/%d verdicts unchanged since last write (skipped)",
+			skipped, len(r.Verdicts))
+	}
+}
+
+// shouldSkipVerificationWrite reports whether this key already holds exactly
+// these bytes as of our last SUCCESSFUL write. Unknown key → false (write it):
+// absence of a record is never treated as "already current".
+func (c *Collector) shouldSkipVerificationWrite(key string, payload []byte) bool {
+	sum := sha256.Sum256(payload)
+	c.verificationWriteMu.Lock()
+	defer c.verificationWriteMu.Unlock()
+	prev, ok := c.verificationWriteHashes[key]
+	return ok && prev == sum
+}
+
+// recordVerificationWrite remembers what we just wrote. Called ONLY after a
+// successful Put — on failure the entry is left alone so the next cycle retries
+// rather than believing the value landed.
+func (c *Collector) recordVerificationWrite(key string, payload []byte) {
+	sum := sha256.Sum256(payload)
+	c.verificationWriteMu.Lock()
+	defer c.verificationWriteMu.Unlock()
+	if c.verificationWriteHashes == nil {
+		c.verificationWriteHashes = make(map[string][sha256.Size]byte)
+	}
+	c.verificationWriteHashes[key] = sum
+}
+
+// pruneVerificationWriteHashes drops entries for keys no longer produced, so a
+// long-lived collector does not accumulate hashes for services and nodes that
+// have since been removed.
+func (c *Collector) pruneVerificationWriteHashes(live map[string]struct{}) {
+	c.verificationWriteMu.Lock()
+	defer c.verificationWriteMu.Unlock()
+	for k := range c.verificationWriteHashes {
+		if _, ok := live[k]; !ok {
+			delete(c.verificationWriteHashes, k)
+		}
 	}
 }
