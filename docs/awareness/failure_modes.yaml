@@ -7676,7 +7676,7 @@ failure_modes:
       title: Service config TLS field reads False while the service serves mTLS, inviting false 'plaintext service' conclusions
       protects:
         files:
-          - golang/globular_service/service.go
+          - golang/globular_service/services.go
       evidence:
         - 'On a healthy 5-node cluster 18 of 20 authoritative service configs (/var/lib/globular/services/<uuid>.json, the Name-bearing ones) carry TLS=False, yet direct mTLS handshakes succeed against every one tested: dns:10003, monitoring:10005, log:10100, persistence:10035, authentication:10002, event:10050. Only cluster_doctor carries TLS=True. During this session the field plus a stale legacy seed file led to a written-up conclusion that 18 services were serving plaintext and that HARD RULE 3 was being violated cluster-wide; that conclusion was false and was withdrawn. The field is not a reliable signal of transport security.'
       contract: A config field named TLS should describe whether the service serves TLS; the lifecycle manager enables TLS from the service cert regardless of it
@@ -7714,10 +7714,7 @@ failure_modes:
         - 'probe-scylla-health: nodetool failed: exit status 2 (Connection refused) on a node whose /storage_service/operation_mode returned NORMAL; the REST fallback masked it so the probe still reported healthy'
     - id: failure.join_gate_proved_scylladb_ready_from_a_cql_port_probe_not_fr
       title: Join gate proved ScyllaDB ready from a CQL port probe, not from the node's own join state
-      description: The Day-1 join gate waited on a TCP connect to 9042 and a CQL query. That proves a socket accepts connections, not that the node finished bootstrapping into the ring. ScyllaDB publishes its own join state on the admin REST API — /storage_service/operation_mode reaches NORMAL and /storage_service/native_transport reports true — which is the node's own statement about itself and what nodetool speaks. Gate on that instead.
-      protects:
-        files:
-          - Globular/internal/gateway/handlers/cluster/join_script.go
+      description: The Day-1 join gate waited on a TCP connect to 9042 and a CQL query. That proves a socket accepts connections, not that the node finished bootstrapping into the ring. ScyllaDB publishes its own join state on the admin REST API — /storage_service/operation_mode reaches NORMAL and /storage_service/native_transport reports true — which is the node's own statement about itself and what nodetool speaks. Gate on that instead. The gate lives in the Globular repo at Globular/internal/gateway/handlers/cluster/join_script.go, embedded into the gateway binary at build; it is named here in prose rather than under protects.files because that path is not resolvable from this repository, the same convention the clean-node.sh teardown scar follows.
       related_invariants:
         - diagnostics.must_measure_reality
       required_tests:
