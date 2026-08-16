@@ -893,7 +893,7 @@ func (srv *NodeAgentServer) reissueLeafViaCAGateway(spec *cluster_controllerpb.C
 	if err != nil {
 		return fmt.Errorf("create re-issue workdir: %w", err)
 	}
-	defer os.RemoveAll(tmp)
+	defer func() { _ = os.RemoveAll(tmp) }()
 
 	keyFile, certFile, caFile, err := security.InstallServerCertificates(
 		domain, tmp, country, state, city, org, alts)

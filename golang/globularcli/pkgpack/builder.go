@@ -874,7 +874,7 @@ func verifyBundledDebs(debPaths []string, opts BuildOptions) ([]string, error) {
 	var refused []string
 	for _, p := range provs {
 		sat := CheckSatisfiable(p, baseline, bundled)
-		fmt.Fprint(os.Stdout, FormatProvenanceRecord(p, sat))
+		_, _ = fmt.Fprint(os.Stdout, FormatProvenanceRecord(p, sat))
 		if !sat.Satisfied {
 			refused = append(refused, p.Package)
 		}

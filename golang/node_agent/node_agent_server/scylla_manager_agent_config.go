@@ -334,7 +334,7 @@ func upsertScyllaAPIURL(content, apiAddress string) string {
 	if !strings.HasSuffix(cleaned, "\n") {
 		cleaned += "\n"
 	}
-	cleaned += fmt.Sprintf("\nscylla:\n  api_address: %s\n  api_port: 10000\n", apiAddress)
+	cleaned += fmt.Sprintf("\nscylla:\n  api_address: %s\n  api_port: %d\n", apiAddress, scyllaAdminAPIPort)
 	return cleaned
 }
 

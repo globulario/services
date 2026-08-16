@@ -404,7 +404,7 @@ func collectionLength(v any) int {
 	switch rv.Kind() {
 	case reflect.Slice, reflect.Array, reflect.Map, reflect.String:
 		return rv.Len()
-	case reflect.Ptr, reflect.Interface:
+	case reflect.Pointer, reflect.Interface:
 		if rv.IsNil() {
 			return 0
 		}
