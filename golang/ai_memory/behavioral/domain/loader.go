@@ -24,9 +24,9 @@ import (
 
 // LoadResult reports what a load wrote.
 type LoadResult struct {
-	Authorities      int
-	Conditions       int
-	PrinciplesSeeded int
+	Authorities       int
+	Conditions        int
+	PrinciplesSeeded  int
 	PrinciplesSkipped int // already promoted/revoked — left as-is
 }
 
@@ -89,20 +89,8 @@ func LoadCatalogs(ctx context.Context, st store.Store, project string, d Domain)
 		} else if !errors.Is(err, store.ErrNotFound) {
 			return res, fmt.Errorf("load principle %q: pre-check: %w", ps.ID, err)
 		}
-		p := &api.Principle{
-			ID: ps.ID, Project: project, Domain: dom, Title: ps.Title,
-			AppliesWhen:      toRefs[api.ConditionRef](ps.AppliesWhen),
-			Authorities:      toRefs[api.AuthorityRef](ps.Authorities),
-			RequiredEvidence: toRefs[api.RequiredEvidenceRef](ps.RequiredEvidence),
-			ForbiddenMoves:   toRefs[api.ForbiddenMoveRef](ps.ForbiddenMoves),
-			RecommendedAction: ps.RecommendedAction, RiskLevel: ps.RiskLevel,
-			RevocationRule: ps.RevocationRule, PromotionReason: ps.PromotionReason,
-			Status: api.StatusProposedPrinciple, Version: 1, ProposedBy: "seed:" + d.Name(),
-			SourceRefs: ps.SourceRefs, GeneratedFrom: ps.GeneratedFrom,
-			Provenance: api.Provenance{AgentID: "seed:" + d.Name()},
-			Metadata:   seedMeta(d.Name()),
-		}
-		if err := st.CreatePrinciple(ctx, p); err != nil {
+		p := PrincipleFromSeed(project, d, ps)
+		if err := st.CreatePrinciple(ctx, &p); err != nil {
 			return res, fmt.Errorf("load principle %q: %w", ps.ID, err)
 		}
 		res.PrinciplesSeeded++
