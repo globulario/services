@@ -18,13 +18,26 @@
     "objects. It does not read the sibling worktree and then check whether the",
     "bytes happen to match. That distinction matters: the packages checkout may",
     "legitimately carry unrelated in-progress work (it currently does), and that",
-    "work must be neither consumed by a release nor disturbed by one."
+    "work must be neither consumed by a release nor disturbed by one.",
+    "",
+    "2026-08-16: this pin now also governs VALIDATION, not just release assembly.",
+    "CI checks globulario/packages out at exactly this revision before running",
+    "check-package-kinds and check-package-authority. Previously those gates ran",
+    "against whatever packages@main happened to be, so the same services commit",
+    "could pass one day and fail the next without changing - and a packages",
+    "change could turn services red with no services commit involved at all.",
+    "That is what happened on 2026-08-15: packages#17 removed 32 metadata",
+    "directories and every services PR went red on check-package-authority.",
+    "",
+    "Bump it with `make bump-packages-pin` (or REV=<sha>), in its own commit,",
+    "so that adopting a new package corpus is a reviewable decision with a",
+    "diff - never a side effect of someone else pushing to packages."
   ],
   "schema_version": 1,
   "sources": {
     "packages": {
       "repository": "globulario/packages",
-      "revision": "6c8a28ad192366c77b0aced1fc38d0518a9a0f17"
+      "revision": "ab18a3c97bd4c093fcb78f4c4efa7a6f9fb9e2ac"
     }
   }
 }
