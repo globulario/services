@@ -6369,3 +6369,21 @@ required_tests:
   run:
     commands:
     - go test ./golang/globularcli/ -run TestBuildUninstallPackageWorkflow
+- id: golang/ai_memory/ai_memory_server/behavioral_durability_test.go:TestPromotionDurabilityGate_RebuildLosesPromotionButReconciliationFlagsIt
+  title: A promotion lost to a store rebuild is flagged, never silently ungoverned
+  related_invariants:
+    - behavioral.promotion_must_survive_rebuild_or_be_flagged
+  related_failures:
+    - behavioral.runtime_promotion_evaporates_on_store_reset
+  contract: >-
+    The durability contract is an OR: either a governed promotion survives a
+    behavioral-store rebuild, or reconciliation flags its loss. An evaporated
+    promotion must never read as still-enforcing.
+  description: >-
+    The invariant carried no required_tests, so it read as unmechanized and the
+    enforcement looked absent. The gate exists and passes: it rebuilds the store,
+    loses a promotion, and asserts GenerateReconciliationReport fires
+    AWG_RUNTIME_RELEVANT_WITHOUT_BEHAVIORAL_CANDIDATE. Re-verified 2026-08-17
+    after a full cluster wipe, which is exactly the event this covers - the
+    behavioral store is ScyllaDB-backed, so the wipe dropped every promotion
+    while the seed catalog survived.
