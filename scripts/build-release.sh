@@ -910,13 +910,30 @@ for name in targets:
 PYEOF
 }
 
-# registry_name_for_target_dir <golang-subdir> — registry package name for a
-# services.list target's top-level directory (mirrors gen-package-versions).
-registry_name_for_target_dir() {
-  local dir="$1"
-  case "${dir}" in
+# registry_name_for_target <services.list-target> — registry package name for a
+# services.list Go target.
+#
+# Package identity follows the target LEAF, not the top-level source directory.
+# This function previously took the top-level directory and claimed in its
+# comment to mirror gen-package-versions-from-source.sh, which derives from the
+# leaf. For flat targets the two agree (cluster_controller/cluster_controller_server
+# -> cluster-controller either way), so the divergence stayed invisible until a
+# nested command hit it: ./oci/cmd/globular-oci-runner resolved to "oci" here and
+# "globular-oci-runner" in the version authority, so the release build could not
+# find a committed version for it and died packaging.
+#
+# Two independent computations of one identity is
+# identity.has_single_canonical_source_and_is_immutable; the leaf rule is the
+# canonical one (see the comment on pkg_name_for_target in
+# gen-package-versions-from-source.sh). Keep these two in step — better still,
+# collapse them into one shared helper.
+registry_name_for_target() {
+  local rel="${1#./}"
+  local leaf="${rel##*/}"
+  leaf="${leaf%_server}"
+  case "${leaf}" in
     globularcli) echo "globular-cli" ;;
-    *) echo "${dir//_/-}" ;;
+    *) echo "${leaf//_/-}" ;;
   esac
 }
 
@@ -944,8 +961,7 @@ stage_release_binaries() {
     [[ -z "${target}" ]] && continue
 
     bin_name=$(basename "${output}")
-    svc_dir="${target#./}"; svc_dir="${svc_dir%%/*}"
-    pkg_reg_name="$(registry_name_for_target_dir "${svc_dir}")"
+    pkg_reg_name="$(registry_name_for_target "${target}")"
     info "Building ${bin_name} (version $(pkg_version_of "${pkg_reg_name}") from committed source)..."
     go build -trimpath -ldflags "$(ldflags_for "${pkg_reg_name}")" -o "${BIN_STAGE_DIR}/${bin_name}" "${target}"
   done < build/services.list
