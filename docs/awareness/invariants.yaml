@@ -11627,3 +11627,14 @@ invariants:
   required_tests:
     - golang/cmd/affectedtests/census_test.go:TestScarOne_NodeAgentPlacementSuiteIsDiscoveredAndRun
   contract: no path may exist from a changed package with a failing suite to a released artifact
+- id: controller.persisted_liveness_must_track_heartbeat
+  title: Persisted node liveness must track heartbeat
+  severity: critical
+  status: active
+  description: cluster-controller@1.2.317 excluded last_seen/reported_at from the state write-trigger hash and added a 5-minute floor. Persisted liveness ran up to 300s stale and 3 of 5 healthy, serving nodes were reported UNREACHABLE/CRITICAL. A content-hash dedup, rate limit, or write floor over this record is admissible only after Layer-4 heartbeat moves to a small per-node key (infra.heartbeat_not_desired_authority).
+  protects:
+    files:
+      - golang/cluster_controller/cluster_controller_server/state.go
+  required_tests:
+    - golang/cluster_controller/cluster_controller_server/state_persist_liveness_test.go:TestSaveToEtcd_HeartbeatReachesEtcdEveryCycle
+  contract: The controller's persisted state record is the liveness source readers judge node reachability from; every heartbeat must reach etcd, so no write-suppression may treat last_seen as non-semantic while it lives in that record.

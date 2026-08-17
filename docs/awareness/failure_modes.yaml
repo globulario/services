@@ -7823,3 +7823,17 @@ failure_modes:
         - minio_nonmember_test.go:TestNonMemberIsNotJudgedAgainstPoolTopology
       evidence:
         - '2026-08-11: migrating the quickstart cluster standalone -> distributed (3 storage nodes x 2 drives, generation 1, converged and HEALTHY) immediately produced 4 CRITICAL doctor findings on the two COMPUTE nodes (35ac3821, 6400b443): minio.topology_matches_desired x2 (''desired topology is distributed (3 nodes) but the rendered MINIO_VOLUMES is standalone'') and minio.not_stalled x2. Neither node is a storage-profile node, neither is in ObjectStoreDesiredState.Nodes, and both have globular-minio held stopped by the node-agent topology gate.'
+    - id: etcd.backend_ratchets_because_nothing_defragments
+      title: etcd backend ratchets into NOSPACE because nothing defragments
+      severity: critical
+      description: 'auto-compaction (periodic, 1h) was configured and working, but nothing ever defragmented, so the backend file only ratcheted upward and the high-water mark was permanent. Measured on the 5-node simulation: 46,200 revisions/hour and ~55 MB/hour of growth against a 1.7 MB live working set; the file reached 2,146,975,744 bytes (99% of the 2 GiB default quota) after 46 hours and raised NOSPACE, making the control plane read-only. Defragmenting returned every member to 1.7 MB — about 97% of the file was free space. Any cluster reaches this on a timer (~39 hours). Misdiagnosing it as write volume is what produced cluster-controller@1.2.317 and the second outage.'
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/etcd_maintenance.go
+      related_invariants:
+        - controller.persisted_liveness_must_track_heartbeat
+      required_tests:
+        - golang/node_agent/node_agent_server/etcd_maintenance_test.go:TestEtcdMaintenance_IntervalKeepsGrowthUnderQuota
+      evidence:
+        - '5-node sim, 2026-08-17: dbSize 2146975744, dbSizeInUse 2146828288, 1018 live keys, alarm NOSPACE; post-defrag 1.7 MB on all 5 members'
+      contract: 'etcd must be able to return backend space, not only consume it: compaction bounds MVCC history but only defragmentation returns freed pages to the filesystem.'

@@ -4250,3 +4250,17 @@ forbidden_fixes:
   related_invariants:
     - infrastructure.etcd.quorum_backed_config_authority
   reason: 'GetEtcdClient returns the process-wide SHARED etcd singleton; NewEtcdClient returns a caller-owned client. Writing the idiomatic ''cli, err := config.GetEtcdClient(); defer cli.Close()'' therefore destroys etcd access for every other caller in the process. Observed 2026-08-11 on 1.2.310: a per-minute invariant path did exactly this, and the controller spun continuously on ''grpc: the client connection is closing'' while every cluster RPC failed DeadlineExceeded and the cluster never reached ready. The defer looks correct in isolation and is the habit every Go reviewer has; the hazard is invisible at the call site because the function name does not say ''shared''. Either take the shared client and do not close it, or call NewEtcdClient and own the lifecycle. A short-lived CLI closing it at exit is harmless; a long-running service doing so is an outage.'
+- id: suppress_state_write_by_treating_liveness_as_observation
+  title: Suppress controller state writes by classifying liveness as non-semantic
+  summary: 'Excluding last_seen/reported_at (or any field a reader uses for liveness) from a content-hash write trigger, or bounding such writes with a time floor, while that field still lives in the controller state record. Shipped as cluster-controller@1.2.317 and took the cluster down: 3 of 5 healthy nodes read as UNREACHABLE. Reduce write volume by defragmenting (etcd.backend_ratchets_because_nothing_defragments) or by moving heartbeat to a per-node key first — never by suppressing the signal.'
+  related_invariants:
+    - controller.persisted_liveness_must_track_heartbeat
+  reason: Reducing etcd write volume must never be achieved by making the control plane stop reporting node liveness.
+  contract: Reducing etcd write volume must never be achieved by making the control plane stop reporting node liveness.
+- id: publish_success_inferred_from_log_text
+  title: Decide publish success by grepping CLI log text
+  summary: deploy-service.sh discarded the publish exit code with a trailing '|| true' and then grepped the log for a bundle_id field and for the phrase 'verify uploaded manifest'. Both patterns also match FAILURE output — the phrase only ever appears inside 'failed to verify uploaded manifest' — so a publish whose read-back verification failed was recorded as a successful deploy, and desired state was then advanced to an artifact that might have no retrievable blob. Gate on exit status plus a parsed status field; an unparseable result is not a success.
+  related_invariants:
+    - controller.persisted_liveness_must_track_heartbeat
+  reason: A pipeline step succeeds only when its exit status and structured result say so; success is never inferred from prose.
+  contract: A pipeline step succeeds only when its exit status and structured result say so; success is never inferred from prose.
