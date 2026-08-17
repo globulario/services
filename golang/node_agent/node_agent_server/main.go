@@ -243,6 +243,12 @@ func main() {
 	srv.StartCACertDriftCheck(ctx)
 	srv.StartIngressReconciliation(ctx)
 	srv.StartXDSConfigReconciliation(ctx)
+	// etcd's backend file only grows: compaction frees pages inside it but
+	// never returns them to the filesystem. Without this the file ratchets
+	// into quota-backend-bytes and etcd goes read-only. Measured on the
+	// 5-node simulation: ~55 MB/hour of growth against a 1.7 MB working set,
+	// i.e. ~39 hours to the 2 GiB default. See etcd_maintenance.go.
+	srv.StartEtcdMaintenance(ctx)
 	node_agentpb.RegisterNodeAgentServiceServer(grpcServer, srv)
 
 	// Phase F-final — register WorkflowActorService so the workflow
