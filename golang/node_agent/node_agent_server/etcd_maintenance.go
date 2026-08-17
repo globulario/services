@@ -71,12 +71,29 @@ import (
 )
 
 const (
-	// etcdMaintenanceInterval is how often each node evaluates whether it is
-	// this member's turn. With round-robin over N members, any one member is
-	// eligible every N intervals — for a 5-node cluster at 10 minutes, roughly
-	// every 50 minutes, which at the measured 55 MB/hour keeps the file far
-	// below any sane quota.
-	etcdMaintenanceInterval = 10 * time.Minute
+	// etcdMaintenanceSlotWidth is how long one member's turn lasts. With
+	// round-robin over N members, any one member is eligible every N slots —
+	// for a 5-node cluster at 10 minutes, roughly every 50 minutes, which at
+	// the measured 55 MB/hour keeps the file far below any sane quota.
+	etcdMaintenanceSlotWidth = 10 * time.Minute
+
+	// etcdMaintenanceInterval is how often a node EVALUATES whether the current
+	// slot is its turn. It must be shorter than the slot width, and this is not
+	// a tuning preference — it is a correctness requirement.
+	//
+	// The first version used one value for both. Each node then sampled the
+	// slot sequence at a fixed phase determined by when its node-agent booted,
+	// because the sampling period and the slot period were identical: node j
+	// evaluates at boot_j + k*10min forever, so it lands on the same slot number
+	// every time. A node whose boot phase did not coincide with its own index
+	// was therefore eligible NEVER, not merely rarely.
+	//
+	// Measured on the 5-node simulation, 2026-08-17: the backend was inflated to
+	// 467,714,048 bytes — well past the 256 MB floor, with ~440 MB reclaimable —
+	// and across a 13-minute window covering two full slots, zero defrags ran on
+	// any node. Sampling ten times per slot means every node observes its own
+	// slot regardless of boot phase.
+	etcdMaintenanceInterval = 1 * time.Minute
 
 	// etcdDefragMinFileBytes — below this the file is not a threat and the
 	// pause is not worth taking.
@@ -131,6 +148,11 @@ func (srv *NodeAgentServer) runEtcdMaintenanceLoop(ctx context.Context, localCli
 	ticker := time.NewTicker(etcdMaintenanceInterval)
 	defer ticker.Stop()
 
+	// The loop now evaluates several times per slot, so it must remember which
+	// slot it last acted in or it would defrag repeatedly inside its own turn.
+	// -1 is "has not acted", which no real slot number can collide with.
+	lastActedSlot := int64(-1)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -142,8 +164,12 @@ func (srv *NodeAgentServer) runEtcdMaintenanceLoop(ctx context.Context, localCli
 			// (error_path.no_unbounded_fire_and_forget_goroutine) — a slow
 			// defrag delays the next evaluation, which is the correct
 			// behaviour.
-			if err := srv.etcdMaintenancePass(ctx, localClientURL); err != nil {
+			actedSlot, err := srv.etcdMaintenancePass(ctx, localClientURL, lastActedSlot)
+			if err != nil {
 				slog.Warn("etcd.maintenance_pass_failed", "err", err)
+			}
+			if actedSlot >= 0 {
+				lastActedSlot = actedSlot
 			}
 		}
 	}
@@ -152,15 +178,17 @@ func (srv *NodeAgentServer) runEtcdMaintenanceLoop(ctx context.Context, localCli
 // etcdMaintenancePass runs one evaluation. It defragments the local member only
 // when every guard passes, and reports what it decided either way — a pass that
 // silently does nothing is indistinguishable from one that is not running.
-func (srv *NodeAgentServer) etcdMaintenancePass(ctx context.Context, localClientURL string) error {
+func (srv *NodeAgentServer) etcdMaintenancePass(
+	ctx context.Context, localClientURL string, lastActedSlot int64,
+) (actedSlot int64, err error) {
 	endpoint := etcdHostPort(localClientURL)
 	if endpoint == "" {
-		return fmt.Errorf("etcd maintenance: could not derive host:port from local client URL %q", localClientURL)
+		return -1, fmt.Errorf("etcd maintenance: could not derive host:port from local client URL %q", localClientURL)
 	}
 
 	tlsCfg, err := config.GetEtcdTLS()
 	if err != nil {
-		return fmt.Errorf("etcd maintenance: TLS unavailable: %w", err)
+		return -1, fmt.Errorf("etcd maintenance: TLS unavailable: %w", err)
 	}
 
 	cli, err := clientv3.New(clientv3.Config{
@@ -170,7 +198,7 @@ func (srv *NodeAgentServer) etcdMaintenancePass(ctx context.Context, localClient
 		Context:     ctx,
 	})
 	if err != nil {
-		return fmt.Errorf("etcd maintenance: dial %s: %w", endpoint, err)
+		return -1, fmt.Errorf("etcd maintenance: dial %s: %w", endpoint, err)
 	}
 	defer func() { _ = cli.Close() }()
 
@@ -178,26 +206,26 @@ func (srv *NodeAgentServer) etcdMaintenancePass(ctx context.Context, localClient
 	st, err := cli.Status(statusCtx, endpoint)
 	cancel()
 	if err != nil {
-		return fmt.Errorf("etcd maintenance: status %s: %w", endpoint, err)
+		return -1, fmt.Errorf("etcd maintenance: status %s: %w", endpoint, err)
 	}
 
 	// A member without a leader, or still catching up as a learner, must not be
 	// paused for maintenance.
 	if st.Leader == 0 {
 		slog.Debug("etcd.maintenance_skipped", "reason", "no raft leader", "endpoint", endpoint)
-		return nil
+		return -1, nil
 	}
 	if st.IsLearner {
 		slog.Debug("etcd.maintenance_skipped", "reason", "member is a learner", "endpoint", endpoint)
-		return nil
+		return -1, nil
 	}
 
 	members, err := srv.etcdMemberIDs(ctx, cli)
 	if err != nil {
-		return fmt.Errorf("etcd maintenance: member list: %w", err)
+		return -1, fmt.Errorf("etcd maintenance: member list: %w", err)
 	}
 	if len(members) == 0 {
-		return fmt.Errorf("etcd maintenance: member list is empty")
+		return -1, fmt.Errorf("etcd maintenance: member list is empty")
 	}
 
 	// Round-robin: exactly one member is eligible per interval, cluster-wide.
@@ -213,13 +241,19 @@ func (srv *NodeAgentServer) etcdMaintenancePass(ctx context.Context, localClient
 		}
 	}
 	if myIndex < 0 {
-		return fmt.Errorf("etcd maintenance: local member %x not present in member list", st.Header.MemberId)
+		return -1, fmt.Errorf("etcd maintenance: local member %x not present in member list", st.Header.MemberId)
 	}
-	slot := (time.Now().Unix() / int64(etcdMaintenanceInterval/time.Second)) % int64(len(members))
-	if slot != int64(myIndex) {
+	// Slot number is absolute, not modulo — so "have I already acted in THIS
+	// turn" is answerable across evaluations. Eligibility is the modulo.
+	slotNum := time.Now().Unix() / int64(etcdMaintenanceSlotWidth/time.Second)
+	if slotNum%int64(len(members)) != int64(myIndex) {
 		slog.Debug("etcd.maintenance_not_my_turn",
-			"slot", slot, "my_index", myIndex, "members", len(members))
-		return nil
+			"slot", slotNum, "my_index", myIndex, "members", len(members))
+		return -1, nil
+	}
+	if slotNum == lastActedSlot {
+		slog.Debug("etcd.maintenance_already_acted_this_slot", "slot", slotNum)
+		return -1, nil
 	}
 
 	// Measure before deciding (diagnostics.must_measure_reality). dbSizeInUse
@@ -230,25 +264,25 @@ func (srv *NodeAgentServer) etcdMaintenancePass(ctx context.Context, localClient
 		slog.Debug("etcd.maintenance_skipped",
 			"reason", "backend below size floor",
 			"db_size_bytes", st.DbSize, "floor_bytes", int64(etcdDefragMinFileBytes))
-		return nil
+		return -1, nil
 	}
 	if reclaimable < etcdDefragMinReclaimBytes {
 		slog.Debug("etcd.maintenance_skipped",
 			"reason", "not enough reclaimable space to justify pausing the member",
 			"reclaimable_bytes", reclaimable, "min_bytes", int64(etcdDefragMinReclaimBytes))
-		return nil
+		return -1, nil
 	}
 
 	// Never defrag into an already-degraded cluster: pausing this member on top
 	// of another one being down is how maintenance causes the outage it exists
 	// to prevent.
 	if unhealthy, err := srv.etcdUnhealthyMembers(ctx, tlsCfg, members, cli); err != nil {
-		return fmt.Errorf("etcd maintenance: member health check: %w", err)
+		return -1, fmt.Errorf("etcd maintenance: member health check: %w", err)
 	} else if unhealthy > 0 {
 		slog.Warn("etcd.maintenance_deferred",
 			"reason", "one or more members are unreachable — not pausing another",
 			"unhealthy_members", unhealthy)
-		return nil
+		return -1, nil
 	}
 
 	slog.Info("etcd.defrag_starting",
@@ -261,7 +295,7 @@ func (srv *NodeAgentServer) etcdMaintenancePass(ctx context.Context, localClient
 	_, err = cli.Defragment(defragCtx, endpoint)
 	defragCancel()
 	if err != nil {
-		return fmt.Errorf("etcd maintenance: defragment %s: %w", endpoint, err)
+		return -1, fmt.Errorf("etcd maintenance: defragment %s: %w", endpoint, err)
 	}
 
 	// Report the outcome measured, not the outcome intended.
@@ -271,14 +305,14 @@ func (srv *NodeAgentServer) etcdMaintenancePass(ctx context.Context, localClient
 	if afterErr != nil {
 		slog.Info("etcd.defrag_complete",
 			"endpoint", endpoint, "post_status", "unavailable", "err", afterErr)
-		return nil
+		return slotNum, nil
 	}
 	slog.Info("etcd.defrag_complete",
 		"endpoint", endpoint,
 		"db_size_before_bytes", st.DbSize,
 		"db_size_after_bytes", after.DbSize,
 		"freed_bytes", st.DbSize-after.DbSize)
-	return nil
+	return slotNum, nil
 }
 
 // etcdMemberIDs returns every member ID, sorted, so that all nodes derive the
