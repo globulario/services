@@ -15,7 +15,7 @@ type upgradeDomain struct {
 	cats domain.Catalogs
 }
 
-func (d upgradeDomain) Name() string             { return d.name }
+func (d upgradeDomain) Name() string              { return d.name }
 func (d upgradeDomain) Catalogs() domain.Catalogs { return d.cats }
 
 func upgradeTestDomain() upgradeDomain {
@@ -38,7 +38,7 @@ func upgradeTestDomain() upgradeDomain {
 	}
 }
 
-func TestLoadCatalogsReindexesPromotedSeedForAlwaysWithoutRewritingAuthority(t *testing.T) {
+func TestLoadCatalogsMigratesPromotedSeedToCanonicalAlwaysReach(t *testing.T) {
 	ctx := context.Background()
 	st := store.NewMemoryStore()
 	pack := upgradeTestDomain()
@@ -106,8 +106,26 @@ func TestLoadCatalogsReindexesPromotedSeedForAlwaysWithoutRewritingAuthority(t *
 	if after.Status != api.StatusPromotedPrinciple || after.ApprovedBy != before.ApprovedBy {
 		t.Fatalf("migration changed authority fields: status=%q approved_by=%q", after.Status, after.ApprovedBy)
 	}
-	if !reflect.DeepEqual(after.AppliesWhen, before.AppliesWhen) {
-		t.Fatalf("migration rewrote persisted applies_when=%v want unchanged %v", after.AppliesWhen, before.AppliesWhen)
+	wantConditions := []api.ConditionRef{"condition.old", "condition.always"}
+	if !reflect.DeepEqual(after.AppliesWhen, wantConditions) {
+		t.Fatalf("canonical applies_when=%v want only old scope plus technical sentinel %v", after.AppliesWhen, wantConditions)
+	}
+	if got := after.Metadata[domain.RuntimeAlwaysReachMetadataKey]; got != domain.RuntimeAlwaysReachSeedMigration {
+		t.Fatalf("migration marker=%q want %q", got, domain.RuntimeAlwaysReachSeedMigration)
+	}
+
+	// RevokePrinciple delegates to this same deindex operation using the stored
+	// canonical AppliesWhen. Prove the migrated sentinel cannot become a stale
+	// index ghost after revocation/deindex.
+	if err := st.DeindexPromotedPrinciple(ctx, after); err != nil {
+		t.Fatalf("DeindexPromotedPrinciple(migrated): %v", err)
+	}
+	ids, err = st.ListPrincipleIDsByCondition(ctx, before.Project, pack.Name(), "condition.always")
+	if err != nil {
+		t.Fatalf("ListPrincipleIDsByCondition(always) after deindex: %v", err)
+	}
+	if len(ids) != 0 {
+		t.Fatalf("migrated always reach survived deindex: %v", ids)
 	}
 }
 
