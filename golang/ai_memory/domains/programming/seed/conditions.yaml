@@ -2,6 +2,9 @@
 # Generic shape: id + title + detect_spec. The kernel treats ids as opaque
 # ConditionRefs, while detect_spec survives store persistence so callers can
 # understand when each condition applies.
+- id: condition.always
+  title: Universal programming safety scope
+  detect_spec: always available as a reachability sentinel; it does not engage a principle unless a forbidden move matches or another declared condition applies
 - id: condition.prog.deploy_to_production
   title: Change is being applied to a production / shared environment
   detect_spec: target environment is prod, or a running service other agents/users depend on
