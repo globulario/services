@@ -8,12 +8,14 @@ package domain
 // Loading is idempotent and NON-DESTRUCTIVE: re-running re-writes catalog rows
 // (same data) and re-proposes seed principles only while they are still merely
 // proposed — a seed principle that has since been promoted or revoked is left
-// untouched, so load never silently demotes governed state.
+// semantically untouched, so load never silently demotes or broadens governed
+// knowledge.
 //
 // One narrow migration exception exists for already-promoted seed-backed
-// principles: if a newer seed adds condition.always, the loader repairs only the
-// active condition index for that technical reachability sentinel. It does NOT
-// rewrite the persisted principle or adopt any other new seed fields/conditions.
+// principles: if a newer seed adds condition.always, the loader persists an
+// explicit runtime-reach migration marker and repairs the active condition index
+// for that technical sentinel. The approved semantic AppliesWhen remains
+// unchanged and no other new seed field/condition is adopted.
 //
 // Seed principles are written at PROPOSED_PRINCIPLE. The loader NEVER promotes —
 // promotion stays behind the gate (see core/governance.go).
@@ -27,15 +29,13 @@ import (
 	"github.com/globulario/services/golang/ai_memory/behavioral/store"
 )
 
-const alwaysConditionID = "condition.always"
-
 // LoadResult reports what a load wrote.
 type LoadResult struct {
-	Authorities                  int
-	Conditions                   int
-	PrinciplesSeeded             int
-	PrinciplesSkipped            int // already promoted/revoked — left as-is
-	PromotedPrinciplesReindexed  int // seed-backed promoted rows given technical condition.always reach
+	Authorities                 int
+	Conditions                  int
+	PrinciplesSeeded            int
+	PrinciplesSkipped           int // already promoted/revoked — left as governed state
+	PromotedPrinciplesReindexed int // seed-backed promoted rows given canonical migrated condition.always reach
 }
 
 func toRefs[T ~string](in []string) []T {
@@ -50,16 +50,15 @@ func seedMeta(domainName string) map[string]string {
 	return map[string]string{"source": "seed", "immutable": "true", "domain_pack": domainName}
 }
 
-func containsString(in []string, want string) bool {
-	for _, v := range in {
-		if v == want {
-			return true
-		}
+func cloneMetadata(in map[string]string) map[string]string {
+	out := make(map[string]string, len(in)+1)
+	for k, v := range in {
+		out[k] = v
 	}
-	return false
+	return out
 }
 
-func containsConditionRef(in []api.ConditionRef, want api.ConditionRef) bool {
+func containsString(in []string, want string) bool {
 	for _, v := range in {
 		if v == want {
 			return true
@@ -73,40 +72,45 @@ func seedBackedByDomain(p *api.Principle, domainName string) bool {
 		p.Metadata["source"] == "seed" && p.Metadata["domain_pack"] == domainName
 }
 
-// reindexPromotedAlwaysReach repairs one upgrade-only seam without changing
-// authority. An older seed-backed principle may already be PROMOTED before its
-// domain pack gains condition.always. Because active runtime reach lives in the
-// principles_by_condition index and promotion is normally the only writer, that
-// old principle would otherwise remain invisible to universal forbidden-action
-// matching forever.
+// migratePromotedAlwaysReach repairs one upgrade-only seam without changing the
+// semantic authority that was approved. An older seed-backed principle may
+// already be PROMOTED before its domain pack gains condition.always. Because
+// active runtime reach lives in the principles_by_condition index, the old row
+// would otherwise remain invisible to universal forbidden-action matching.
 //
 // The repair is intentionally narrower than a seed refresh:
 //   - only already-PROMOTED, seed-backed principles are eligible;
-//   - only the technical condition.always sentinel may be added;
-//   - the persisted principle is never rewritten;
+//   - only the technical condition.always reach marker may be added;
+//   - semantic AppliesWhen, authorities, evidence, approval and status stay put;
 //   - no other newly-authored seed condition/ref/field is adopted.
 //
-// IndexPromotedPrinciple receives a copy solely so the store can add the missing
-// sentinel mapping. Existing mappings are set-add/idempotent in both adapters.
-func reindexPromotedAlwaysReach(ctx context.Context, st store.Store, domainName string, existing *api.Principle, seed PrincipleSeed) (bool, error) {
+// The marker is persisted first so ExplainPrinciple and revocation can observe
+// the same effective runtime reach as the index. RuntimeIndexedPrinciple derives
+// the indexable condition set from that canonical migration state.
+func migratePromotedAlwaysReach(ctx context.Context, st store.Store, domainName string, existing *api.Principle, seed PrincipleSeed) (bool, error) {
 	if existing == nil || existing.Status != api.StatusPromotedPrinciple {
 		return false, nil
 	}
 	if !seedBackedByDomain(existing, domainName) {
 		return false, nil
 	}
-	if !containsString(seed.AppliesWhen, alwaysConditionID) {
+	if !containsString(seed.AppliesWhen, AlwaysConditionID) {
 		return false, nil
 	}
-	always := api.ConditionRef(alwaysConditionID)
-	if containsConditionRef(existing.AppliesWhen, always) {
+	if principleDeclaresCondition(existing, api.ConditionRef(AlwaysConditionID)) {
 		return false, nil
 	}
 
-	indexed := *existing
-	indexed.AppliesWhen = append(append([]api.ConditionRef(nil), existing.AppliesWhen...), always)
+	migrated := *existing
+	migrated.Metadata = cloneMetadata(existing.Metadata)
+	migrated.Metadata[RuntimeAlwaysReachMetadataKey] = RuntimeAlwaysReachSeedMigration
+	if err := st.CreatePrinciple(ctx, &migrated); err != nil {
+		return false, fmt.Errorf("persist runtime reach migration: %w", err)
+	}
+
+	indexed := RuntimeIndexedPrinciple(&migrated)
 	if err := st.IndexPromotedPrinciple(ctx, &indexed); err != nil {
-		return false, err
+		return false, fmt.Errorf("index runtime reach migration: %w", err)
 	}
 	return true, nil
 }
@@ -152,9 +156,9 @@ func LoadCatalogs(ctx context.Context, st store.Store, project string, d Domain)
 		// Non-destructive: do not reset an already-governed principle to PROPOSED.
 		if existing, err := st.GetPrinciple(ctx, project, d.Name(), ps.ID); err == nil {
 			if existing.Status != api.StatusProposedPrinciple && existing.Status != api.StatusUnspecified {
-				if reindexed, err := reindexPromotedAlwaysReach(ctx, st, d.Name(), existing, ps); err != nil {
-					return res, fmt.Errorf("load principle %q: reindex always reach: %w", ps.ID, err)
-				} else if reindexed {
+				if migrated, err := migratePromotedAlwaysReach(ctx, st, d.Name(), existing, ps); err != nil {
+					return res, fmt.Errorf("load principle %q: migrate always reach: %w", ps.ID, err)
+				} else if migrated {
 					res.PromotedPrinciplesReindexed++
 				}
 				res.PrinciplesSkipped++
