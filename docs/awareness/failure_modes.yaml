@@ -7862,69 +7862,39 @@ failure_modes:
         - '5-node sim 2026-08-17: 63 etcd keys referencing removed node 35ac3821-6b90-52eb-a800-41130471770b; doctor error=25 worst=CRITICAL while cluster_list_nodes showed 5 healthy nodes with a different id set'
       contract: Removing a node from the cluster must also retire the per-node records that node owned; a record whose owning node no longer exists must not be evaluated as live drift.
     - id: desired_state.refusal_message_misattributes_cause
-      title: desired set blames an unresolvable kind when the kind resolves fine
+      title: 'desired set blames an unresolvable kind when the kind resolves fine'
       severity: warning
-      contract: >-
-        A refusal must name the reason it actually refused; a diagnostic that misattributes its
-        own cause sends the operator to the wrong subsystem.
-      description: >-
-        globular services desired set <pkg> <version> refuses some packages with: 'cannot verify
-        <pkg> is a SERVICE package (no published version with a resolvable kind); services
-        desired set fails closed on an unknown kind per desired.keyed_by_kind_and_name'. Failing
-        closed is correct. The stated reason is not: for the same package and version, globular
-        repository resolve returns a manifest whose ref.kind is 1 and whose publish_state is 3.
-        Measured on the 5-node simulation 2026-08-17: dns and ai-watcher accepted, blog refused,
-        while all three resolve with identical shape — publish_state 3, ref.kind 1, a
-        systemd_unit present. The only observed discriminator is profiles: dns
-        ['core','compute','control-plane'] accepted, blog ['core','compute'] refused. So the
-        refusal appears to be about placement or lookup scope, not about kind resolvability, and
-        the message points the operator at package identity — the one thing demonstrably fine.
-        Root cause not confirmed: it is either a different lookup path than the resolver uses,
-        or a profile-scoped visibility check reporting a kind error.
-      related_invariants:
-        - controller.persisted_liveness_must_track_heartbeat
-      evidence:
-        - >-
-            5-node sim 2026-08-17: blog refused with kind error while repository resolve --name
-            blog --version 1.2.312 returns ref.kind=1 publish_state=3; dns and ai-watcher with
-            identical shape accepted
+      contract: 'A refusal must name the reason it actually refused; a diagnostic that misattributes its own cause sends the operator to the wrong subsystem.'
+      description: 'globular services desired set <pkg> <version> refuses some packages with: ''cannot verify <pkg> is a SERVICE package (no published version with a resolvable kind); services desired set fails closed on an unknown kind per desired.keyed_by_kind_and_name''. Failing closed is correct. The stated reason is not: for the same package and version, globular repository resolve returns a manifest whose ref.kind is 1 and whose publish_state is 3. Measured on the 5-node simulation 2026-08-17: dns and ai-watcher accepted, blog refused, while all three resolve with identical shape — publish_state 3, ref.kind 1, a systemd_unit present. The only observed discriminator is profiles: dns [''core'',''compute'',''control-plane''] accepted, blog [''core'',''compute''] refused. So the refusal appears to be about placement or lookup scope, not about kind resolvability, and the message points the operator at package identity — the one thing demonstrably fine. Root cause not confirmed: it is either a different lookup path than the resolver uses, or a profile-scoped visibility check reporting a kind error.'
       protects:
         files:
           - golang/cluster_controller/cluster_controller_server/desired_state_handlers.go
+      related_invariants:
+        - controller.persisted_liveness_must_track_heartbeat
+      evidence:
+        - '5-node sim 2026-08-17: blog refused with kind error while repository resolve --name blog --version 1.2.312 returns ref.kind=1 publish_state=3; dns and ai-watcher with identical shape accepted'
     - id: desired_state.transient_kind_lookup_reported_as_unpublished
-      title: Intermittent kind lookup reports UNKNOWN as INVALID and advises a duplicate publish
+      title: 'Intermittent kind lookup reports UNKNOWN as INVALID and advises a duplicate publish'
       severity: high
-      contract: >-
-        A check that cannot complete must report UNKNOWN, never INVALID, and must never offer
-        remediation that would be destructive if the check was simply unable to answer.
-      description: >-
-        globular services desired set <pkg> <version> intermittently fails with: 'cannot verify
-        <pkg> is a SERVICE package (no published version with a resolvable kind); services
-        desired set fails closed on an unknown kind per desired.keyed_by_kind_and_name — publish
-        the package first, then retry'. Measured on the 5-node simulation 2026-08-17: the SAME
-        command on the SAME package succeeded (revision 377623), failed minutes later, then
-        succeeded again (383156) with no change to the repository; ai-watcher succeeded while
-        dns, authentication and log failed in the same minute; repository resolve returned a
-        full manifest with ref.kind=1 and publish_state=3 throughout. So the artifact is
-        published and its kind is resolvable — the lookup simply did not complete. Failing
-        closed is correct; the diagnosis is not. Two harms follow. First, an intermittent
-        transient is reported as a permanent identity defect, so an operator investigates
-        package identity, the one thing demonstrably fine. Second and worse, the remediation is
-        destructive if followed: publishing an already-published version mints a second build of
-        it, giving one version two build_ids, which makes resolution ambiguous and stalls the
-        rollout — the exact failure that made deploys fail roughly one run in two on 2026-08-16.
-        A check that cannot answer must say so.
-      related_invariants:
-        - controller.persisted_liveness_must_track_heartbeat
-      evidence:
-        - >-
-            5-node sim 2026-08-17, freshly built cluster: 10 back-to-back pairs from the same
-            node on the same package — repository resolve 10/10 succeeded, services desired set
-            5/10 succeeded. The ~50% rate is reproducible.
-        - >-
-            Orphaned per-node records RULED OUT as the cause: the identical 5/10 was measured
-            before and after a full cluster reset that removed the phantom node id. The fault is
-            localized to the desired-set handler's own kind lookup, not the repository resolver.
+      contract: 'A check that cannot complete must report UNKNOWN, never INVALID, and must never offer remediation that would be destructive if the check was simply unable to answer.'
+      description: 'globular services desired set <pkg> <version> intermittently fails with: ''cannot verify <pkg> is a SERVICE package (no published version with a resolvable kind); services desired set fails closed on an unknown kind per desired.keyed_by_kind_and_name — publish the package first, then retry''. Measured on the 5-node simulation 2026-08-17: the SAME command on the SAME package succeeded (revision 377623), failed minutes later, then succeeded again (383156) with no change to the repository; ai-watcher succeeded while dns, authentication and log failed in the same minute; repository resolve returned a full manifest with ref.kind=1 and publish_state=3 throughout. So the artifact is published and its kind is resolvable — the lookup simply did not complete. Failing closed is correct; the diagnosis is not. Two harms follow. First, an intermittent transient is reported as a permanent identity defect, so an operator investigates package identity, the one thing demonstrably fine. Second and worse, the remediation is destructive if followed: publishing an already-published version mints a second build of it, giving one version two build_ids, which makes resolution ambiguous and stalls the rollout — the exact failure that made deploys fail roughly one run in two on 2026-08-16. A check that cannot answer must say so.'
       protects:
         files:
           - golang/cluster_controller/cluster_controller_server/desired_state_handlers.go
+      related_invariants:
+        - controller.persisted_liveness_must_track_heartbeat
+      evidence:
+        - '5-node sim 2026-08-17, freshly built cluster: 10 back-to-back pairs from the same node on the same package — repository resolve 10/10 succeeded, services desired set 5/10 succeeded. The ~50% rate is reproducible.'
+        - 'Orphaned per-node records RULED OUT as the cause: the identical 5/10 was measured before and after a full cluster reset that removed the phantom node id. The fault is localized to the desired-set handler''s own kind lookup, not the repository resolver.'
+    - id: reconcile.returning_node_infra_remediation_first_dispatch_fails
+      title: 'Infra remediation for a returning node fails its first dispatch'
+      severity: warning
+      contract: 'A remediation dispatched for a node that has just returned must succeed or be retried without surfacing a failed reconcile item; one guaranteed failure per rejoin is churn no operator can act on.'
+      description: 'When a stopped node returns, the controller dispatches infra remediation and the first dispatch FAILS, exactly once per rejoin: reconcile-workflow item FAILED type=infra_unhealthy node=ID pkg=nil reason=remediation_dispatch_failed child_status=FAILED. Measured on the 5-node simulation 2026-08-17: one occurrence per rejoin, arriving about 7 minutes AFTER the node returned rather than immediately, then clearing on its own with reconcile clean for the following eight minutes. Convergence is correct and the doctor settles to error 0, so the outcome is right; what is wrong is a failed reconcile item no operator action would have prevented or fixed, whose late arrival lands it inside any short post-rejoin assertion window. Note the nil package: the item is dispatched with no package, which may be why the child rejects it.'
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/reconcile_actions.go
+      related_invariants:
+        - reconcile.terminal_success_requires_observed_convergence
+      evidence:
+        - '5-node sim 2026-08-17: exactly one item FAILED type=infra_unhealthy in a 12-minute window covering a rejoin, at 16:51, roughly 7 minutes after node restart; reconcile clean before and after'
