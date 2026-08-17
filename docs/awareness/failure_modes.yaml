@@ -7837,3 +7837,15 @@ failure_modes:
       evidence:
         - '5-node sim, 2026-08-17: dbSize 2146975744, dbSizeInUse 2146828288, 1018 live keys, alarm NOSPACE; post-defrag 1.7 MB on all 5 members'
       contract: 'etcd must be able to return backend space, not only consume it: compaction bounds MVCC history but only defragmentation returns freed pages to the filesystem.'
+    - id: release.carried_forward_gateway_embeds_stale_join_script
+      title: Carried-forward gateway ships a join script older than the bundle it joins
+      severity: high
+      description: 'build-local-release.sh carries unchanged packages forward from a base bundle. The gateway binary embeds the Day-1 join script, so a carried-forward gateway executes the join procedure as of the BASE bundle''s build date, not the release being produced. On 2026-08-17 the 1.2.318 bundle correctly excluded libnss-resolve (forbidden by check-no-bundled-libnss.sh, with a resolver-witness receipt proving cluster FQDN resolution works without it), while the gateway carried forward from the 1.2.312/1.2.317 base still ran step 4.7 ''Installing libnss-resolve'' — a step deleted from Globular/internal/gateway/handlers/cluster/join_script.go on 2026-08-14 precisely because bundling it had broken Day-1 joins twice. Every joining node failed: ''FAIL: package libnss-resolve not found in /var/lib/globular/packages'' then ''FATAL: join failed''. The founding node bootstrapped fine, so the cluster looked alive at 1 node while 4 could never join. Rebuild the gateway whenever the shipped package set changes.'
+      protects:
+        files:
+          - scripts/build-local-release.sh
+      related_invariants:
+        - controller.persisted_liveness_must_track_heartbeat
+      evidence:
+        - '5-node sim, 2026-08-17: gateway_1.2.312 binary contains ''Installing libnss-resolve'' (1 match) and lacks the ''libnss-resolve install removed'' marker; nodes 2-5 all failed join at phase 4'
+      contract: Every binary a release carries forward must be consistent with the package set that release actually ships; a component that embeds a procedure must be rebuilt when that procedure's inputs change.
