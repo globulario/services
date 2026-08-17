@@ -74,6 +74,25 @@ func (r *healerAuditRing) latest() *rules.HealReport {
 	return &last
 }
 
+type healerExecutionDecision struct {
+	mode           string
+	reducedHarvest bool
+}
+
+// decideHealerExecution preserves the operator-configured mode even when the
+// cluster snapshot has unrelated collection failures. Finding-level harvest
+// honesty is already enforced by rules.Registry: a finding whose own evidence
+// source failed is downgraded to INVARIANT_UNKNOWN with CheckError, while a
+// finding backed by available evidence remains conclusive and is merely marked
+// [reduced-harvest]. rules.Healer applies the final evidence-closure refusal
+// before dispatch.
+func decideHealerExecution(mode string, dataIncomplete bool) healerExecutionDecision {
+	return healerExecutionDecision{
+		mode:           mode,
+		reducedHarvest: dataIncomplete,
+	}
+}
+
 // startHealerLoop launches the periodic healer as a background goroutine.
 // Only runs when the server is the leader. Stops when ctx is cancelled.
 func (s *ClusterDoctorServer) startHealerLoop(ctx context.Context) {
@@ -131,7 +150,9 @@ func (s *ClusterDoctorServer) runHealerCycle(ctx context.Context, mode string, m
 		return
 	}
 
-	// Evaluate invariants.
+	// Evaluate invariants. The registry applies finding-scoped reduced-harvest
+	// policy before any finding reaches the healer: only findings whose own
+	// evidence source failed are downgraded to UNKNOWN.
 	findings := s.registry.EvaluateAll(snap)
 
 	// Publish cluster-wide findings to the last-snapshot cache so the
@@ -152,12 +173,21 @@ func (s *ClusterDoctorServer) runHealerCycle(ctx context.Context, mode string, m
 	// while an operator who happened to pull a report first made the same action
 	// succeed. Producer and consumer must live on the same path.
 	//
-	// Reduced-harvest snapshots are deliberately EXCLUDED. The gate below already
-	// downgrades enforce→observe on a partial snapshot because findings may be
-	// false positives (doctor.healer_auto_remediation_on_reduced_harvest). If a
-	// cycle is not trusted enough to act on, it is not trusted enough to mint the
-	// evidence that authorizes acting later — recording it would launder a
-	// possibly-false finding into standing authorization for a future cycle.
+	// Reduced-harvest snapshots are deliberately EXCLUDED, and this survives the
+	// move to finding-scoped closure below. Dispatch granularity and evidence
+	// minting are separate decisions: the registry downgrades a compromised
+	// finding to UNKNOWN so it cannot be ACTED on, but observation.FromDoctorFinding
+	// mints a BindSatisfies-bound cluster_doctor_evidence row from a finding's
+	// evidence without consulting its verdict. An UNKNOWN finding would therefore
+	// still mint standing authorization naming that invariant and entity. If a
+	// snapshot is not trusted enough to act on, it is not trusted enough to mint
+	// the evidence that authorizes acting later — recording it would launder a
+	// possibly-false finding into a future cycle's permission.
+	//
+	// The cost is bounded and in the safe direction: a finding newly observed
+	// during a reduced harvest waits for a clean cycle to mint its evidence.
+	// Findings already carrying evidence from earlier clean cycles stay
+	// actionable, which is what preserving enforce mode below is for.
 	//
 	// Delivery stays best-effort: Enqueue is non-blocking by contract, so this
 	// cannot delay or fail the cycle. The consequence is that evidence for a
@@ -168,22 +198,15 @@ func (s *ClusterDoctorServer) runHealerCycle(ctx context.Context, mode string, m
 		s.emitBehavioralClusterReport(render.ClusterReport(snap, findings, s.version, fresh))
 	}
 
-	// SAFETY GATE: when the snapshot has reduced harvest (some collector
-	// sources errored), findings may be false positives — a rule that sees
-	// empty data may emit a finding that would not exist with complete data.
-	// Auto-remediation on a false positive is destructive. Gate enforcement
-	// mode on full-harvest snapshots only; reduced-harvest cycles run as
-	// observe-only regardless of the configured mode.
-	// See meta.fallback_must_degrade_semantics.
-	effectiveMode := mode
-	if snap.DataIncomplete && mode == "enforce" {
-		effectiveMode = "observe"
-		log.Printf("healer: reduced-harvest snapshot (DataIncomplete=true) — downgrading from enforce to observe for this cycle to avoid auto-remediation on potentially false-positive findings")
+	decision := decideHealerExecution(mode, snap.DataIncomplete)
+	if decision.reducedHarvest && decision.mode == "enforce" {
+		log.Printf("healer: reduced-harvest snapshot (DataIncomplete=true) — preserving enforce mode; findings with compromised evidence are refused individually while unrelated, conclusive findings remain eligible")
 	}
 
-	// Determine healer mode. dryRun is true unless the operator has
-	// explicitly opted into "enforce" AND the snapshot is full-harvest.
-	dryRun := effectiveMode != "enforce"
+	// Determine healer mode. Reduced harvest is not itself execution authority;
+	// rules.Healer refuses each auto-action unless its finding remains a
+	// conclusive FAIL with no CheckError after registry harvest policy.
+	dryRun := decision.mode != "enforce"
 	healer := &rules.Healer{
 		DryRun:      dryRun,
 		Dispatcher:  s.gatedDispatcher(),

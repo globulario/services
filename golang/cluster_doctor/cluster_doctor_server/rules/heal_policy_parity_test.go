@@ -120,6 +120,12 @@ func TestHealPolicy_DriftedUnitRoutesToDispatchUnderRealPolicy(t *testing.T) {
 		FindingID:   "f-unit-1",
 		InvariantID: emitted,
 		EntityRef:   "node-1/" + unit,
+		// A drifted unit is a conclusive failure, and remediation now requires
+		// one: the healer refuses any auto-action whose finding is not a FAIL
+		// with closed evidence. Leaving this at the zero value made the fixture
+		// INVARIANT_UNKNOWN, which the policy seam under test never sees in
+		// production for a genuinely drifted unit.
+		InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 		Remediation: []*cluster_doctorpb.RemediationStep{
 			actionStep(1, "Restart the drifted unit", "",
 				systemctlRestartAction(unit, "node-1")),
