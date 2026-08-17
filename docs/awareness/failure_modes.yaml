@@ -7849,3 +7849,15 @@ failure_modes:
       evidence:
         - '5-node sim, 2026-08-17: gateway_1.2.312 binary contains ''Installing libnss-resolve'' (1 match) and lacks the ''libnss-resolve install removed'' marker; nodes 2-5 all failed join at phase 4'
       contract: Every binary a release carries forward must be consistent with the package set that release actually ships; a component that embeds a procedure must be rebuilt when that procedure's inputs change.
+    - id: cluster.node_removal_leaves_orphaned_per_node_records
+      title: Node removal leaves per-node records, so a healthy cluster reports CRITICAL
+      severity: high
+      description: 'globular cluster nodes remove <id> --force reports ''node removed from cluster'' and drops the node from the live set, but leaves its per-node keys in etcd. Measured on the 5-node simulation 2026-08-17: 63 keys remained under /globular/convergence/actions/<id>/, /globular/convergence/nodes/<id>/packages/ and siblings after removal. cluster-doctor then evaluated those orphans as live drift and reported 25 ERROR findings — 11x unit_receipt_drift.installed_state_missing_or_unproven, 11x installed_state_runtime_mismatch, 1x release.boundary_unproven — all naming a node id absent from cluster_list_nodes, taking the report to worst=CRITICAL with reduced_harvest=false on a cluster that was otherwise healthy (5 members, 5 nodes, liveness 31s, 0 stale). The offered remediations assume the node exists (''globular services apply-desired'', ''globular node reconcile'') and are no-ops for a removed node, so the findings cannot be cleared by following them. The operator-visible effect is a permanently CRITICAL cluster after any node removal or replacement.'
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/repair_node_workflow.go
+      related_invariants:
+        - controller.persisted_liveness_must_track_heartbeat
+      evidence:
+        - '5-node sim 2026-08-17: 63 etcd keys referencing removed node 35ac3821-6b90-52eb-a800-41130471770b; doctor error=25 worst=CRITICAL while cluster_list_nodes showed 5 healthy nodes with a different id set'
+      contract: Removing a node from the cluster must also retire the per-node records that node owned; a record whose owning node no longer exists must not be evaluated as live drift.
