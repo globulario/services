@@ -491,16 +491,37 @@ if [[ "${SERVICE}" == "cluster_controller" || "${SERVICE}" == "cluster-controlle
     fi
 
     TARGET_JSON="{\"version\":\"${VERSION}\",\"build_number\":${NEXT_BUILD},\"checksum\":\"${PKG_CHECKSUM}\",\"set_at\":$(date +%s)}"
-    # `hostname -I | awk '{print $1}'` returns whichever address the kernel lists
-    # first, which on a control-plane node can be the keepalived VIP — the
-    # floating address that may currently live on a different machine
-    # (netutil.identity_getter_must_express_vip_ambiguity). Writing the
-    # controller target-build through the VIP means the write lands wherever the
-    # VIP happens to point, not necessarily this node's etcd.
+    # Endpoint resolution, and why neither obvious choice works.
     #
-    # etcdctl talking to the etcd on this same host is the one case where
-    # loopback is the correct address rather than a shortcut, so use it.
-    ETCD_EP="https://127.0.0.1:2379"
+    # `hostname -I | awk '{print $1}'` returns whichever address the kernel
+    # lists first, which on a control-plane node can be the keepalived VIP —
+    # the floating address that may currently live on a different machine
+    # (netutil.identity_getter_must_express_vip_ambiguity), so the write lands
+    # wherever the VIP points rather than on this node's etcd.
+    #
+    # Loopback looks like the safe answer and is not: etcd is configured with
+    # listen-client-urls bound to the node's interface address only, so nothing
+    # is listening on 127.0.0.1:2379. Verified on the 5-node simulation —
+    # `ss -ltn` shows a single listener on 10.10.0.11:2379, and an etcdctl call
+    # to loopback fails "connection refused". CLAUDE.md permits loopback for
+    # "etcdctl pointing to local etcd", but permitted is not the same as
+    # reachable.
+    #
+    # etcd's own config is the authority for where etcd listens, so read it
+    # from there instead of deriving it. Fall back to the interface address
+    # excluding the VIP only if the config cannot be read.
+    ETCD_EP="$(sed -n 's|^advertise-client-urls:[[:space:]]*"\{0,1\}\([^"]*\)"\{0,1\}$|\1|p' \
+        /var/lib/globular/config/etcd.yaml 2>/dev/null | head -1)"
+    if [[ -z "$ETCD_EP" ]]; then
+        ETCD_EP="$(sed -n 's|^listen-client-urls:[[:space:]]*"\{0,1\}\([^"]*\)"\{0,1\}$|\1|p' \
+            /var/lib/globular/config/etcd.yaml 2>/dev/null | head -1)"
+    fi
+    if [[ -z "$ETCD_EP" ]]; then
+        echo "ERROR: could not read etcd's client URL from /var/lib/globular/config/etcd.yaml." >&2
+        echo "       Refusing to guess the endpoint: the first interface address may be" >&2
+        echo "       the keepalived VIP, and loopback is not bound." >&2
+        exit 1
+    fi
     ETCD_CERTS=(
         --cacert=/var/lib/globular/pki/ca.crt
         --cert=/var/lib/globular/pki/issued/services/service.crt
