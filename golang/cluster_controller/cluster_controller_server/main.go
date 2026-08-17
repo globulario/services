@@ -465,6 +465,11 @@ func main() {
 	// Start objectstore topology apply watcher (watches etcd for CLI apply requests).
 	srv.startObjectStoreApplyWatcher(ctx)
 
+	// Liveness lane: dispatch cluster.invariant.enforcement on the leader.
+	// Nothing dispatched it before, so partition fencing, the quorum-loss alert
+	// and the PKI invariant had never executed on a running cluster.
+	srv.StartInvariantEnforcementLane(ctx)
+
 	// Start DNS reconciler if cluster domain is configured
 	startDNSReconciler(srv, state)
 

@@ -21,6 +21,7 @@ import (
 	"github.com/globulario/services/golang/ai_memory/behavioral/store"
 	bpb "github.com/globulario/services/golang/ai_memory/behavioral_memorypb"
 	cluster_operator "github.com/globulario/services/golang/ai_memory/domains/cluster_operator"
+	programming "github.com/globulario/services/golang/ai_memory/domains/programming"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -31,15 +32,34 @@ import (
 const behavioralSeedProject = "globular-services"
 
 // behavioralRegistry builds the domain registry for the behavioral kernel with
-// the cluster_operator pack registered. A bad embedded seed is a build-time bug;
-// it is logged and the kernel continues with an empty registry rather than
-// crashing the whole ai-memory service.
+// every shipped domain pack registered. A bad embedded seed is a build-time bug;
+// it is logged and the kernel continues without that pack rather than crashing
+// the whole ai-memory service.
+//
+// A pack that ships catalogs but is never registered fails silently and
+// confusingly: its domain answers every list call with an empty catalog, so a
+// principle proposed against a real, canonical authority id is rejected as
+// "unresolved authority" and the author cannot tell a typo from a pack that was
+// never loaded. The programming pack shipped its authorities, conditions,
+// forbidden moves and required evidence while being absent from this function,
+// which left the whole programming domain ungoverned at runtime.
 func behavioralRegistry() *domain.Registry {
 	reg := domain.NewRegistry()
-	if pack, err := cluster_operator.New(); err == nil {
+	packs := []struct {
+		name string
+		load func() (domain.Domain, error)
+	}{
+		{"cluster_operator", func() (domain.Domain, error) { return cluster_operator.New() }},
+		{"programming", func() (domain.Domain, error) { return programming.New() }},
+	}
+	for _, p := range packs {
+		pack, err := p.load()
+		if err != nil {
+			logger.Error("domain pack failed to load — its domain will have no catalogs at runtime",
+				"pack", p.name, "err", err)
+			continue
+		}
 		reg.Register(pack)
-	} else {
-		logger.Error("cluster_operator pack failed to load — behavioral runtime will have no domain catalogs", "err", err)
 	}
 	return reg
 }
@@ -64,6 +84,7 @@ func newBehavioralHandler(st store.Store) *behavioralHandler {
 // registerBehavioralService registers the BehavioralMemoryService on the given
 // gRPC server, backed by the given store.
 func registerBehavioralService(gs *grpc.Server, st store.Store) {
+	seedRegisteredBehavioralDomains(st)
 	bpb.RegisterBehavioralMemoryServiceServer(gs, newBehavioralHandler(st))
 }
 

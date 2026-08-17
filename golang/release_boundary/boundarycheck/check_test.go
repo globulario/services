@@ -65,7 +65,16 @@ func TestMapInputs_InstalledAt_FeedsInstallCommitted_IgnoresProtoInstalledUnix(t
 	}
 }
 
-func TestMapInputs_InstalledAtAbsent_A4Indeterminate(t *testing.T) {
+// The mapper must not substitute the proto InstalledUnix (preserved from FIRST
+// install) for the metadata installed_at (rewritten on EVERY install). That
+// no-fallback rule is still enforced here.
+//
+// What changed on 2026-08-15: the absence of the timestamp no longer makes A4
+// INDETERMINATE, because A4 no longer decides on timestamps at all. It decides
+// on executable identity, which is present, so the verdict stands without a
+// clock. Keeping the mapping assertion and dropping the verdict assertion is
+// deliberate — the mapping rule and the predicate are separate contracts.
+func TestMapInputs_InstalledAtAbsent_NoFallbackToProtoInstalledUnix(t *testing.T) {
 	in := mapValid(func(ev *Evidence) {
 		delete(ev.Installed.Metadata, "installed_at")
 		ev.Installed.InstalledUnix = 500 // present but must NOT be used
@@ -73,8 +82,8 @@ func TestMapInputs_InstalledAtAbsent_A4Indeterminate(t *testing.T) {
 	if in.Installed.InstallCommittedUnix != 0 {
 		t.Fatalf("InstallCommittedUnix = %d, want 0 (no fallback)", in.Installed.InstallCommittedUnix)
 	}
-	if a := findAssertion(t, release_boundary.Evaluate(in), release_boundary.AssertionRestartAfterInstall); a.Verdict != release_boundary.VerdictIndeterminate {
-		t.Errorf("A4 = %q, want INDETERMINATE", a.Verdict)
+	if a := findAssertion(t, release_boundary.Evaluate(in), release_boundary.AssertionRestartAfterInstall); a.Verdict != release_boundary.VerdictProven {
+		t.Errorf("A4 = %q, want PROVEN (identity is intact; the timestamp was never the verdict)", a.Verdict)
 	}
 }
 

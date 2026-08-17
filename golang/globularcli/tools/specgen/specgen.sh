@@ -38,6 +38,34 @@ needs_scylla() {
   esac
 }
 
+# Return the OS .deb packages a service needs for its native shared-library
+# dependencies, space-separated, or empty when the binary is pure Go.
+#
+# These are bundled into the package at build time (bundle_debs) and installed
+# offline with dpkg (install_local_debs) BEFORE the payload step extracts the
+# binary — install_package_payload runs an ldd preflight on the extracted
+# binary and hard-fails with NATIVE_LIBRARY_DEPENDENCY_MISSING if a SONAME is
+# unresolvable, which aborts the whole node.join workflow.
+#
+# Keep in sync with packageNativeDeps/nativeDepProviders in
+# golang/node_agent/node_agent_server/native_dep_check.go — that map is the
+# node-side detector, this one is the build-side provider.
+#
+# sql_server links against unixODBC (libodbc.so.2, shipped by libodbc2). It is
+# the only Globular service with a native library dependency; every other
+# service is a static Go binary. Before this was bundled, joining any node with
+# the compute profile failed: sql install aborted on the missing SONAME, which
+# failed step install_workloads_compute and therefore node.join, leaving a
+# unit file on disk with no installed_state receipt (cluster-doctor
+# unit_receipt_drift.installed_state_missing_or_unproven, CRITICAL).
+native_debs() {
+  local svc="$1"
+  case "${svc}" in
+    sql) echo "libodbc2" ;;
+    *)   echo "" ;;
+  esac
+}
+
 # Return catalog metadata for a service: profiles, priority, kind.
 # This drives the controller's dynamic catalog when built into package.json.
 # Format: "profiles=core,compute priority=1000 kind=service"
@@ -249,6 +277,22 @@ for exe_path in "${BIN_DIR}"/*_server; do
   # Format profiles as YAML list: [core, compute]
   profiles_yaml="[$(echo "${profiles}" | sed 's/,/, /g')]"
 
+  # Native shared-library dependencies, bundled as .debs at build time and
+  # dpkg-installed before the payload step (see native_debs above). Both
+  # fragments are empty for pure-Go services, which is every service but sql.
+  debs="$(native_debs "${svc}")"
+  bundle_debs_yaml=""
+  native_debs_step=""
+  if [[ -n "${debs}" ]]; then
+    bundle_debs_yaml="$(printf '\n  bundle_debs:')"
+    for d in ${debs}; do
+      bundle_debs_yaml="${bundle_debs_yaml}$(printf '\n    - %s' "${d}")"
+    done
+    # MUST precede install-${svc}-payload: that step runs an ldd preflight on
+    # the extracted binary and aborts the install when a SONAME is missing.
+    native_debs_step="$(printf '\n  - id: install-%s-native-debs\n    type: install_local_debs\n' "${svc}")"
+  fi
+
   # Write spec - services store their own config as <uuid>.json in services directory
   cat > "${spec}" <<EOF
 version: 1
@@ -256,7 +300,7 @@ version: 1
 metadata:
   name: ${svc}
   profiles: ${profiles_yaml}
-  priority: ${priority}
+  priority: ${priority}${bundle_debs_yaml}
 
 service:
   name: ${svc}
@@ -302,7 +346,7 @@ steps:
         group: globular
         mode: 0750
       # INV-PKI-1: Removed obsolete config/tls directory - all certs under pki/
-
+${native_debs_step}
   - id: install-${svc}-payload
     type: install_package_payload
     install_bins: true

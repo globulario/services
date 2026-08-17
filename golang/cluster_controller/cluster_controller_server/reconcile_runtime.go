@@ -866,7 +866,7 @@ func (srv *server) checkReadinessTiered(ctx context.Context) (hardUnmet, softUnm
 	}
 
 	// 5. Workflow service reachable.
-	if srv.workflowClient == nil {
+	if srv.getWorkflowClient() == nil {
 		softUnmet = append(softUnmet, "workflow_client_nil")
 	}
 
@@ -923,7 +923,7 @@ func (srv *server) checkReadiness(ctx context.Context) (bool, []string) {
 	}
 
 	// 5. Workflow service reachable — required for dispatching release workflows.
-	if srv.workflowClient == nil {
+	if srv.getWorkflowClient() == nil {
 		unmet = append(unmet, "workflow_client_nil")
 	}
 

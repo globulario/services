@@ -644,7 +644,9 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 	defer gz.Close()
 	tr := tar.NewReader(gz)
 
-	binDir, _, _, skipSystemd := installPaths()
+	binDir, systemdDir, configDir, skipSystemd := installPaths()
+	scriptsDir := filepath.Join(stagingRoot, "scripts")
+	debsDir := filepath.Join(stagingRoot, "debs")
 	var wroteUnit bool
 
 	for {
@@ -687,6 +689,30 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 				log.Printf("install_payload: preserving existing config %s (seed-only)", dest)
 				continue
 			}
+		case strings.HasPrefix(name, "scripts/"):
+			dest = filepath.Join(scriptsDir, filepath.Base(name))
+		case strings.HasPrefix(name, "debs/"):
+			// Bundled OS packages carrying the service's native library
+			// dependencies. Extracted here and dpkg-installed below, BEFORE the
+			// ldd preflight — see installBundledDebs.
+			dest = filepath.Join(debsDir, filepath.Base(name))
+		case strings.HasPrefix(name, "data/"):
+			// Data files are extracted to ActionStateDir preserving subdirectory structure.
+			// e.g. data/workflows/day0.bootstrap.yaml → /var/lib/globular/workflows/day0.bootstrap.yaml
+			rel := strings.TrimPrefix(name, "data/")
+			dest = filepath.Join(ActionStateDir, rel)
+		case strings.HasPrefix(name, "policy/"):
+			// Authorization policy files (permissions.generated.json, roles.generated.json)
+			// are installed under ActionPolicyDir/{service}/ so the runtime resolver
+			// can map gRPC method paths to stable action keys.
+			rel := strings.TrimPrefix(name, "policy/")
+			dest = filepath.Join(ActionPolicyDir, service, rel)
+		default:
+			// ignore unsupported paths
+			continue
+		}
+		if dest == "" {
+			continue
 		}
 		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 			return "", fmt.Errorf("mkdir for %s: %w", dest, err)
@@ -814,6 +840,23 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 	// implement the describe protocol (node_agent_server, xds, gateway,
 	// minio, etc). Identity of the extracted bytes is already verified
 	// upstream by artifact.fetch (sha256 match vs manifest digest).
+	// Install the package's bundled OS dependencies before the native-library
+	// preflight below. A SERVICE package that links a native library ships the
+	// providing .deb in debs/ (see native_debs() in specgen.sh); until this ran
+	// here, install_payload extracted bin/, systemd/, config/, scripts/, data/
+	// and policy/ but silently dropped debs/, so the library never arrived and
+	// the preflight aborted the install it was meant to protect.
+	//
+	// That is how sql failed every compute-profile join: install_workloads_compute
+	// reported NATIVE_LIBRARY_DEPENDENCY_MISSING for libodbc.so.2 even though the
+	// package carried libodbc2, which failed node.join and left
+	// globular-sql.service on disk with no installed_state receipt.
+	// (invariant:install.join_path_must_complete_install_contract — an install
+	// path must complete the whole contract, not the part it happens to extract.)
+	if err := installBundledDebs(ctx, debsDir, service); err != nil {
+		return "", fmt.Errorf("install bundled debs for %s: %w", service, err)
+	}
+
 	exe := executableForService(service)
 	if exe != "" {
 		binPath := filepath.Join(binDir, exe)

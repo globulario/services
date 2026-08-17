@@ -112,3 +112,50 @@ emission, client fan-out, installer change, or storage read. The pure engine
 (`golang/release_boundary/`) is unchanged. No A4 "fix" was applied — this task
 only proved the correct evidence exists. Phase 2 wiring touches `golang/mcp/`
 (high-risk) and will run `awareness.briefing` first.
+
+---
+
+## Addendum (2026-08-15) — the A4 predicate this note describes has been replaced
+
+Everything above is preserved as the record of the Phase-1.5 investigation. It
+is no longer the current contract, and should not be read as one.
+
+That investigation asked the right question — *which* install timestamp A4 must
+compare against — and answered it correctly: `metadata["installed_at"]`, not the
+first-install `InstalledPackage.InstalledUnix`. The evidence-mapping rule it
+established still holds and is still tested
+(`boundarycheck.TestMapInputs_InstalledAtAbsent_NoFallbackToProtoInstalledUnix`).
+
+What it did not question was the framing underneath: that A4 is a question about
+*time* at all. It is not. It is a question about *identity*, and the wall-clock
+comparison could not answer it:
+
+- **It produced false FAILs on correct installs.** The node-agent starts the
+  service and commits the receipt afterwards, so a healthy install routinely
+  yields `process_start < install_commit`. On 2026-08-14 the `event` service
+  reported A4 FAILED on two nodes while A0–A3 were PROVEN against a
+  byte-identical checksum. Line 75 of this note anticipated the shape
+  ("A4 would spuriously fail") without recognising it as the normal path.
+- **The obvious remediation laundered the false positive.** Restarting the
+  service flipped the verdict to PROVEN without changing the provenance of the
+  running binary — a proof that can be satisfied by an action unrelated to what
+  it claims to prove.
+- **Ties were unresolvable.** Refinement 4 above records a same-second tie
+  degrading to INDETERMINATE. A special case was later added to call same-second
+  PROVEN. Both are symptoms of a predicate that cannot decide.
+
+The replacement compares the running executable's hash against the installed
+entrypoint checksum. The installer replaces binaries with `os.Rename` over a
+temp file (`node_agent/.../actions/artifact.go`), so an install always produces a
+new inode; a process that predates it still holds the superseded inode and
+cannot hash to the new artifact. Identity therefore *is* the restart proof, and
+it holds with no clock, no tie, and no ordering assumption.
+
+Timestamps remain in the report as corroborating evidence. When identity
+evidence is unavailable the verdict is INDETERMINATE — never FAILED, because
+ordering alone convicts nothing.
+
+Filed as `failure.services_release_boundary_a4_infers_causal_provenance_from_*`
+and `forbidden_fix.forbidden_fix_services_restart_a_service_to_clear_a_failed_r`
+under `docs/awareness/candidates/proposals/` (candidates — promotion is a human
+decision).

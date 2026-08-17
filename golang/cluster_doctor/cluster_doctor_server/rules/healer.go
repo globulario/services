@@ -11,6 +11,8 @@ import (
 	"context"
 	"log"
 	"time"
+
+	cluster_doctorpb "github.com/globulario/services/golang/cluster_doctor/cluster_doctorpb"
 )
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -28,12 +30,6 @@ import (
 // of a healer cycle, not of a single dispatch). MaxActions caps how many
 // dispatches fire per Evaluate call; MaxFailures stops execution after that
 // many Dispatcher errors.
-//
-// Today's PolicyV1 demotes every HealAuto rule with a non-empty AutoAction
-// (delete_stale_cache, seed_ops_knowledge, clear_resolved_drift,
-// patch_release_available) to HealPropose. The Dispatcher hook is still
-// wired so Milestone 3 can re-promote one rule by changing the policy file
-// alone — no infrastructure work needed.
 // ──────────────────────────────────────────────────────────────────────────────
 
 // DispatchDisposition is the terminal classification of one dispatch attempt.
@@ -225,6 +221,27 @@ type Healer struct {
 	PolicyLookup func(invariantID string) HealRule
 }
 
+// RemediationEvidenceClosure is the minimum verdict contract for privileged
+// remediation. Mutation is justified only by a conclusive invariant failure;
+// UNKNOWN, PENDING, PASS, and any finding carrying CheckError are diagnostic
+// states, never execution authority.
+//
+// applyReducedHarvestPolicy fits this universal rule by preserving FAIL when
+// only unrelated collectors failed and downgrading to UNKNOWN with CheckError
+// when the finding's own evidence source failed. The same closure is consumed
+// by the background healer and by the shared ExecuteRemediation trust gate, so
+// full-harvest and reduced-harvest findings cannot acquire different mutation
+// semantics.
+func RemediationEvidenceClosure(f Finding) (bool, string) {
+	if f.InvariantStatus != cluster_doctorpb.InvariantStatus_INVARIANT_FAIL {
+		return false, "remediation evidence closure refused: invariant_status=" + f.InvariantStatus.String()
+	}
+	if f.CheckError != "" {
+		return false, "remediation evidence closure refused: " + f.CheckError
+	}
+	return true, ""
+}
+
 // Evaluate classifies findings against PolicyV1 and routes HealAuto
 // proposals through the Dispatcher.
 //
@@ -260,6 +277,16 @@ func (h *Healer) Evaluate(ctx context.Context, findings []Finding) HealReport {
 				// auto-verified.
 				result.Verified = true
 				report.Observed++
+			} else if eligible, reason := RemediationEvidenceClosure(f); !eligible && !h.DryRun {
+				// Findings that are not conclusive FAILs never reach the
+				// dispatcher for execution. Under reduced harvest, unrelated
+				// failures leave a target-backed FAIL eligible while a target
+				// source failure is downgraded to UNKNOWN and refused. Dry-runs
+				// still traverse the central gate for rehearsal and audit.
+				result.Error = reason
+				report.Observed++
+				log.Printf("healer: [evidence-closure] HealAuto finding %s on %s refused: %s",
+					f.InvariantID, f.EntityRef, reason)
 			} else if h.Dispatcher == nil {
 				// Fail-closed: no dispatcher means the gated path isn't
 				// wired. The healer never mutates directly.

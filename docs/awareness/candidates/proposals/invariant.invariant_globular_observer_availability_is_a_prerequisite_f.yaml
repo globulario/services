@@ -1,0 +1,26 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: invariant
+    id: invariant.globular.observer_availability_is_a_prerequisite_for_sensitivity_neve
+    title: Observer availability is a prerequisite for sensitivity, never a substitute for it
+    description: 'Three distinct properties are routinely collapsed into one notion of "the check passed", and each fails differently. AVAILABILITY/COMPLETENESS: the observer executed and collected its intended domain — it responded, and its collectors did not silently return partial data. SENSITIVITY: the observer can recognise a known-positive state, demonstrated by observing one. INFERENCE EXCLUSIVITY: the observed state uniquely supports the claimed conclusion among known mechanisms. Availability is a prerequisite for sensitivity and proves strictly less: an observer can respond promptly, report a complete harvest, and still be structurally incapable of ever seeing the condition it is asked about. Treating a complete-and-empty harvest as evidence of absence is the specific error, because it cannot distinguish "the condition is absent" from "the condition is present but invisible to me". A gate on availability alone must be described as such and must not be cited as evidence that a condition does not exist.'
+    severity: high
+    source_files:
+        - tests/scenarios/functional/doctor-report-clean.yaml
+        - tests/harness/lib/probes.sh
+    related_invariants:
+        - an_observer_must_be_proven_able_to_see_the_known_good_baseline_before_its_readings_are_evidence
+    forbidden_fixes:
+        - Cite a complete-but-empty harvest as evidence that a condition does not exist
+        - Describe an availability or completeness gate as a positive control
+    evidence:
+        - The doctor-report-clean scenario gates on reachable:true and reduced_harvest:false. That is availability and completeness only — it proves cluster-doctor answered and its collectors were whole. It does NOT prove the probe could report a finding if one existed; a genuine positive control would inject a known finding and require the probe to observe it. The gap is real and named rather than assumed away.
+        - The doctor.finding probe would have satisfied any availability check trivially — it always returned promptly with a well-formed answer — while reading an etcd prefix nothing writes and therefore never able to report present:true.
+    repo: globulario/globular-quickstart
+    domain: globular
+    contract: An availability/completeness gate certifies only that the observer ran and harvested its intended domain. Absence of a finding may be certified only by an observer that has demonstrated sensitivity to that finding's positive state. The two must be named distinctly wherever an assertion depends on absence.

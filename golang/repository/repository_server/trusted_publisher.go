@@ -164,10 +164,19 @@ func (srv *server) readTrustedPublisher(ctx context.Context, publisherID, relati
 // listTrustedPublishers returns all trusted publisher relationships for a namespace.
 func (srv *server) listTrustedPublishers(ctx context.Context, publisherID string) ([]*TrustedPublisher, error) {
 	dirKey := trustedPublisherDirKey(publisherID)
+	//go:uncertainty:declared-failsafe (nil,nil) is unchanged for callers, but a read failure now degrades the repo:catalog-fallback subsystem so it is no longer indistinguishable from an empty namespace. Triaged and fixed 2026-08-14.
 	entries, err := srv.Storage().ReadDir(ctx, dirKey)
 	if err != nil {
-		return nil, nil // no relationships
+		// A read failure and a genuinely empty namespace previously produced
+		// the identical (nil, nil), so a storage outage was indistinguishable
+		// from "this namespace declares no release authority" — and the
+		// upstream release gate treats the latter as "unmanaged" and goes
+		// inert. Same value returned (callers unchanged), but the fallback is
+		// now observable. See invariant fallback.must_emit_degraded_finding.
+		noteCatalogFallback("listTrustedPublishers.readDir", err)
+		return nil, nil
 	}
+	noteCatalogPrimary()
 
 	var result []*TrustedPublisher
 	for _, e := range entries {

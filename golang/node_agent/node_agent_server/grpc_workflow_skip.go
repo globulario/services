@@ -89,11 +89,6 @@ var commandPackages = map[string]bool{
 	"yt-dlp":       true,
 	"claude":       true,
 	"codex":        true,
-	// Passive NSS plugin library, not an executable command binary. It is a
-	// COMMAND package (no managed unit, skip_runtime_check) but ships no
-	// entrypoint, so it must never be probed for a command binary or have a
-	// checksum claimed against one.
-	"libnss-resolve": true,
 }
 
 var commandBinaryExistsFunc = commandBinaryExists

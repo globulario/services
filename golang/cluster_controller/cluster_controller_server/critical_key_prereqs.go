@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	cluster_controllerpb "github.com/globulario/services/golang/cluster_controller/cluster_controllerpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -255,6 +256,47 @@ func writeRuntimeDepBlock(ctx context.Context, nodeIDs []string, pkgName, kind s
 //   - This periodic sweep is level-triggered safety: once deps are healthy, the
 //     stale BLOCKED_MISSING_NATIVE_DEP record is removed automatically.
 func (srv *server) sweepRuntimeDepBlocks(ctx context.Context, nodes []*nodeState) {
+	// Clearing a block must re-arm the loop the block was gating. Removing the
+	// record only retracts the EXPLANATION for why the workload is down; it
+	// installs nothing. The reconcile loop is event-driven, so with nothing
+	// re-driving it the workload stays down while no longer reporting as
+	// blocked — unblocked and unconverged, with the one signal that said why
+	// now deleted. Observed 2026-08-12: authentication on node-4 was gated on
+	// rbac, "runtime-dep-block: auto-cleared stale block for
+	// SERVICE/authentication" at 03:08:36, then not one further dispatch; the
+	// unit sat inactive+disabled indefinitely and cluster-doctor reported
+	// installed_state_runtime_mismatch against it.
+	//
+	// TWO loops must be re-armed, because they do different jobs:
+	//
+	//   enqueueReconcile   -> node reconcile   -> dependency gating
+	//   releaseEnqueue(n)  -> release reconcile -> hasUnservedNodes -> DISPATCH
+	//
+	// Re-driving only the node loop is not enough, and looks deceptively like
+	// it worked. Observed 2026-08-12 on node-2: the block cleared at 13:01:03,
+	// the node loop re-ran at 13:01:05, and authentication correctly dropped
+	// out of the gated list (3 workloads gated -> 1). Then nothing — the
+	// workload was ungated, still not running, and never evaluated again,
+	// because only the RELEASE loop calls hasUnservedNodes and nothing had
+	// re-enqueued its ServiceRelease. hasUnservedNodes already reaches the
+	// right verdict for this case ("version match but runtime unconverged");
+	// it simply was not being called.
+	//
+	// Enqueue once per affected release after the whole sweep rather than per
+	// cleared block, so a sweep that clears many does not storm either loop.
+	// Neither call dispatches anything directly — they re-run the normal gated
+	// evaluation, so the critical-key prereq gate still applies
+	// (dispatch_package_before_critical_key_prereqs_present).
+	clearedPkgs := make(map[string]struct{})
+	defer func() {
+		if len(clearedPkgs) == 0 {
+			return
+		}
+		if srv.enqueueReconcile != nil {
+			srv.enqueueReconcile()
+		}
+		srv.enqueueReleasesForPackages(ctx, clearedPkgs)
+	}()
 	for _, node := range nodes {
 		if node == nil || node.NodeID == "" {
 			continue
@@ -296,9 +338,48 @@ func (srv *server) sweepRuntimeDepBlocks(ctx context.Context, nodes []*nodeState
 				kind = runtimeDepBlockKindFromComponent(comp)
 			}
 			runtimeDepBlockClearFn(ctx, []string{node.NodeID}, pkgName, kind)
+			clearedPkgs[pkgName] = struct{}{}
 			log.Printf("runtime-dep-block: auto-cleared stale block for %s/%s on %s",
 				kind, pkgName, node.NodeID)
 		}
+	}
+}
+
+// enqueueReleasesForPackages re-enqueues the ServiceRelease that owns each named
+// package, so the release reconcile re-runs hasUnservedNodes for it.
+//
+// This is the dispatch half of clearing a dep block. The node reconcile decides
+// whether a workload is GATED; only the release reconcile decides whether it is
+// SERVED, and only that path dispatches. A cleared block therefore has to reach
+// both, or the workload ends up ungated, unserved, and unexamined.
+//
+// Matching is by ServiceRelease.Spec.ServiceName, not by name string surgery: the
+// release's Meta.Name is "<publisher>/<component>" and splitting it would break
+// on any publisher containing a slash. Best-effort throughout — the sweep is a
+// periodic safety pass, so a failed list here is retried on the next tick and
+// must never propagate.
+func (srv *server) enqueueReleasesForPackages(ctx context.Context, pkgs map[string]struct{}) {
+	if len(pkgs) == 0 || srv.releaseEnqueue == nil || srv.resources == nil {
+		return
+	}
+	listCtx, cancel := withBounded(boundedShort)
+	defer cancel()
+
+	items, _, err := srv.resources.List(listCtx, "ServiceRelease", "")
+	if err != nil {
+		log.Printf("runtime-dep-block: list ServiceReleases to re-enqueue failed: %v", err)
+		return
+	}
+	for _, obj := range items {
+		rel, ok := obj.(*cluster_controllerpb.ServiceRelease)
+		if !ok || rel.Meta == nil || rel.Spec == nil {
+			continue
+		}
+		if _, want := pkgs[normalizeComponentName(rel.Spec.ServiceName)]; !want {
+			continue
+		}
+		srv.releaseEnqueue(rel.Meta.Name)
+		log.Printf("runtime-dep-block: re-enqueued release %s after clearing its block", rel.Meta.Name)
 	}
 }
 

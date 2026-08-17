@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUT="${1:-${ROOT}/dist/bin/globular-oci-runner}"
+OUT="${1:-${ROOT}/dist/.staging/bin/globular-oci-runner}"
 mkdir -p "$(dirname "${OUT}")"
 
 cd "${ROOT}/golang"

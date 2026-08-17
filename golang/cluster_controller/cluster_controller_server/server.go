@@ -177,6 +177,12 @@ type server struct {
 	leader                     atomic.Bool
 	leaderID                   atomic.Value
 	leaderAddr                 atomic.Value
+	// leaderSinceUnix is when this process most recently BECAME leader (0 when
+	// not leader). Heartbeat staleness must be judged relative to it: a fresh
+	// leader loads LastSeen from persisted state, which is stale by
+	// construction, so without this it concludes healthy nodes are unreachable
+	// before it has ever had a chance to hear from them.
+	leaderSinceUnix atomic.Int64
 	leaderEpoch                atomic.Int64
 	leaderCtx                  context.Context    // cancelled when leadership is lost
 	leaderCancel               context.CancelFunc // called by setLeader(false, ...)
@@ -292,10 +298,18 @@ type server struct {
 	reconcileNoProgress   map[string]int
 	reconcileBackoffUntil map[string]time.Time
 
-	// workflowClient is used to delegate workflow execution to the
-	// centralized WorkflowService. Lazily connected via the same
-	// address resolver as workflowRec.
+	// workflowClient is an EXPLICIT OVERRIDE for the WorkflowService client and
+	// is left nil in production. Reach the workflow service through
+	// srv.getWorkflowClient(), which re-resolves and fails over per call; this
+	// field short-circuits it so tests can inject a fake. It used to be pinned
+	// once at boot and never re-resolved, so every `== nil` guard kept passing
+	// after the pinned instance died — see workflow_client.go.
 	workflowClient workflowpb.WorkflowServiceClient
+
+	// wfConns caches one direct gRPC connection per workflow instance address,
+	// guarded by wfMu. Owned by getWorkflowClient.
+	wfMu    sync.Mutex
+	wfConns map[string]*grpc.ClientConn
 
 	// actorServer handles workflow callbacks from the centralized
 	// WorkflowService. Per-run Routers are registered before each
@@ -582,63 +596,31 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 	}
 	srv.workflowRec = workflow.NewRecorderWithResolver(wfAddrResolver, clusterID)
 
-	// Create a WorkflowService client for centralized execution.
-	// Resolve the LOCAL workflow service from etcd registry (source of truth).
-	// The workflow service runs on every node — we always use the local
-	// instance so execution stays on this node. HA durability is handled by
-	// executor leases and orphan recovery, not by routing to remote instances.
+	// The WorkflowService client is NOT pinned here. It is resolved per call by
+	// srv.getWorkflowClient(), which prefers a running local instance and fails
+	// over to a running remote one.
 	//
-	// On cold boot (e.g. Docker quickstart), the workflow service may not be
-	// registered in etcd yet when the controller starts. Resolve lazily in
-	// a background goroutine so we don't permanently miss it.
+	// This used to dial once in a background goroutine and assign
+	// srv.workflowClient. That made the field non-nil forever after the first
+	// success, so every `if srv.workflowClient == nil` guard downstream kept
+	// passing once the pinned instance died, and dispatch went into a dead
+	// connection with no re-resolution. Cold boot is handled by resolving per
+	// call rather than by retrying at startup — if the workflow service is not
+	// registered yet, the next call simply resolves it.
 	go func() {
+		// Log once when a workflow instance first becomes resolvable, so a cold
+		// boot that never converges is still visible rather than silent.
 		for attempt := 0; attempt < 60; attempt++ {
-			// Try local workflow service first (same node, avoids mesh routing).
-			wfAddr := config.ResolveLocalServiceAddr("workflow.WorkflowService")
-			if wfAddr == "" {
-				// Fallback: any workflow service in the cluster via DIRECT port
-				// (not mesh-routed through Envoy). The controller needs direct
-				// gRPC with mTLS+token auth which Envoy would strip.
-				if svcs, err := config.GetServicesConfigurationsByName("workflow.WorkflowService"); err == nil {
-					for _, s := range svcs {
-						addr, _ := s["Address"].(string)
-						addr = strings.TrimSpace(addr)
-						// Strip port suffix if embedded in address
-						if idx := strings.LastIndex(addr, ":"); idx > 0 {
-							addr = addr[:idx]
-						}
-						port := 0
-						if p, ok := s["Port"].(float64); ok {
-							port = int(p)
-						}
-						if addr != "" && port > 0 {
-							wfAddr = fmt.Sprintf("%s:%d", addr, port)
-							break
-						}
-					}
-				}
-			}
-			if wfAddr != "" {
-				dt := config.ResolveDialTarget(wfAddr)
-				log.Printf("cluster-controller: workflow client dialing %s (resolved from %s)", dt.Address, wfAddr)
-				dialOpts := []grpc.DialOption{
-					grpc.WithTransportCredentials(buildControllerClientTLSCreds(dt.ServerName)),
-					grpc.WithUnaryInterceptor(controllerTokenInterceptor(clusterID)),
-				}
-				if wfConn, err := grpc.NewClient(dt.Address, dialOpts...); err == nil {
-					srv.workflowClient = workflowpb.NewWorkflowServiceClient(wfConn)
-					log.Printf("cluster-controller: workflow client connected (attempt %d)", attempt+1)
-					return
-				} else {
-					log.Printf("cluster-controller: workflow client dial failed: %v", err)
-				}
+			if cands := srv.resolveWorkflowCandidates(); len(cands) > 0 {
+				log.Printf("cluster-controller: workflow service resolvable — %d candidate(s), preferred %s", len(cands), cands[0])
+				return
 			}
 			if attempt == 0 {
-				log.Printf("cluster-controller: workflow service not yet in registry — will retry")
+				log.Printf("cluster-controller: workflow service not yet in registry — resolved per call once it registers")
 			}
 			time.Sleep(5 * time.Second)
 		}
-		log.Printf("cluster-controller: WARNING — workflow client not available after 60 attempts")
+		log.Printf("cluster-controller: WARNING — no workflow service resolvable after 60 attempts")
 	}()
 
 	// Subscribe to AI remediation events (operation.restart_requested).
@@ -824,6 +806,15 @@ func (srv *server) isLeader() bool {
 }
 
 func (srv *server) setLeader(isLeader bool, id, addr string) {
+	if isLeader {
+		// Only stamp on the transition INTO leadership, so repeated
+		// affirmations do not keep pushing the reference forward.
+		if !srv.leader.Load() || srv.leaderSinceUnix.Load() == 0 {
+			srv.leaderSinceUnix.Store(time.Now().Unix())
+		}
+	} else {
+		srv.leaderSinceUnix.Store(0)
+	}
 	srv.leader.Store(isLeader)
 	srv.leaderID.Store(id)
 	srv.leaderAddr.Store(addr)

@@ -435,6 +435,16 @@ func validateAction(
 	return allowed, accessDenied, nil
 }
 
+// wrapScopeFailure formats the error returned when the authorization scope for a
+// method cannot be determined. It wraps rather than formats so the producer's
+// preserved sentinel (context.DeadlineExceeded, distinguishing a timeout from a
+// generic Unavailable) stays inspectable via errors.Is — the whole point of
+// meta.connection_errors_must_not_be_absorbed is lost if the chain is flattened
+// here. It names the method so an operator can tell which call was denied.
+func wrapScopeFailure(method string, err error) error {
+	return fmt.Errorf("resource-info lookup failed for %s (authorization scope unknown): %w", method, err)
+}
+
 func validateActionRequest(
 	token, application, organization string,
 	rqst interface{},
@@ -447,46 +457,67 @@ func validateActionRequest(
 
 	infos, err := getActionResourceInfos(domain, method)
 	if err != nil {
-		slog.Warn("getActionResourceInfos returned error; proceeding with empty resource infos", "method", method, "domain", domain, "error", err)
-		infos = make([]*rbacpb.ResourceInfos, 0)
-	} else {
-		// Reflect request to bind dynamic resource paths.
-		val, callErr := Utility.CallMethod(rqst, "ProtoReflect", []interface{}{})
-		if callErr != nil {
-			slog.Warn("validateActionRequest: ProtoReflect call failed; skipping action resource check", "method", method, "error", callErr)
-			return validateAction(token, application, domain, organization, method, subject, subjectType, infos)
-		}
-		msg, ok := val.(protoreflect.Message)
-		if !ok {
-			slog.Warn("validateActionRequest: ProtoReflect result is not a protoreflect.Message; skipping action resource check", "method", method)
-			return validateAction(token, application, domain, organization, method, subject, subjectType, infos)
-		}
-		if msg.Descriptor().Fields().Len() > 0 {
-			for i := 0; i < len(infos); i++ {
-				field := msg.Descriptor().Fields().Get(Utility.ToInt(infos[i].Index))
-				v := msg.Get(field)
+		// DENY on a genuine lookup failure. This used to log a warning, set
+		// infos to an empty slice and continue, which silently degraded
+		// resource-scoped authorization to unscoped: the action check still ran,
+		// but the per-resource binding below was skipped, so a caller was
+		// evaluated as though the method touched no resources at all.
+		//
+		// An error here is NEVER "this method has no mapping" —
+		// getActionResourceInfos already converts a not-found into
+		// ([]ResourceInfos{}, nil) at the "Treat not found as no mapping" branch,
+		// and allowlisted methods return empty with a nil error too. So reaching
+		// this point means a real failure (RBAC unreachable, timed out, client
+		// unavailable) and the authorization data cannot be trusted.
+		//
+		// Matches the sibling ValidateAction timeout path in this file, which
+		// returns (false, true, err) because "a stalled authorization service
+		// must NOT silently grant" — security.deny_overrides_allow. The verdict
+		// path already failed closed; this makes the scope path agree.
+		//
+		// The producer deliberately preserves a DeadlineExceeded sentinel so
+		// callers can distinguish a timeout from a generic Unavailable
+		// (meta.connection_errors_must_not_be_absorbed); wrapping keeps it
+		// inspectable instead of discarding it.
+		return false, true, wrapScopeFailure(method, err)
+	}
 
-				// list path binding
-				if field.IsList() {
-					expanded := make([]*rbacpb.ResourceInfos, v.List().Len())
-					for j := 0; j < v.List().Len(); j++ {
-						ri := &rbacpb.ResourceInfos{
-							Index:      infos[i].Index,
-							Permission: infos[i].Permission,
-						}
-						ri.Path, _ = url.PathUnescape(v.List().Get(j).String())
-						expanded[j] = ri
+	// Reflect request to bind dynamic resource paths.
+	val, callErr := Utility.CallMethod(rqst, "ProtoReflect", []interface{}{})
+	if callErr != nil {
+		slog.Warn("validateActionRequest: ProtoReflect call failed; skipping action resource check", "method", method, "error", callErr)
+		return validateAction(token, application, domain, organization, method, subject, subjectType, infos)
+	}
+	msg, ok := val.(protoreflect.Message)
+	if !ok {
+		slog.Warn("validateActionRequest: ProtoReflect result is not a protoreflect.Message; skipping action resource check", "method", method)
+		return validateAction(token, application, domain, organization, method, subject, subjectType, infos)
+	}
+	if msg.Descriptor().Fields().Len() > 0 {
+		for i := 0; i < len(infos); i++ {
+			field := msg.Descriptor().Fields().Get(Utility.ToInt(infos[i].Index))
+			v := msg.Get(field)
+
+			// list path binding
+			if field.IsList() {
+				expanded := make([]*rbacpb.ResourceInfos, v.List().Len())
+				for j := 0; j < v.List().Len(); j++ {
+					ri := &rbacpb.ResourceInfos{
+						Index:      infos[i].Index,
+						Permission: infos[i].Permission,
 					}
-					return validateAction(token, application, domain, organization, method, subject, subjectType, expanded)
+					ri.Path, _ = url.PathUnescape(v.List().Get(j).String())
+					expanded[j] = ri
 				}
+				return validateAction(token, application, domain, organization, method, subject, subjectType, expanded)
+			}
 
-				// message subfield or scalar
-				if field.Kind() == protoreflect.MessageKind && len(infos[i].Field) > 0 {
-					riField := field.Message().Fields().ByTextName(infos[i].Field)
-					infos[i].Path, _ = url.PathUnescape(v.Message().Get(riField).String())
-				} else {
-					infos[i].Path, _ = url.PathUnescape(v.String())
-				}
+			// message subfield or scalar
+			if field.Kind() == protoreflect.MessageKind && len(infos[i].Field) > 0 {
+				riField := field.Message().Fields().ByTextName(infos[i].Field)
+				infos[i].Path, _ = url.PathUnescape(v.Message().Get(riField).String())
+			} else {
+				infos[i].Path, _ = url.PathUnescape(v.String())
 			}
 		}
 	}

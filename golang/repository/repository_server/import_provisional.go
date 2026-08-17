@@ -26,9 +26,9 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/google/uuid"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/versionutil"
+	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

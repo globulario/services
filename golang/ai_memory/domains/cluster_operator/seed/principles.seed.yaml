@@ -169,3 +169,34 @@
   generated_from:
     - doctorrule:node.systemd.units_running
     - doctoraction:SYSTEMCTL_RESTART
+# ── destructive Scylla recovery boundary ────────────────────────────────────
+- id: principle.cluster.no_raw_scylla_data_wipe
+  title: Never raw-wipe Scylla data outside controller-governed join recovery
+  applies_when:
+    - condition.always
+  authorities:
+    - authority.cluster.owner_service.runtime_state
+    - authority.cluster.human.irreversible_ops
+  required_evidence: []
+  forbidden_moves:
+    - forbidden.cluster.raw_scylla_data_wipe
+  recommended_action: >-
+    Treat a Scylla data wipe as a controller-governed join-recovery operation, never as a
+    free-standing node repair. The controller may reach the node-agent wipe executor only after
+    restart recovery failed and its authoritative node state proves ScyllaWasEverVerified=false.
+    If the node has ever been verified in the ring, preserve the data and use a non-destructive
+    recovery path.
+  risk_level: irreversible
+  revocation_rule: >-
+    revoke or narrow only if the destructive executor itself gains an authority-preserving guard
+    that proves the same never-verified precondition independently of caller assertions
+  promotion_reason: >-
+    the existing awareness invariant scylla.join_wipe_safe_only_if_never_verified already proves
+    that a direct wipe bypasses the controller-side ScyllaWasEverVerified safety boundary; a raw
+    wipe of a previously verified member can destroy live replicas and require full cluster restore
+  source_refs:
+    - awareness:scylla.join_wipe_safe_only_if_never_verified
+    - source:golang/cluster_controller/cluster_controller_server/scylla_members.go
+    - source:golang/node_agent/node_agent_server/grpc_scylla_wipe.go
+  generated_from:
+    - awareness:scylla.join_wipe_safe_only_if_never_verified

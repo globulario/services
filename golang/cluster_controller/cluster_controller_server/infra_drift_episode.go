@@ -105,10 +105,11 @@ func (srv *server) driftEpisodeID(ctx context.Context, driftType, entityRef stri
 	if clusterID == "" {
 		return "", &errNoDriftEpisode{driftType, entityRef, "cluster domain is not configured"}
 	}
-	if srv.workflowClient == nil {
+	wc := srv.getWorkflowClient()
+	if wc == nil {
 		return "", &errNoDriftEpisode{driftType, entityRef, "workflow client unavailable"}
 	}
-	resp, err := srv.workflowClient.ListDriftUnresolved(ctx, &workflowpb.ListDriftUnresolvedRequest{
+	resp, err := wc.ListDriftUnresolved(ctx, &workflowpb.ListDriftUnresolvedRequest{
 		ClusterId: clusterID,
 		MinCycles: 1,
 	})

@@ -24,7 +24,15 @@ func (srv *server) initPlanSigner() error {
 // Best-effort: logs warning on failure, does not block the caller. Returns the
 // error so retrying callers (ensureLocalNodeExecutorBinding) can react; the
 // fire-and-forget join caller ignores it.
-func (srv *server) ensureNodeExecutorBinding(nodePrincipal string) error {
+//
+// Joining nodes get exactly globular-node-executor. The controller node needs
+// more (see ensureLocalNodeExecutorBinding), so the role set is a parameter
+// rather than a constant — a joining worker must never receive the
+// controller's dispatch rights.
+func (srv *server) ensureNodeExecutorBinding(nodePrincipal string, roles ...string) error {
+	if len(roles) == 0 {
+		roles = []string{security.RoleNodeExecutor}
+	}
 	address, err := config.GetAddress()
 	if err != nil {
 		log.Printf("WARN ensureNodeExecutorBinding: cannot resolve local address: %v", err)
@@ -38,13 +46,38 @@ func (srv *server) ensureNodeExecutorBinding(nodePrincipal string) error {
 	}
 	defer client.Close()
 
-	if err := client.SetRoleBinding(nodePrincipal, []string{security.RoleNodeExecutor}); err != nil {
+	if err := client.SetRoleBinding(nodePrincipal, roles); err != nil {
 		log.Printf("WARN ensureNodeExecutorBinding: failed to set role binding for %s: %v", nodePrincipal, err)
 		return err
 	}
-	log.Printf("ensureNodeExecutorBinding: bound %s to role %s", nodePrincipal, security.RoleNodeExecutor)
+	log.Printf("ensureNodeExecutorBinding: bound %s to roles %v", nodePrincipal, roles)
 	return nil
 }
+
+// localNodeRoles is the role set for the founding/controller node's OWN mTLS
+// identity.
+//
+// globular-node-executor covers the node-agent side (workflow.admin, so the
+// trace recorder can persist RecordOutcome / RecordPhaseTransition).
+//
+// globular-controller-sa covers the controller side. It is required because
+// ExecuteWorkflow is gated on action "workflow.dispatch", which
+// globular-node-executor does NOT grant — "workflow.admin" is a sibling action
+// key, not a wildcard over it. Without this role the controller cannot dispatch
+// ANY workflow: on a clean 5-node bring-up (2026-08-10) the controller logged
+// 2112 `PermissionDenied: workflow.dispatch` errors, killing release.apply.package
+// for every infrastructure package and node.bootstrap for every joining node.
+//
+// The failure was near-silent because the bootstrap phase machine and the
+// node-agent's local repair both cover for it: the cluster still reached
+// workload_ready, so it looked converged while the entire workflow-driven
+// convergence path — the one that owns cluster mutations
+// (intent:workflow.source_of_operational_truth) — was dead.
+//
+// This is scoped to the LOCAL node deliberately. Adding workflow.dispatch to
+// globular-node-executor instead would hand dispatch rights to every joining
+// worker, which is a privilege escalation, not a fix.
+var localNodeRoles = []string{security.RoleNodeExecutor, security.RoleControllerSA}
 
 // ensureLocalNodeExecutorBinding binds the founding/controller node's OWN mTLS
 // identity to globular-node-executor at startup.
@@ -72,11 +105,12 @@ func (srv *server) ensureLocalNodeExecutorBinding() {
 		return
 	}
 	for attempt := 1; attempt <= 12; attempt++ {
-		if err := srv.ensureNodeExecutorBinding(name); err == nil {
+		if err := srv.ensureNodeExecutorBinding(name, localNodeRoles...); err == nil {
 			return // success logged by ensureNodeExecutorBinding
 		}
 		time.Sleep(10 * time.Second)
 	}
-	log.Printf("WARN ensureLocalNodeExecutorBinding: gave up binding local node %q to %s after retries (RBAC unreachable)",
-		name, security.RoleNodeExecutor)
+	log.Printf("WARN ensureLocalNodeExecutorBinding: gave up binding local node %q to %v after retries (RBAC unreachable) — "+
+		"the controller will be denied workflow.dispatch and cannot run release or bootstrap workflows",
+		name, localNodeRoles)
 }

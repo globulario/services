@@ -44,6 +44,7 @@ func ParseLDDOutput(output string) []string {
 // of shared libraries not resolvable on the current system. Returns nil (not
 // an error) when ldd is not available — the check is best-effort.
 func MissingNativeLibs(ctx context.Context, binaryPath string) ([]string, error) {
+	//go:uncertainty:declared-failsafe declared best-effort preflight. The only consumer (actions/artifact.go:841) blocks install ONLY on a positive finding (err == nil && len(missing) > 0), so a skipped check degrades diagnostic quality (worse error later at runtime) rather than accepting an unsafe state. Triaged 2026-08-14.
 	lddPath, err := exec.LookPath("ldd")
 	if err != nil {
 		// ldd not available (e.g. musl-libc system, stripped environment).

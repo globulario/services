@@ -407,14 +407,29 @@ func getClientCredentialConfig(path string, domain string, country string, state
 		return "", "", "", fmt.Errorf("client creds: parse remote CA: %w", err)
 	}
 
-	// If existing and same CA, reuse
+	// Reuse only if the CA is unchanged AND the existing leaf is still usable.
+	// See getServerCredentialConfig for why the CA fingerprint alone is not a
+	// sufficient test: the CA outlives its leaves, so this returned expired
+	// client certificates forever and the re-issue path below never ran.
 	if Utility.Exists(filepath.Join(path, "client.pem")) &&
 		Utility.Exists(filepath.Join(path, "client.crt")) &&
 		Utility.Exists(filepath.Join(path, "ca.crt")) {
 
 		localFP, err := fileSPKIFingerprint(filepath.Join(path, "ca.crt"))
 		if err == nil && localFP == remoteFP {
-			return path + "/client.pem", path + "/client.crt", path + "/ca.crt", nil
+			// client.pem is the key in PEM form; NeedsCertRegeneration loads
+			// the pair, so pass it as the key path.
+			needRegen, reason := NeedsCertRegeneration(
+				filepath.Join(path, "client.crt"),
+				filepath.Join(path, "client.pem"),
+				filepath.Join(path, "ca.crt"),
+				nil, nil, serverCertRenewBefore,
+			)
+			if !needRegen {
+				return path + "/client.pem", path + "/client.crt", path + "/ca.crt", nil
+			}
+			slog.Info("client creds: re-issuing certificate",
+				"path", path, "reason", reason)
 		}
 	}
 
@@ -507,14 +522,35 @@ func getServerCredentialConfig(path string, domain string, country string, state
 		return "", "", "", fmt.Errorf("server creds: parse remote CA: %w", err)
 	}
 
-	// Reuse if CA unchanged
+	// Reuse only if the CA is unchanged AND the existing leaf is still usable.
+	//
+	// An unchanged CA is necessary but not sufficient. A leaf can expire, lose
+	// coherence with its key, or drop a required SAN while the CA that signed
+	// it stays perfectly current — and the CA outlives its leaves by design
+	// (10-year CA, 1-year leaves). Gating reuse on the CA alone therefore made
+	// this path return an EXPIRED certificate indefinitely: the fresh-issue
+	// branch below, which mints a new key + CSR and routes signing to the
+	// CA-holding node's gateway, was unreachable for exactly the case it
+	// exists to serve. Certificate renewal never happened anywhere in the
+	// cluster; nodes would simply stop being able to speak mTLS a year after
+	// joining, with no automated recovery.
 	if Utility.Exists(filepath.Join(path, "server.key")) &&
 		Utility.Exists(filepath.Join(path, "server.crt")) &&
 		Utility.Exists(filepath.Join(path, "ca.crt")) {
 
 		localFP, err := fileSPKIFingerprint(filepath.Join(path, "ca.crt"))
 		if err == nil && localFP == remoteFP {
-			return path + "/server.key", path + "/server.crt", path + "/ca.crt", nil
+			needRegen, reason := NeedsCertRegeneration(
+				filepath.Join(path, "server.crt"),
+				filepath.Join(path, "server.key"),
+				filepath.Join(path, "ca.crt"),
+				nil, nil, serverCertRenewBefore,
+			)
+			if !needRegen {
+				return path + "/server.key", path + "/server.crt", path + "/ca.crt", nil
+			}
+			slog.Info("server creds: re-issuing certificate",
+				"path", path, "reason", reason)
 		}
 	}
 
@@ -742,6 +778,15 @@ func serviceCertNeedsRegeneration(certPath, caPath string) bool {
 // is healthy. reason is a short human-readable string suitable for logging.
 //
 // Use this function everywhere instead of ad-hoc file-exists checks.
+// serverCertRenewBefore is how long before expiry a leaf is re-issued rather
+// than reused. Leaves are one-year; renewing inside the last 30 days leaves a
+// wide margin for a node that is down or partitioned when its window opens.
+//
+// It must be > 0. At 0 a cert is only replaced once it has ALREADY expired,
+// which means every consumer has already been failing TLS by the time repair
+// starts.
+const serverCertRenewBefore = 30 * 24 * time.Hour
+
 func NeedsCertRegeneration(certPath, keyPath, caPath string, requiredDNS []string, requiredIPs []net.IP, renewBefore time.Duration) (bool, string) {
 	// --- file presence ---
 	if !fileExists(certPath) {

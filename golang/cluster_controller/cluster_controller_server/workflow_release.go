@@ -1188,6 +1188,25 @@ func (srv *server) buildNodeDirectApplyConfig() engine.NodeDirectApplyConfig {
 			}
 			nc, _ := engine.GetNodeContext(ctx)
 			nodeID, endpoint := nc.NodeID, nc.AgentEndpoint
+
+			// Topology-gated packages — same shape as the keepalived waiver
+			// above. minio (and its sidekick metrics proxy) are installed on
+			// every storage-profile node, but the node-agent topology gate
+			// deliberately holds the unit stopped on any node that is not in
+			// ObjectStoreDesiredState.Nodes (held_not_in_topology). Demanding
+			// "active" there asks the node to violate the objectstore topology
+			// contract, so the step can never pass: it deferred 5/5 times and
+			// permanently abandoned correlation
+			// InfrastructureRelease/core@globular.io/minio on a clean 5-node
+			// cluster where every node was behaving correctly.
+			//
+			// Inactive-because-held is correct policy, not a failed rollout.
+			// Whether the pool SHOULD be wider is a separate question owned by
+			// objectstore.standalone_in_cluster and the topology workflow —
+			// never something a package's runtime probe may force.
+			if minioTopologyHeldOnNode(ctx, nodeID, endpoint, name) {
+				return nil
+			}
 			if endpoint == "" {
 				return fmt.Errorf("no agent endpoint for node %s", nodeID)
 			}

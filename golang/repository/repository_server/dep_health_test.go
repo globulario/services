@@ -136,12 +136,14 @@ func (s *depTestDownloadStream) Send(r *repopb.DownloadArtifactResponse) error {
 	s.chunks = append(s.chunks, r.GetData())
 	return nil
 }
-func (s *depTestDownloadStream) Context() context.Context              { return s.ctx }
-func (s *depTestDownloadStream) SendMsg(m any) error                   { return s.Send(m.(*repopb.DownloadArtifactResponse)) }
-func (s *depTestDownloadStream) RecvMsg(_ any) error                   { return nil }
-func (s *depTestDownloadStream) SetHeader(_ metadata.MD) error         { return nil }
-func (s *depTestDownloadStream) SendHeader(_ metadata.MD) error        { return nil }
-func (s *depTestDownloadStream) SetTrailer(_ metadata.MD)              {}
+func (s *depTestDownloadStream) Context() context.Context { return s.ctx }
+func (s *depTestDownloadStream) SendMsg(m any) error {
+	return s.Send(m.(*repopb.DownloadArtifactResponse))
+}
+func (s *depTestDownloadStream) RecvMsg(_ any) error            { return nil }
+func (s *depTestDownloadStream) SetHeader(_ metadata.MD) error  { return nil }
+func (s *depTestDownloadStream) SendHeader(_ metadata.MD) error { return nil }
+func (s *depTestDownloadStream) SetTrailer(_ metadata.MD)       {}
 
 // ── T5 ────────────────────────────────────────────────────────────────────────
 

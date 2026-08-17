@@ -93,10 +93,17 @@ func validateLeafSignedByCA(certPath, keyPath, caPath string) error {
 }
 
 func (srv *NodeAgentServer) ensureRuntimeTLSConvergence(ctx context.Context) {
-	if srv == nil || srv.state == nil || srv.lastSpec == nil {
+	if srv == nil || srv.state == nil {
 		return
 	}
-	if strings.ToLower(strings.TrimSpace(srv.lastSpec.GetProtocol())) != "https" {
+	// Derive the spec when the controller has not pushed one. Gating on
+	// srv.lastSpec alone disabled this entire loop in production — see
+	// currentNetworkSpec.
+	spec := srv.currentNetworkSpec()
+	if spec == nil {
+		return
+	}
+	if strings.ToLower(strings.TrimSpace(spec.GetProtocol())) != "https" {
 		return
 	}
 
@@ -135,8 +142,15 @@ func (srv *NodeAgentServer) ensureRuntimeTLSConvergence(ctx context.Context) {
 	if rmErr := os.Remove(sanConf); rmErr != nil && !os.IsNotExist(rmErr) {
 		log.Printf("tls-convergence: remove san.conf: %v", rmErr)
 	}
-	if repairErr := srv.ensureNetworkCerts(srv.lastSpec); repairErr != nil {
+	if repairErr := srv.ensureNetworkCerts(spec); repairErr != nil {
 		log.Printf("tls-convergence: repair failed: %v", repairErr)
+		return
+	}
+	// Re-validate: ensureNetworkCerts returning nil is not by itself proof the
+	// material on disk is now usable, and claiming a repair that did not happen
+	// is the defect this whole path exists to avoid.
+	if regen, why := security.NeedsCertRegeneration(certPath, keyPath, caPath, nil, nil, 0); regen {
+		log.Printf("tls-convergence: repair reported success but certificate is still unusable: %s", why)
 		return
 	}
 	log.Printf("tls-convergence: repaired runtime TLS certificate")
@@ -493,6 +507,24 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *cluster_controllerpb.Cluste
 		if err := waitForFiles([]string{keyDst, fullchainDst, caDst}, waitTimeout); err != nil {
 			return fmt.Errorf("wait for tls files: %w", err)
 		}
+		// waitForFiles proves the files EXIST, not that they are usable. On a
+		// non-issuer node with no cert KV this branch used to return nil right
+		// here, so a repair triggered by an expired or CA-mismatched leaf
+		// "succeeded" without touching anything — and the caller logged
+		// "repaired runtime TLS certificate" over material it had just found
+		// invalid. Re-issue through the CSR -> CA-gateway path instead, which
+		// works without the CA private key, and report a real error if the
+		// certificate is still unusable afterwards.
+		if regen, reason := security.NeedsCertRegeneration(fullchainDst, keyDst, caDst, nil, nil, 0); regen {
+			log.Printf("tls-convergence: local certificate unusable on non-issuer node (%s) — requesting re-issue", reason)
+			if err := srv.reissueLeafViaCAGateway(spec); err != nil {
+				return fmt.Errorf("re-issue tls certificate on non-issuer node (%s): %w", reason, err)
+			}
+			if stillBad, why := security.NeedsCertRegeneration(fullchainDst, keyDst, caDst, nil, nil, 0); stillBad {
+				return fmt.Errorf("tls certificate still unusable after re-issue: %s", why)
+			}
+			log.Printf("tls-convergence: re-issued runtime TLS certificate via CA gateway")
+		}
 		return nil
 	}
 
@@ -820,4 +852,127 @@ func (srv *NodeAgentServer) reconcileCACertDrift(ctx context.Context) {
 	} else {
 		log.Printf("ca-drift: detected but no lastSpec available — cert regeneration deferred until next TLS convergence cycle")
 	}
+}
+
+// reissueLeafViaCAGateway obtains a fresh runtime TLS leaf on a node that
+// cannot sign for itself.
+//
+// The CA private key deliberately stays on the signer authority, so a
+// non-issuer node has no way to mint its own certificate — but it does not
+// need one: the credential path generates a key and CSR locally and routes the
+// CSR to the CA-holding node's gateway (/sign_ca_certificate), reading that
+// address from etcd. Only the signature travels; the private key never leaves
+// this node.
+//
+// Issuance happens in a fresh temp directory so nothing can be "reused" from
+// the very material that was just found unusable, and the result is copied
+// into the canonical runtime TLS paths only after it verifies.
+func (srv *NodeAgentServer) reissueLeafViaCAGateway(spec *cluster_controllerpb.ClusterNetworkSpec) error {
+	if spec == nil {
+		return errors.New("no cluster network spec")
+	}
+	domain := strings.TrimSpace(spec.GetClusterDomain())
+	if domain == "" {
+		return errors.New("cluster_domain is required")
+	}
+
+	var country, state, city, org string
+	if gc, err := config.GetLocalConfig(true); err == nil && gc != nil {
+		country = fmt.Sprintf("%v", gc["Country"])
+		state = fmt.Sprintf("%v", gc["State"])
+		city = fmt.Sprintf("%v", gc["City"])
+		org = fmt.Sprintf("%v", gc["Organization"])
+	}
+
+	alts := make([]interface{}, 0, len(spec.GetAlternateDomains()))
+	for _, d := range spec.GetAlternateDomains() {
+		alts = append(alts, d)
+	}
+
+	tmp, err := os.MkdirTemp(filepath.Dir(config.GetCanonicalPKIDir()), "cert-reissue-*")
+	if err != nil {
+		return fmt.Errorf("create re-issue workdir: %w", err)
+	}
+	defer func() { _ = os.RemoveAll(tmp) }()
+
+	keyFile, certFile, caFile, err := security.InstallServerCertificates(
+		domain, tmp, country, state, city, org, alts)
+	if err != nil {
+		return fmt.Errorf("request signed certificate from CA gateway: %w", err)
+	}
+
+	tlsDir, fullchainDst, keyDst, caDst := config.CanonicalTLSPaths(config.GetRuntimeConfigDir())
+	if err := os.MkdirAll(tlsDir, 0o755); err != nil {
+		return fmt.Errorf("create tls dir: %w", err)
+	}
+	if err := copyFilePerm(keyFile, keyDst, 0o600); err != nil {
+		return err
+	}
+	if err := concatFiles(fullchainDst, certFile, caFile); err != nil {
+		return fmt.Errorf("build fullchain: %w", err)
+	}
+	if caFile != "" {
+		if err := copyFilePerm(caFile, caDst, 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// currentNetworkSpec returns the cluster network spec this node should converge
+// its TLS material against.
+//
+// srv.lastSpec is populated when the controller pushes a spec, but nothing in
+// the production code path ever assigns it — it is set only by tests. Every
+// consumer therefore saw nil forever, and each one fails CLOSED and SILENT:
+// ensureRuntimeTLSConvergence returns before it looks at a single certificate,
+// checkAndRenewCertificate returns before the ACME check, and caCertDriftLoop
+// logs "no lastSpec available". The result was a certificate subsystem that
+// never ran in production while its unit tests passed, because the tests build
+// the struct literal with lastSpec already set.
+//
+// So derive it when it is absent. Domain and protocol are cluster configuration
+// (etcd-backed via GetLocalConfig / GetDomain), which is the same material the
+// Day-0 path uses to build its spec. Returns nil only when the domain is
+// genuinely unknown, which is a real "cannot converge" state rather than a
+// silent skip.
+func (srv *NodeAgentServer) currentNetworkSpec() *cluster_controllerpb.ClusterNetworkSpec {
+	if srv == nil {
+		return nil
+	}
+	if srv.lastSpec != nil {
+		return srv.lastSpec
+	}
+
+	domain, err := config.GetDomain()
+	if err != nil || strings.TrimSpace(domain) == "" {
+		return nil
+	}
+
+	protocol := "https"
+	acme := false
+	adminEmail := ""
+	if gc, cfgErr := config.GetLocalConfig(true); cfgErr == nil && gc != nil {
+		if p := strings.TrimSpace(strings.ToLower(fmt.Sprintf("%v", gc["Protocol"]))); p != "" && p != "<nil>" {
+			protocol = p
+		}
+		if v, ok := gc["AlternateDomains"]; ok {
+			_ = v // alternates are re-read by ensureNetworkCerts from the spec below
+		}
+		if e := strings.TrimSpace(fmt.Sprintf("%v", gc["AdminEmail"])); e != "" && e != "<nil>" {
+			adminEmail = e
+		}
+	}
+
+	spec := &cluster_controllerpb.ClusterNetworkSpec{
+		Protocol:      protocol,
+		ClusterDomain: strings.TrimSpace(domain),
+		AcmeEnabled:   acme,
+		AdminEmail:    adminEmail,
+	}
+	// Cache it so the ACME loop and the CA-drift loop stop reporting "no spec".
+	srv.lastSpec = spec
+	log.Printf("tls-convergence: derived cluster network spec from config (domain=%s protocol=%s) — controller never pushed one",
+		spec.ClusterDomain, spec.Protocol)
+	return spec
 }

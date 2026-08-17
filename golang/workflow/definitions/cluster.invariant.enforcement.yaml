@@ -222,11 +222,20 @@ spec:
     # Marks critical nodes in cluster state (Metadata["partition_fenced_since"])
     # so the release pipeline skips them for new deployments. Auto-clears
     # the fence when the heartbeat resumes and emits a "healed" event.
+    # Runs on EVERY pass, not only when something is critical.
+    #
+    # This handler both fences newly-critical nodes AND auto-unfences nodes
+    # whose heartbeat resumed (clearing partition_fenced_since and emitting a
+    # "partition healed" event). Gating it on len(critical) > 0 meant the
+    # recovery half could never execute: once the nodes came back the guard was
+    # false, so fences stayed set and the quorum_loss alert key was never
+    # cleared — a CRITICAL alert latched on forever after a transient partition.
+    # The handler is idempotent and no-ops when there is nothing to do.
     - id: fence_unreachable_nodes
-      title: Fence nodes unreachable beyond partition threshold
+      title: Fence unreachable nodes and release healed ones
       dependsOn: [validate_node_reachability]
       when:
-        expr: len(reachability_report.critical) > 0 && enforce == true
+        expr: enforce == true
       actor: cluster-controller
       action: controller.invariant.fence_unreachable_nodes
       with:

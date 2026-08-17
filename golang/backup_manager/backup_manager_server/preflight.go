@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/url"
 	"os/exec"
+	"sort"
 	"strings"
 	"time"
 
@@ -512,12 +513,17 @@ func (srv *server) detectScyllaClusters(apiURL string) []string {
 // falls back to 10000 (ScyllaDB default). Returns the reachable host and cluster name.
 func detectNativeScyllaDB() (host, clusterName string) {
 	// ScyllaDB's REST API binds the node's routable LAN IP (scylla.yaml
-	// api_address), NEVER loopback — day-0 and node-agent enforce this. Probe
-	// only the routable LAN IPs. Deliberately no 127.0.0.1 fallback: if it
-	// somehow answered we would register the node with host=127.0.0.1, which
-	// scylla-manager cannot use to reach the agent — a broken registration that
-	// is worse than none. No LAN IP answering => return "" and let the caller
-	// retry (Scylla not up yet, or misconfigured).
+	// api_address), NEVER loopback — the API has remote consumers, so probe
+	// the routable LAN IPs. Deliberately no 127.0.0.1 fallback: if it somehow
+	// answered we would register the node with host=127.0.0.1, which
+	// scylla-manager cannot use to reach the agent — a broken registration
+	// that is worse than none. No LAN IP answering => return "" and let the
+	// caller retry (Scylla not up yet, or misconfigured).
+	//
+	// The address returned here is the registration host, so the sweep order
+	// is sorted rather than whatever order the kernel lists interfaces in: on
+	// a multi-homed node an unsorted sweep can register a different address
+	// than the last run for no visible reason.
 	var candidates []string
 	if addrs, err := net.InterfaceAddrs(); err == nil {
 		for _, addr := range addrs {
@@ -530,23 +536,17 @@ func detectNativeScyllaDB() (host, clusterName string) {
 			}
 		}
 	}
+	sort.Strings(candidates)
 
-	// ScyllaDB REST API port (default 10000)
-	ports := []int{10000}
-
-	for _, port := range ports {
-		for _, addr := range candidates {
-			url := fmt.Sprintf("http://%s:%d/storage_service/cluster_name", addr, port)
-			cmd := execCommand("curl", "-sf", "--connect-timeout", "2", url)
-			out, err := cmd.CombinedOutput()
-			if err != nil {
-				continue
-			}
-			name := strings.TrimSpace(string(out))
-			name = strings.Trim(name, `"`)
-			if name != "" {
-				return addr, name
-			}
+	for _, addr := range candidates {
+		url := fmt.Sprintf("http://%s:%d/storage_service/cluster_name", addr, 10000)
+		out, err := execCommand("curl", "-sf", "--connect-timeout", "2", url).CombinedOutput()
+		if err != nil {
+			continue
+		}
+		name := strings.Trim(strings.TrimSpace(string(out)), `"`)
+		if name != "" {
+			return addr, name
 		}
 	}
 	return "", ""

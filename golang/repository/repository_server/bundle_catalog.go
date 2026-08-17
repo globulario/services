@@ -11,8 +11,8 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/globulario/services/golang/versionutil"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
+	"github.com/globulario/services/golang/versionutil"
 )
 
 // ListBundles returns a summary of all bundles stored in the repository.
@@ -20,17 +20,20 @@ import (
 // Deprecated: Use ListArtifacts or SearchArtifacts instead. This method queries
 // the legacy Resource service bundle index and will be removed in a future version.
 func (srv *server) ListBundles(ctx context.Context, req *repopb.ListBundlesRequest) (*repopb.ListBundlesResponse, error) {
+	//go:uncertainty:declared-failsafe empty result unchanged for callers; the fallback is observable via the repo:catalog-fallback subsystem (catalog_fallback.go), satisfying fallback.must_emit_degraded_finding. Triaged and fixed 2026-08-14.
 	resourceClient, err := srv.getResourceClient()
 	if err != nil {
-		slog.Warn("ListBundles: resource client unavailable", "err", err)
+		noteCatalogFallback("ListBundles.resourceClient", err)
 		return &repopb.ListBundlesResponse{}, nil
 	}
 
+	//go:uncertainty:declared-failsafe empty result unchanged for callers; the fallback is observable via the repo:catalog-fallback subsystem (catalog_fallback.go), satisfying fallback.must_emit_degraded_finding. Triaged and fixed 2026-08-14.
 	bundles, err := resourceClient.GetPackageBundles("")
 	if err != nil {
-		slog.Warn("ListBundles: GetPackageBundles failed", "err", err)
+		noteCatalogFallback("ListBundles.getPackageBundles", err)
 		return &repopb.ListBundlesResponse{}, nil
 	}
+	noteCatalogPrimary()
 
 	prefix := strings.ToLower(req.GetPrefix())
 	summaries := make([]*repopb.BundleSummary, 0, len(bundles))

@@ -1,0 +1,32 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: failure_mode
+    id: failure.services.day_0_bootstrap_suppresses_the_exit_status_of_security_relev
+    title: Day-0 bootstrap suppresses the exit status of security-relevant commands with || true
+    description: |-
+        Filed SEPARATELY from the authority-uncertainty family on purpose. This is command-error suppression in shell during bootstrap, not a zero value flowing into a verdict, and merging the two would blur a scanner's target.
+
+        The concrete concern is install-day0.sh:356, where a failure to refresh the system trust store is discarded. Day-0 is exactly when PKI is being established, and the CA is the trust anchor for every inter-service mTLS connection. A silent failure there produces a node whose trust store does not contain what the rest of the bootstrap assumes it contains.
+
+        The other 103 occurrences are mostly defensible and should NOT be swept mechanically: probes that are allowed to fail, trace logging that must never abort a bootstrap, idempotent cleanup, and one cosmetic logo renderer. A blanket removal would make bootstrap brittle for no safety gain, which is why this is filed as warning with a specific line rather than as a count.
+
+        The repository already demonstrates the correct discrimination in both directions. recover-etcd-quorum.sh REMOVED a '|| true' after it masked a failed recovery verification and left a comment explaining why. check-glibc-floor.sh KEEPS one and explains that statically linked Go binaries legitimately have no GLIBC symbols to find. The rule is therefore not "never suppress" but "suppression must be justified where the result feeds a safety claim".
+    severity: warning
+    source_files:
+        - scripts/release/install-day0.sh
+    related_invariants:
+        - meta.silence_is_not_valid_for_unexpected
+        - meta.connection_errors_must_not_be_absorbed
+    forbidden_fixes:
+        - Mechanically strip || true across bootstrap scripts — most instances are deliberate and removing them makes day-0 brittle without improving safety
+    evidence:
+        - 'scripts/release/install-day0.sh:356 — ''update-ca-certificates --fresh >/dev/null 2>&1 || update-ca-certificates >/dev/null 2>&1 || true'': a failed trust-store refresh during bootstrap is unreported, and the cluster CA is the trust anchor for all inter-service mTLS'
+        - install-day0.sh contains 104 '|| true' occurrences; roughly 36 are genuinely idempotent cleanup (rm/mkdir/chmod/chown/kill) and most of the remainder are probes, trace logging, or cosmetic — one installs chafa to draw a logo
+        - 'scripts/recover-etcd-quorum.sh:56 records the same class as a prior scar: a ''|| true'' once swallowed a failed verification on a machine that had not actually recovered; the comment at :84 states ''NO || true. A failed verification means the recovery did not work'''
+        - 'scripts/check-glibc-floor.sh:53 is a documented legitimate use — ''|| true is required: statically linked Go binaries have no GLIBC symbols'' — showing the codebase distinguishes the cases when it stops to think'
+    domain: github.com/globulario/services

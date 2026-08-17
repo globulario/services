@@ -18,9 +18,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gocql/gocql"
 	"github.com/globulario/services/golang/config"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
+	"github.com/gocql/gocql"
 )
 
 const (
@@ -583,9 +583,9 @@ func (s *scyllaStore) listConfigReceipts(ctx context.Context, publisherID, name,
 		WHERE publisher_id = ? AND name = ? AND platform = ?`,
 		publisherID, name, platform).WithContext(ctx).Iter()
 	var (
-		ts, buildNum int64
+		ts, buildNum                                                                   int64
 		nodeID, path, kindStr, mergeStr, before, after, actionStr, snap, runID, reason string
-		sensitive bool
+		sensitive                                                                      bool
 	)
 	var out []*repopb.PackageConfigReceipt
 	for iter.Scan(&ts, &nodeID, &path, &kindStr, &mergeStr, &before, &after,

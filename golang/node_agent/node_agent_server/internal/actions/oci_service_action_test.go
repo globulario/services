@@ -77,6 +77,7 @@ func TestOCIServiceActionsInstallVerifyAndUninstall(t *testing.T) {
 	swapActionRegistryForTest(t)
 	root := t.TempDir()
 	oldBin, oldState, oldConfig, oldSystemd, oldSkip, oldReload, oldSocket := ActionBinDir, ActionStateDir, ActionConfigDir, ActionSystemdDir, ActionSkipSystemd, ActionSkipDaemonReload, ActionOCIDockerSocket
+	snapshotActionRegistry(t)
 	defer func() {
 		ActionBinDir, ActionStateDir, ActionConfigDir, ActionSystemdDir, ActionSkipSystemd, ActionSkipDaemonReload, ActionOCIDockerSocket = oldBin, oldState, oldConfig, oldSystemd, oldSkip, oldReload, oldSocket
 	}()
@@ -157,8 +158,31 @@ func TestOCIServiceActionsInstallVerifyAndUninstall(t *testing.T) {
 	}
 }
 
+// snapshotActionRegistry restores the process-global action registry after the
+// test. Register has no inverse, so a test that registers a fake under a real
+// action name leaves that fake resolvable for every test that runs after it:
+// TestServiceUninstall_* passed alone but failed in a full package run because
+// package.uninstall still resolved to a fake registered here. Entries are
+// restored directly rather than through Register so decorators already baked
+// into the saved handlers are not applied a second time.
+func snapshotActionRegistry(t *testing.T) {
+	t.Helper()
+	saved := make(map[string]Handler, len(registry))
+	for name, handler := range registry {
+		saved[name] = handler
+	}
+	t.Cleanup(func() {
+		for name := range registry {
+			delete(registry, name)
+		}
+		for name, handler := range saved {
+			registry[name] = handler
+		}
+	})
+}
+
 func TestNativeServiceActionRemainsUnchanged(t *testing.T) {
-	swapActionRegistryForTest(t)
+	snapshotActionRegistry(t)
 	root := t.TempDir()
 	artifact := filepath.Join(root, "native.tgz")
 	writeActionArchive(t, artifact, map[string]string{"bin/demo": "native"})

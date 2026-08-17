@@ -1,8 +1,14 @@
 package main
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
@@ -256,17 +262,23 @@ func TestEnsureNetworkCertsNonIssuerWaitsForExisting(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("GLOBULAR_STATE_DIR", tmpDir)
 
-	// Pre-create cert files at the canonical TLS destination so waitForFiles
-	// returns immediately without hanging.
+	// Valid, self-consistent material at the canonical TLS destination: there
+	// is genuinely nothing to repair, so the call is a no-op.
+	//
+	// This fixture used to be the literal bytes "data". That passed only
+	// because the non-issuer branch returned success as soon as the files
+	// EXISTED, so the test asserted the very defect it should have caught: a
+	// node with unusable certificates reporting a successful repair. The
+	// guarantee worth keeping is the other one — a non-issuer must never mint
+	// a certificate locally — and that is still asserted below.
 	_, fullchainDst, keyDst, caDst := config.CanonicalTLSPaths(config.GetRuntimeConfigDir())
 	for _, p := range []string{keyDst, fullchainDst, caDst} {
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			t.Fatalf("mkdir: %v", err)
 		}
-		if err := os.WriteFile(p, []byte("data"), 0o600); err != nil {
-			t.Fatalf("write %s: %v", p, err)
-		}
 	}
+	writeSelfSignedPair(t, fullchainDst, keyDst, "example.com", time.Now().Add(-time.Hour), time.Now().Add(365*24*time.Hour))
+	copyFileForTest(t, fullchainDst, caDst)
 
 	called := false
 	orig := networkPKIManager
@@ -289,6 +301,49 @@ func TestEnsureNetworkCertsNonIssuerWaitsForExisting(t *testing.T) {
 	}
 	if called {
 		t.Fatalf("expected non-issuer to skip issuance")
+	}
+}
+
+// A non-issuer node whose certificate is unusable must NOT report success.
+// It cannot sign for itself, so it has to obtain a signed leaf from the CA
+// authority; if that cannot be done, the caller must hear about it rather than
+// log "repaired runtime TLS certificate" over material it just found invalid.
+func TestEnsureNetworkCertsNonIssuerDoesNotClaimRepairOnInvalidCert(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("GLOBULAR_STATE_DIR", tmpDir)
+
+	_, fullchainDst, keyDst, caDst := config.CanonicalTLSPaths(config.GetRuntimeConfigDir())
+	for _, p := range []string{keyDst, fullchainDst, caDst} {
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		// Present but unusable — the shape a corrupted or truncated cert has.
+		if err := os.WriteFile(p, []byte("data"), 0o600); err != nil {
+			t.Fatalf("write %s: %v", p, err)
+		}
+	}
+
+	called := false
+	orig := networkPKIManager
+	networkPKIManager = func(opts pki.Options) pki.Manager {
+		called = true
+		return &fakePKIManager{}
+	}
+	defer func() { networkPKIManager = orig }()
+
+	srv := &NodeAgentServer{nodeID: "node-1"}
+	spec := &cluster_controllerpb.ClusterNetworkSpec{
+		ClusterDomain: "example.com",
+		Protocol:      "https",
+	}
+	// No CA gateway is reachable from the test environment, so re-issuance
+	// cannot succeed — the point is that the failure SURFACES.
+	if err := srv.ensureNetworkCerts(spec); err == nil {
+		t.Fatal("non-issuer reported success with an unusable certificate — " +
+			"the caller then logs a repair that never happened")
+	}
+	if called {
+		t.Fatal("non-issuer must never mint a certificate locally; it has no CA key")
 	}
 }
 
@@ -405,5 +460,51 @@ func TestEnsureNetworkCertsFollowerWaitsForACMEBundle(t *testing.T) {
 	}
 	if srv.state.CertGeneration != 42 {
 		t.Fatalf("expected cert generation recorded from bundle, got %d", srv.state.CertGeneration)
+	}
+}
+
+// writeSelfSignedPair writes a valid, self-consistent cert/key pair. Tests that
+// exercise certificate convergence need material that actually parses and
+// verifies — placeholder bytes make a test pass for the wrong reason.
+func writeSelfSignedPair(t *testing.T, certPath, keyPath, domain string, notBefore, notAfter time.Time) {
+	t.Helper()
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	serial, _ := rand.Int(rand.Reader, big.NewInt(1<<62))
+	tpl := x509.Certificate{
+		SerialNumber:          serial,
+		Subject:               pkix.Name{CommonName: domain},
+		NotBefore:             notBefore,
+		NotAfter:              notAfter,
+		DNSNames:              []string{domain},
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment | x509.KeyUsageCertSign,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, &tpl, &tpl, &priv.PublicKey, priv)
+	if err != nil {
+		t.Fatalf("create cert: %v", err)
+	}
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+	if err := os.WriteFile(certPath, certPEM, 0o644); err != nil {
+		t.Fatalf("write cert: %v", err)
+	}
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
+	if err := os.WriteFile(keyPath, keyPEM, 0o600); err != nil {
+		t.Fatalf("write key: %v", err)
+	}
+}
+
+func copyFileForTest(t *testing.T, src, dst string) {
+	t.Helper()
+	b, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatalf("read %s: %v", src, err)
+	}
+	if err := os.WriteFile(dst, b, 0o644); err != nil {
+		t.Fatalf("write %s: %v", dst, err)
 	}
 }

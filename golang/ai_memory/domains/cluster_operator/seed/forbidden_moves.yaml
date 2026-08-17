@@ -49,3 +49,19 @@
   recommended_behavior: Deploy every binary change through the release pipeline (globular deploy / package_build + package_publish + reconcile) so version and checksum stay coherent across all four layers; walk the lane.
   safe_next_step: resolve authority.cluster.release_pipeline.deployed_identity (repository active release + node-agent installed state) before changing what a service runs
   action_aliases: replace_binary_in_place, direct_binary_replacement, cp_swap_binary, hot_deploy_binary, hot_swap_binary, scp_binary_to_node, deploy_local_build
+- id: forbidden.cluster.raw_scylla_data_wipe
+  title: Raw/direct ScyllaDB data wipe outside controller-governed join recovery
+  reason: >-
+    Removing a Scylla node's data directories is destructive and is safe in the join-recovery
+    path only while the controller's durable ScyllaWasEverVerified flag is false. A node that
+    has ever been verified in the gossip ring may contain live replicas; wiping it can destroy
+    recoverable cluster state and force a full restore. The node-agent wipe executor cannot
+    establish this authority by itself, so a free-standing wipe action bypasses the controller
+    guard that makes the exceptional recovery operation safe.
+  recommended_behavior: >-
+    Never invoke the Scylla wipe executor as a free-standing repair. Use the cluster-controller
+    join-recovery workflow, which may dispatch the wipe only after restart recovery failed and
+    the authoritative node state still proves ScyllaWasEverVerified=false; previously verified
+    members must take a non-destructive recovery path.
+  safe_next_step: resolve the cluster-controller node state and use its guarded Scylla join-recovery path; do not dispatch a raw node-agent wipe
+  action_aliases: scylla.data.wipe, wipe_scylla_data, wipe-scylla-data, raw_scylla_data_wipe, direct_scylla_data_wipe, run_wipe_scylla_data
