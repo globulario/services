@@ -9,13 +9,14 @@ const (
 	AlwaysConditionID = "condition.always"
 
 	// RuntimeAlwaysReachMetadataKey records the upgrade-only case where an
-	// already-promoted seed principle predates AlwaysConditionID. The semantic
-	// AppliesWhen approved on the principle is deliberately left unchanged;
-	// this marker is canonical migration state for the extra runtime index reach.
+	// already-promoted seed principle predates AlwaysConditionID. The migration
+	// also adds the sentinel to canonical AppliesWhen so explanation, runtime
+	// lookup and revocation all observe one scope. This marker preserves why that
+	// technical condition was added and distinguishes migration from approval.
 	RuntimeAlwaysReachMetadataKey = "runtime_reach.condition_always"
 
 	// RuntimeAlwaysReachSeedMigration is the only currently supported source of
-	// synthetic always reach. Keeping the value explicit makes future migration
+	// migrated always reach. Keeping the value explicit makes future migration
 	// formats distinguishable rather than treating an arbitrary truthy string as
 	// authority-affecting runtime state.
 	RuntimeAlwaysReachSeedMigration = "seed_migration_v1"
@@ -38,23 +39,4 @@ func principleDeclaresCondition(p *api.Principle, want api.ConditionRef) bool {
 		}
 	}
 	return false
-}
-
-// RuntimeIndexedPrinciple returns the exact condition set that must be present
-// in the active principles_by_condition index. For ordinary principles it is a
-// copy of the persisted semantic AppliesWhen. For a migrated principle it also
-// contains condition.always, derived from the persisted migration marker.
-//
-// The input principle is never mutated.
-func RuntimeIndexedPrinciple(p *api.Principle) api.Principle {
-	if p == nil {
-		return api.Principle{}
-	}
-	cp := *p
-	cp.AppliesWhen = append([]api.ConditionRef(nil), p.AppliesWhen...)
-	always := api.ConditionRef(AlwaysConditionID)
-	if HasMigratedAlwaysReach(p) && !principleDeclaresCondition(p, always) {
-		cp.AppliesWhen = append(cp.AppliesWhen, always)
-	}
-	return cp
 }
