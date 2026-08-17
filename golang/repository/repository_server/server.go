@@ -805,7 +805,11 @@ func main() {
 	// manifest authority, so this instance can serve PUBLISHED blobs from day
 	// one and the missing_blob_for_published_manifest findings never appear on
 	// healthy joins. Waits internally for Scylla; never blocks serving.
-	go s.seedLocalCASFromStagedPackages(ctx)
+	// Runs the first pass immediately, then repeats: a blob published to
+	// ANOTHER instance after this one booted would otherwise never reach this
+	// node's CAS, leaving it advertising a PUBLISHED manifest it cannot serve
+	// until the next restart. See seedLocalCASLoop.
+	go s.seedLocalCASLoop(ctx)
 
 	// 7d2b. Phase 6: write release/build aliases for legacy artifacts whose
 	// manifests carry upstream import records but predate the alias model.
