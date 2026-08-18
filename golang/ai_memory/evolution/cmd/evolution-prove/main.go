@@ -6,33 +6,89 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
+	behavioral "github.com/globulario/services/golang/ai_memory/behavioral/api"
 	"github.com/globulario/services/golang/ai_memory/evolution"
 )
 
+type output struct {
+	ProofPlan      evolution.ProofPlanResult             `json:"proof_plan"`
+	Learning       []evolution.SimulationIngestResult    `json:"learning,omitempty"`
+	LearningErrors []string                              `json:"learning_errors,omitempty"`
+}
+
 func main() {
 	var (
-		envelope     = flag.String("envelope", "", "ChangeEnvelope YAML/JSON path")
-		workspace    = flag.String("workspace-dir", "", "exact candidate repository checkout")
-		quickstart   = flag.String("quickstart-dir", "", "globulario/globular-quickstart checkout")
-		keepArtifacts = flag.Bool("keep-artifacts", true, "preserve quickstart proof artifacts")
-		verbose      = flag.Bool("verbose", false, "verbose quickstart probe output")
+		envelope        = flag.String("envelope", "", "ChangeEnvelope YAML/JSON path")
+		workspace       = flag.String("workspace-dir", "", "exact candidate repository checkout")
+		quickstart      = flag.String("quickstart-dir", "", "globulario/globular-quickstart checkout")
+		keepArtifacts   = flag.Bool("keep-artifacts", true, "preserve quickstart proof artifacts")
+		verbose         = flag.Bool("verbose", false, "verbose quickstart probe output")
+		ingestLearning  = flag.Bool("ingest-learning", false, "ingest learning from every scenario actually executed")
+		behaviorAddr    = flag.String("behavioral-addr", "", "Behavioral Memory address override")
+		clusterID       = flag.String("cluster-id", "", "cluster id/scope attached to behavioral observations")
 	)
 	flag.Parse()
 	if *envelope == "" || *workspace == "" || *quickstart == "" {
 		fmt.Fprintln(os.Stderr, "evolution-prove: --envelope, --workspace-dir, and --quickstart-dir are required")
 		os.Exit(2)
 	}
-	result, err := evolution.RunProofPlan(context.Background(), evolution.ProofPlanOptions{
+
+	proofResult, proofErr := evolution.RunProofPlan(context.Background(), evolution.ProofPlanOptions{
 		EnvelopePath:  *envelope,
 		WorkspaceDir:  *workspace,
 		QuickstartDir: *quickstart,
 		KeepArtifacts: *keepArtifacts,
 		Verbose:       *verbose,
 	})
-	_ = json.NewEncoder(os.Stdout).Encode(result)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "evolution-prove: %v\n", err)
+	response := output{ProofPlan: proofResult}
+
+	if *ingestLearning && len(proofResult.Scenarios) > 0 {
+		recorder := evolution.NewRemoteRecorder(*behaviorAddr, 5*time.Second)
+		for _, scenario := range proofResult.Scenarios {
+			if scenario.LearningPath == "" {
+				continue
+			}
+			data, err := os.ReadFile(scenario.LearningPath)
+			if err != nil {
+				response.LearningErrors = append(response.LearningErrors,
+					fmt.Sprintf("%s: read learning: %v", scenario.Proof.Scenario, err))
+				continue
+			}
+			learning, err := evolution.ParseSimulationLearning(data)
+			if err != nil {
+				response.LearningErrors = append(response.LearningErrors,
+					fmt.Sprintf("%s: reject learning: %v", scenario.Proof.Scenario, err))
+				continue
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ingested, err := (evolution.SimulationIngestor{
+				Recorder:  recorder,
+				Project:   "globular",
+				Domain:    behavioral.DomainRef("cluster_operator"),
+				AgentID:   "evolution_prove.simulation_learning",
+				ClusterID: *clusterID,
+			}).Ingest(ctx, learning)
+			cancel()
+			if err != nil {
+				response.LearningErrors = append(response.LearningErrors,
+					fmt.Sprintf("%s: ingest learning: %v", scenario.Proof.Scenario, err))
+				continue
+			}
+			response.Learning = append(response.Learning, ingested)
+		}
+		_ = recorder.Close()
+	}
+
+	_ = json.NewEncoder(os.Stdout).Encode(response)
+	if proofErr != nil {
+		fmt.Fprintf(os.Stderr, "evolution-prove: %v\n", proofErr)
 		os.Exit(1)
+	}
+	if len(response.LearningErrors) > 0 {
+		// Proof and learning are separate verdicts. A proof may remain valid while
+		// background learning is visibly degraded and retriable.
+		os.Exit(3)
 	}
 }
