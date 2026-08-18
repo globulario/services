@@ -22,6 +22,8 @@ type fakeHarness struct {
 	//   "wrong-invocation" — writes a proof stamped with someone else's run
 	//   "no-invocation"   — writes a proof with no invocation identity at all
 	mode string
+	// scenario overrides the scenario name the artifact claims to answer.
+	scenario string
 }
 
 func writeQuickstartHarness(t *testing.T, quickstartDir string, h fakeHarness) {
@@ -30,9 +32,14 @@ func writeQuickstartHarness(t *testing.T, quickstartDir string, h fakeHarness) {
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	scenario := h.scenario
+	if scenario == "" {
+		scenario = "chaos"
+	}
 	script := `#!/bin/sh
 set -e
 MODE="` + h.mode + `"
+SCENARIO="` + scenario + `"
 if [ "$MODE" = "fail-silently" ]; then
   # Dies before producing anything for this invocation, and before it could
   # rotate any shared pointer.
@@ -47,7 +54,7 @@ cat > "$GLOBULAR_PROOF_RUN_DIR/evidence.json" <<EOF
 EOF
 cat > "$GLOBULAR_PROOF_RUN_DIR/scenario-proof.json" <<EOF
 {
-  "scenario": "chaos",
+  "scenario": "$SCENARIO",
   "suite": "resilience",
   "source_revision": "sim-sha",
   "status": "SUPPORTED",

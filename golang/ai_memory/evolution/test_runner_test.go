@@ -158,3 +158,9 @@ func runGit(t *testing.T, dir string, args ...string) {
 		t.Fatalf("git %v failed: %v\n%s", args, err, out)
 	}
 }
+
+func gitOutput(dir string, args ...string) (string, error) {
+	cmdArgs := append([]string{"-C", dir}, args...)
+	out, err := exec.Command("git", cmdArgs...).Output()
+	return string(out), err
+}

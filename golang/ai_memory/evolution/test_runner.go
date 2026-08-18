@@ -261,22 +261,54 @@ func materializeCandidateTree(ctx context.Context, workspace, revision string) (
 	return tree, release, nil
 }
 
+// resolveContainedWorkDir locates the declared work_dir inside the candidate
+// tree and refuses anything that leaves it.
+//
+// A lexical check alone is not enough. A commit may legitimately contain
+// symlinks, so the candidate under test can ship a link at its own declared
+// work_dir pointing anywhere on the host. filepath.Join and filepath.Rel never
+// touch the filesystem, so such a path looks contained while cmd.Dir follows it
+// out — the command would then run against arbitrary external contents and
+// still earn PASS evidence stamped with the candidate revision, which is the
+// isolation guarantee the detached worktree exists to provide.
+//
+// So containment is decided on fully resolved paths, on both sides.
 func resolveContainedWorkDir(workspace, relative string) (string, error) {
+	root, err := filepath.EvalSymlinks(workspace)
+	if err != nil {
+		return "", fmt.Errorf("resolve candidate workspace: %w", err)
+	}
 	if strings.TrimSpace(relative) == "" || relative == "." {
-		return workspace, nil
+		return root, nil
 	}
 	if filepath.IsAbs(relative) {
 		return "", fmt.Errorf("test work_dir must be relative to candidate workspace")
 	}
-	candidate := filepath.Join(workspace, filepath.Clean(relative))
-	rel, err := filepath.Rel(workspace, candidate)
+	candidate := filepath.Join(root, filepath.Clean(relative))
+	// Refuse an obviously escaping path first, so a work_dir that does not
+	// exist still gets the accurate reason rather than a resolution error.
+	if err := requireBeneath(root, candidate); err != nil {
+		return "", err
+	}
+	resolved, err := filepath.EvalSymlinks(candidate)
 	if err != nil {
 		return "", fmt.Errorf("resolve test work_dir: %w", err)
 	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("test work_dir escapes candidate workspace")
+	if err := requireBeneath(root, resolved); err != nil {
+		return "", err
 	}
-	return candidate, nil
+	return resolved, nil
+}
+
+func requireBeneath(root, path string) error {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return fmt.Errorf("resolve test work_dir: %w", err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("test work_dir escapes candidate workspace")
+	}
+	return nil
 }
 
 var unsafeEvidenceName = regexp.MustCompile(`[^A-Za-z0-9._-]+`)

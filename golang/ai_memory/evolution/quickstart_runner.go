@@ -175,6 +175,17 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 			invocationID,
 		))
 	}
+	if artifact.Scenario != scenarioName {
+		// A stamped, otherwise valid PASS that answers a different obligation
+		// must not be recorded: it would land under the other scenario's name
+		// and leave this scenario's earlier PASS standing, so closure would stay
+		// green on evidence this invocation never produced.
+		return fail(partial, fmt.Errorf(
+			"proof answers scenario %q, not the requested %q; a proof for another obligation cannot satisfy this one",
+			artifact.Scenario,
+			scenarioName,
+		))
+	}
 	if artifact.Change.ID != envelope.ID {
 		return fail(partial, fmt.Errorf(
 			"proof change id %q does not match envelope %q",
