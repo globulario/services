@@ -72,6 +72,17 @@ type ProofRecord struct {
 	Digest              string `json:"digest,omitempty" yaml:"digest,omitempty"`
 }
 
+// TestRecord proves one required local/static/invariant test against the exact
+// candidate revision. A scenario PASS cannot substitute for a missing test.
+type TestRecord struct {
+	Name                string `json:"name" yaml:"name"`
+	CandidateRepository string `json:"candidate_repository,omitempty" yaml:"candidate_repository,omitempty"`
+	CandidateRevision   string `json:"candidate_revision" yaml:"candidate_revision"`
+	Result              string `json:"result" yaml:"result"`
+	EvidenceRef         string `json:"evidence_ref,omitempty" yaml:"evidence_ref,omitempty"`
+	Digest              string `json:"digest,omitempty" yaml:"digest,omitempty"`
+}
+
 type AdmissionRecord struct {
 	Status   string `json:"status,omitempty" yaml:"status,omitempty"`
 	Revision string `json:"revision,omitempty" yaml:"revision,omitempty"`
@@ -90,10 +101,11 @@ type ReleaseRecord struct {
 }
 
 type VerificationRecord struct {
-	Layer    string      `json:"layer" yaml:"layer"`
-	Status   string      `json:"status" yaml:"status"`
-	Evidence ArtifactRef `json:"evidence,omitempty" yaml:"evidence,omitempty"`
-	At       string      `json:"at,omitempty" yaml:"at,omitempty"`
+	Layer           string      `json:"layer" yaml:"layer"`
+	Status          string      `json:"status" yaml:"status"`
+	ReleaseRevision string      `json:"release_revision,omitempty" yaml:"release_revision,omitempty"`
+	Evidence        ArtifactRef `json:"evidence,omitempty" yaml:"evidence,omitempty"`
+	At              string      `json:"at,omitempty" yaml:"at,omitempty"`
 }
 
 type ChangeEnvelope struct {
@@ -117,6 +129,7 @@ type ChangeEnvelope struct {
 	ProductionEvidence     []ArtifactRef         `json:"production_evidence,omitempty" yaml:"production_evidence,omitempty"`
 	RequiredScenarios      []ScenarioRequirement `json:"required_scenarios,omitempty" yaml:"required_scenarios,omitempty"`
 	RequiredTests          []string              `json:"required_tests,omitempty" yaml:"required_tests,omitempty"`
+	Tests                  []TestRecord          `json:"tests,omitempty" yaml:"tests,omitempty"`
 	Proofs                 []ProofRecord         `json:"proofs,omitempty" yaml:"proofs,omitempty"`
 	Admission              AdmissionRecord       `json:"admission,omitempty" yaml:"admission,omitempty"`
 	Release                ReleaseRecord         `json:"release,omitempty" yaml:"release,omitempty"`
@@ -179,6 +192,9 @@ func (e ChangeEnvelope) Validate() error {
 	if err := validateUnique("forbidden_repairs", e.ForbiddenRepairs); err != nil {
 		return err
 	}
+	if err := validateUnique("required_tests", e.RequiredTests); err != nil {
+		return err
+	}
 
 	if stageAtLeast(e.Stage, StageCandidate) {
 		if strings.TrimSpace(e.CandidateRepository) == "" || strings.TrimSpace(e.CandidateRevision) == "" {
@@ -195,7 +211,11 @@ func (e ChangeEnvelope) Validate() error {
 			return fmt.Errorf("stage %s requires admission status ACCEPT", e.Stage)
 		}
 		if e.Admission.Revision != e.CandidateRevision {
-			return fmt.Errorf("admission revision %q does not match candidate revision %q", e.Admission.Revision, e.CandidateRevision)
+			return fmt.Errorf(
+				"admission revision %q does not match candidate revision %q",
+				e.Admission.Revision,
+				e.CandidateRevision,
+			)
 		}
 	}
 	if stageAtLeast(e.Stage, StageReleased) {
@@ -203,7 +223,14 @@ func (e ChangeEnvelope) Validate() error {
 			return fmt.Errorf("stage %s requires release status RELEASED", e.Stage)
 		}
 		if e.Release.CandidateRevision != e.CandidateRevision {
-			return fmt.Errorf("release candidate revision %q does not match envelope candidate revision %q", e.Release.CandidateRevision, e.CandidateRevision)
+			return fmt.Errorf(
+				"release candidate revision %q does not match envelope candidate revision %q",
+				e.Release.CandidateRevision,
+				e.CandidateRevision,
+			)
+		}
+		if strings.TrimSpace(e.Release.ReleaseRevision) == "" {
+			return fmt.Errorf("released change requires release_revision")
 		}
 		if len(e.Release.Artifacts) == 0 {
 			return fmt.Errorf("released change requires at least one immutable artifact reference")
@@ -213,9 +240,21 @@ func (e ChangeEnvelope) Validate() error {
 		if len(e.ProductionVerification) == 0 {
 			return fmt.Errorf("verified change requires production verification evidence")
 		}
-		for _, v := range e.ProductionVerification {
-			if v.Status != "PASS" {
-				return fmt.Errorf("production verification layer %q is %q, expected PASS", v.Layer, v.Status)
+		for _, verification := range e.ProductionVerification {
+			if verification.Status != "PASS" {
+				return fmt.Errorf(
+					"production verification layer %q is %q, expected PASS",
+					verification.Layer,
+					verification.Status,
+				)
+			}
+			if verification.ReleaseRevision != e.Release.ReleaseRevision {
+				return fmt.Errorf(
+					"production verification layer %q revision %q does not match release revision %q",
+					verification.Layer,
+					verification.ReleaseRevision,
+					e.Release.ReleaseRevision,
+				)
 			}
 		}
 	}
@@ -229,31 +268,82 @@ func (e ChangeEnvelope) Validate() error {
 }
 
 func (e ChangeEnvelope) validateProofClosure() error {
-	required := map[string]bool{}
-	for _, s := range e.RequiredScenarios {
-		if strings.TrimSpace(s.Name) == "" {
+	requiredScenarios := map[string]bool{}
+	for _, scenario := range e.RequiredScenarios {
+		if strings.TrimSpace(scenario.Name) == "" {
 			return fmt.Errorf("required scenario name is empty")
 		}
-		if s.Required {
-			required[s.Name] = false
+		if scenario.Required {
+			requiredScenarios[scenario.Name] = false
 		}
 	}
-	for _, p := range e.Proofs {
-		if p.CandidateRepository != "" && p.CandidateRepository != e.CandidateRepository {
-			return fmt.Errorf("proof %q candidate repository %q does not match %q", p.Scenario, p.CandidateRepository, e.CandidateRepository)
+	for _, proof := range e.Proofs {
+		if proof.CandidateRepository != "" && proof.CandidateRepository != e.CandidateRepository {
+			return fmt.Errorf(
+				"proof %q candidate repository %q does not match %q",
+				proof.Scenario,
+				proof.CandidateRepository,
+				e.CandidateRepository,
+			)
 		}
-		if p.CandidateRevision != e.CandidateRevision {
-			return fmt.Errorf("proof %q candidate revision %q does not match %q", p.Scenario, p.CandidateRevision, e.CandidateRevision)
+		if proof.CandidateRevision != e.CandidateRevision {
+			return fmt.Errorf(
+				"proof %q candidate revision %q does not match %q",
+				proof.Scenario,
+				proof.CandidateRevision,
+				e.CandidateRevision,
+			)
 		}
-		if p.Result == "PASS" && p.ProofEligible {
-			if _, ok := required[p.Scenario]; ok {
-				required[p.Scenario] = true
+		if proof.Result == "PASS" && proof.ProofEligible {
+			if _, ok := requiredScenarios[proof.Scenario]; ok {
+				requiredScenarios[proof.Scenario] = true
 			}
 		}
 	}
-	for name, ok := range required {
-		if !ok {
-			return fmt.Errorf("required scenario %q has no PASS proof eligible record for candidate revision %s", name, e.CandidateRevision)
+	for name, satisfied := range requiredScenarios {
+		if !satisfied {
+			return fmt.Errorf(
+				"required scenario %q has no PASS proof eligible record for candidate revision %s",
+				name,
+				e.CandidateRevision,
+			)
+		}
+	}
+
+	requiredTests := make(map[string]bool, len(e.RequiredTests))
+	for _, name := range e.RequiredTests {
+		requiredTests[name] = false
+	}
+	for _, test := range e.Tests {
+		if test.CandidateRepository != "" && test.CandidateRepository != e.CandidateRepository {
+			return fmt.Errorf(
+				"test %q candidate repository %q does not match %q",
+				test.Name,
+				test.CandidateRepository,
+				e.CandidateRepository,
+			)
+		}
+		if test.CandidateRevision != e.CandidateRevision {
+			return fmt.Errorf(
+				"test %q candidate revision %q does not match %q",
+				test.Name,
+				test.CandidateRevision,
+				e.CandidateRevision,
+			)
+		}
+		if test.Result == "PASS" {
+			if _, ok := requiredTests[test.Name]; ok {
+				requiredTests[test.Name] = true
+			}
+		}
+	}
+	for name, satisfied := range requiredTests {
+		if !satisfied {
+			return fmt.Errorf(
+				"required test %q has no PASS record for candidate revision %s",
+				name,
+				e.CandidateRevision,
+			)
 		}
 	}
 	return nil
@@ -274,43 +364,60 @@ func (e ChangeEnvelope) IdentityDigest() (string, error) {
 		KnownFailureModes  []string   `json:"known_failure_modes,omitempty"`
 		ForbiddenRepairs   []string   `json:"forbidden_repairs,omitempty"`
 	}{
-		SchemaVersion: e.SchemaVersion, ID: e.ID, Kind: e.Kind, Intent: e.Intent,
-		SourceRevision: e.SourceRevision, ProductionRevision: e.ProductionRevision,
-		RiskClass: e.RiskClass, AuthorityScope: sorted(e.AuthorityScope),
-		GoverningContracts: sorted(e.GoverningContracts), RelevantInvariants: sorted(e.RelevantInvariants),
-		KnownFailureModes: sorted(e.KnownFailureModes), ForbiddenRepairs: sorted(e.ForbiddenRepairs),
+		SchemaVersion:      e.SchemaVersion,
+		ID:                 e.ID,
+		Kind:               e.Kind,
+		Intent:             e.Intent,
+		SourceRevision:     e.SourceRevision,
+		ProductionRevision: e.ProductionRevision,
+		RiskClass:          e.RiskClass,
+		AuthorityScope:     sorted(e.AuthorityScope),
+		GoverningContracts: sorted(e.GoverningContracts),
+		RelevantInvariants: sorted(e.RelevantInvariants),
+		KnownFailureModes:  sorted(e.KnownFailureModes),
+		ForbiddenRepairs:   sorted(e.ForbiddenRepairs),
 	}
-	b, err := json.Marshal(identity)
+	encoded, err := json.Marshal(identity)
 	if err != nil {
 		return "", err
 	}
-	sum := sha256.Sum256(b)
+	sum := sha256.Sum256(encoded)
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
-func validChangeKind(k ChangeKind) bool {
-	switch k {
+func validChangeKind(kind ChangeKind) bool {
+	switch kind {
 	case ChangeIncidentRepair, ChangeSimulationRepair, ChangeFeature, ChangeArchitectureEvolution:
 		return true
 	}
 	return false
 }
-func validRisk(r RiskClass) bool {
-	switch r {
+
+func validRisk(risk RiskClass) bool {
+	switch risk {
 	case RiskLow, RiskMedium, RiskHigh, RiskCritical:
 		return true
 	}
 	return false
 }
-func validStage(s ChangeStage) bool {
-	switch s {
+
+func validStage(stage ChangeStage) bool {
+	switch stage {
 	case StageDraft, StageCandidate, StageProven, StageAdmitted, StageReleased, StageVerified, StageLearned, StageBlocked:
 		return true
 	}
 	return false
 }
 
-var stageRank = map[ChangeStage]int{StageDraft: 0, StageCandidate: 1, StageProven: 2, StageAdmitted: 3, StageReleased: 4, StageVerified: 5, StageLearned: 6}
+var stageRank = map[ChangeStage]int{
+	StageDraft:     0,
+	StageCandidate: 1,
+	StageProven:    2,
+	StageAdmitted:  3,
+	StageReleased:  4,
+	StageVerified:  5,
+	StageLearned:   6,
+}
 
 func stageAtLeast(got, want ChangeStage) bool {
 	if got == StageBlocked {
@@ -319,19 +426,23 @@ func stageAtLeast(got, want ChangeStage) bool {
 	return stageRank[got] >= stageRank[want]
 }
 
-func validateUnique(name string, vals []string) error {
+func validateUnique(name string, values []string) error {
 	seen := map[string]struct{}{}
-	for _, v := range vals {
-		v = strings.TrimSpace(v)
-		if v == "" {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
 			return fmt.Errorf("%s contains an empty value", name)
 		}
-		if _, ok := seen[v]; ok {
-			return fmt.Errorf("%s contains duplicate %q", name, v)
+		if _, ok := seen[value]; ok {
+			return fmt.Errorf("%s contains duplicate %q", name, value)
 		}
-		seen[v] = struct{}{}
+		seen[value] = struct{}{}
 	}
 	return nil
 }
 
-func sorted(in []string) []string { out := append([]string(nil), in...); sort.Strings(out); return out }
+func sorted(in []string) []string {
+	out := append([]string(nil), in...)
+	sort.Strings(out)
+	return out
+}
