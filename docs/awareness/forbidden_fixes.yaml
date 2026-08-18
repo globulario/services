@@ -4250,12 +4250,9 @@ forbidden_fixes:
   related_invariants:
     - infrastructure.etcd.quorum_backed_config_authority
   reason: 'GetEtcdClient returns the process-wide SHARED etcd singleton; NewEtcdClient returns a caller-owned client. Writing the idiomatic ''cli, err := config.GetEtcdClient(); defer cli.Close()'' therefore destroys etcd access for every other caller in the process. Observed 2026-08-11 on 1.2.310: a per-minute invariant path did exactly this, and the controller spun continuously on ''grpc: the client connection is closing'' while every cluster RPC failed DeadlineExceeded and the cluster never reached ready. The defer looks correct in isolation and is the habit every Go reviewer has; the hazard is invisible at the call site because the function name does not say ''shared''. Either take the shared client and do not close it, or call NewEtcdClient and own the lifecycle. A short-lived CLI closing it at exit is harmless; a long-running service doing so is an outage.'
-<<<<<<< HEAD
 - id: forbidden_fix.skip_an_unsafe_archive_entry_and_continue_installing_the_res
   title: Skip an unsafe archive entry and continue installing the rest of the package
   summary: 'Do not add a skip-and-log or compatibility mode to package archive extraction, and do not validate entries one at a time while streaming. Both leave a package partially installed while the version marker advances and the service restarts, so the installed payload no longer matches the published artifact — package identity becomes unprovable and rollback evidence ambiguous. A package is admitted in full or rejected in full. Equally forbidden: normalizing entry names with strings.TrimLeft(name, "./"), whose cutset consumes the dots of a leading ../ and launders a traversal into an innocent relative path.'
   related_invariants:
     - invariant.package_archive_extraction_must_stay_within_node_owned_desti
   reason: 'Do not add a skip-and-log or compatibility mode to package archive extraction, and do not validate entries one at a time while streaming. Both leave a package partially installed while the version marker advances and the service restarts, so the installed payload no longer matches the published artifact — package identity becomes unprovable and rollback evidence ambiguous. A package is admitted in full or rejected in full. Equally forbidden: normalizing entry names with strings.TrimLeft(name, "./"), whose cutset consumes the dots of a leading ../ and launders a traversal into an innocent relative path.'
-=======
->>>>>>> origin/fix/native-archive-extraction-containment
