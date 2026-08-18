@@ -56,7 +56,6 @@ func allowAutoRemediationNow(key string, now time.Time) (bool, time.Duration) {
 // previously-seen finding. See executor.go for the allowlist/blocklist
 // enforcement and projection-clauses.md Clause 8 for the contract.
 //
-//
 // Flow:
 //  1. Look up finding by ID in the last-report cache.
 //  2. Select remediation step by index.
@@ -193,6 +192,35 @@ func (s *ClusterDoctorServer) executeRemediationForFinding(ctx context.Context, 
 			Reason:   reason,
 			AuditId:  id,
 		}, nil
+	}
+
+	// Verdict closure: a mutation needs a conclusive finding, not merely fresh
+	// evidence. This is a different question from evidence trust and is asked
+	// separately, so the refusal an operator sees names the gate that actually
+	// refused — merging the two made an ETCD_PUT report a trust problem instead
+	// of the blocklist that will always refuse it.
+	//
+	// Ordered after the blocklist for that reason: an action that must never run
+	// says so regardless of how conclusive the finding is. Dry-runs stay
+	// inspectable, as they do for the trust gate.
+	if !req.GetDryRun() {
+		if eligible, why := rules.RemediationEvidenceClosure(f); !eligible {
+			reason := fmt.Sprintf("remediation blocked: %s", why)
+			audit.Rejected = true
+			audit.Reason = reason
+			id := auditRemediation(ctx, audit)
+			slog.Warn("remediation blocked on inconclusive finding",
+				"finding_id", findingID,
+				"reason", why,
+				"action_type", action.GetActionType().String(),
+			)
+			return &cluster_doctorpb.ExecuteRemediationResponse{
+				Executed: false,
+				Status:   "rejected",
+				Reason:   reason,
+				AuditId:  id,
+			}, nil
+		}
 	}
 
 	gateKey := remediationGateKey(findingID, req.GetStepIndex(), action.GetActionType())

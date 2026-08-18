@@ -72,17 +72,19 @@ func inferEvidenceSource(service, rpc string) evidence.Source {
 // returns the worst trust level across all entries. A finding with no
 // evidence is Untrusted (silence is not freshness).
 //
-// Verdict closure is part of the same central trust decision used by both
-// operator-driven ExecuteRemediation and background healer dispatch. Only a
-// conclusive FAIL with no CheckError can authorize privileged execution, even
-// when every individual evidence row is recent. Under reduced harvest the
-// registry preserves such a FAIL only when the missing collectors are
-// unrelated to the finding. Dry-run requests remain inspectable because
-// ExecuteRemediation intentionally allows dry-runs through the trust refusal.
+// It answers exactly one question: how good is this finding's evidence.
+//
+// Whether the finding's *verdict* is conclusive enough to authorize a mutation
+// is a different question, and it is asked separately by the remediation path
+// through rules.RemediationEvidenceClosure. Folding the two together made a
+// finding with fresh, authoritative, complete evidence report UNTRUSTED because
+// of its verdict, so a caller could no longer tell which gate had refused it —
+// and the ETCD_PUT hard block, which must always cite itself, reported a trust
+// refusal instead of naming the blocklist.
+//
+// The trust gate itself is unchanged and still blocks stale or unverifiable
+// evidence before any remediation dispatch.
 func findingEvidenceTrust(f rules.Finding, now time.Time) evidence.TrustLevel {
-	if eligible, _ := rules.RemediationEvidenceClosure(f); !eligible {
-		return evidence.TrustUntrusted
-	}
 	if len(f.Evidence) == 0 {
 		return evidence.TrustUntrusted
 	}

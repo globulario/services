@@ -52,7 +52,14 @@ func TestFindingEvidenceTrust_AllowsConclusiveScopedReducedHarvest(t *testing.T)
 	}
 }
 
-func TestFindingEvidenceTrust_RejectsCompromisedReducedHarvest(t *testing.T) {
+// The three cases below assert that an inconclusive verdict cannot authorize a
+// mutation. That is verdict closure, not evidence trust: the evidence in each is
+// fresh and authoritative, and it is the *finding* that is not conclusive. They
+// are therefore asked of rules.RemediationEvidenceClosure, which owns that
+// question, rather than of findingEvidenceTrust, which answers only how good the
+// evidence is. Merging the two made a fresh finding report UNTRUSTED and left
+// callers unable to tell which gate refused them.
+func TestRemediationClosure_RejectsCompromisedReducedHarvest(t *testing.T) {
 	now := time.Now()
 	f := rules.Finding{
 		InvariantID:     "node.systemd.units_running",
@@ -60,12 +67,18 @@ func TestFindingEvidenceTrust_RejectsCompromisedReducedHarvest(t *testing.T) {
 		CheckError:      "verdict downgraded to UNKNOWN: target GetInventory unavailable",
 		Evidence:        scopedHarvestEvidence(now),
 	}
-	if got := findingEvidenceTrust(f, now); got != evidence.TrustUntrusted {
-		t.Fatalf("trust = %q, want UNTRUSTED when target evidence closure failed", got)
+	if eligible, why := rules.RemediationEvidenceClosure(f); eligible {
+		t.Fatal("a finding whose target evidence closure failed authorized a mutation")
+	} else if why == "" {
+		t.Fatal("refusal gave no reason")
+	}
+	// The evidence itself is fresh, so evidence trust must not be the refusing gate.
+	if got := findingEvidenceTrust(f, now); got != evidence.TrustAuthoritative {
+		t.Fatalf("evidence trust = %q, want AUTHORITATIVE: the verdict is what is inconclusive, not the evidence", got)
 	}
 }
 
-func TestFindingEvidenceTrust_RejectsFullHarvestUnknownVerdict(t *testing.T) {
+func TestRemediationClosure_RejectsFullHarvestUnknownVerdict(t *testing.T) {
 	now := time.Now()
 	f := rules.Finding{
 		InvariantID:     "node.systemd.units_running",
@@ -76,12 +89,15 @@ func TestFindingEvidenceTrust_RejectsFullHarvestUnknownVerdict(t *testing.T) {
 			Timestamp:     timestamppb.New(now),
 		}},
 	}
-	if got := findingEvidenceTrust(f, now); got != evidence.TrustUntrusted {
-		t.Fatalf("trust = %q, want UNTRUSTED: fresh evidence cannot turn UNKNOWN into mutation authority", got)
+	if eligible, _ := rules.RemediationEvidenceClosure(f); eligible {
+		t.Fatal("fresh evidence turned an UNKNOWN verdict into mutation authority")
+	}
+	if got := findingEvidenceTrust(f, now); got != evidence.TrustAuthoritative {
+		t.Fatalf("evidence trust = %q, want AUTHORITATIVE: the evidence is fresh; the verdict is UNKNOWN", got)
 	}
 }
 
-func TestFindingEvidenceTrust_RejectsFailWithCheckError(t *testing.T) {
+func TestRemediationClosure_RejectsFailWithCheckError(t *testing.T) {
 	now := time.Now()
 	f := rules.Finding{
 		InvariantID:     "node.systemd.units_running",
@@ -93,7 +109,10 @@ func TestFindingEvidenceTrust_RejectsFailWithCheckError(t *testing.T) {
 			Timestamp:     timestamppb.New(now),
 		}},
 	}
-	if got := findingEvidenceTrust(f, now); got != evidence.TrustUntrusted {
-		t.Fatalf("trust = %q, want UNTRUSTED: CheckError must override a nominal FAIL", got)
+	if eligible, _ := rules.RemediationEvidenceClosure(f); eligible {
+		t.Fatal("a CheckError did not override a nominal FAIL")
+	}
+	if got := findingEvidenceTrust(f, now); got != evidence.TrustAuthoritative {
+		t.Fatalf("evidence trust = %q, want AUTHORITATIVE: the evidence is fresh; the check errored", got)
 	}
 }
