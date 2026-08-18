@@ -58,13 +58,13 @@ func (s *ClusterDoctorServer) startRecorderHealthLoop(ctx context.Context) {
 		defer ticker.Stop()
 		// Project once immediately, so a doctor that comes up with a broken or
 		// absent recorder says so at startup rather than one interval later.
-		s.projectRecorderHealth(time.Now())
+		s.projectRecorderHealth()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case now := <-ticker.C:
-				s.projectRecorderHealth(now)
+			case <-ticker.C:
+				s.projectRecorderHealth()
 			}
 		}
 	}()
@@ -75,13 +75,16 @@ func (s *ClusterDoctorServer) startRecorderHealthLoop(ctx context.Context) {
 //
 // Level-triggered emission would restate a stuck failure on every tick, and a
 // warning that repeats forever trains an operator to filter it — the failure
-// mode of an alert that is technically correct and practically ignored. The
-// tradeoff is accepted deliberately: a sustained failure is announced once, so
-// the surface stays readable, and the current class remains queryable in the
-// report at any time.
+// mode of an alert that is technically correct and practically ignored.
+//
+// The tradeoff is real and accepted: a sustained failure is announced ONCE, so
+// an operator who joins the journal later sees nothing until the state changes
+// again. That is why the runbook says absence of a repeat line is not evidence
+// of recovery — only a recovered/healthy transition is. If a pull surface is
+// wanted later, the state to expose is this field; there is no report RPC
+// serving it today.
 type recorderHealthState struct {
-	last     observation.RecorderHealth
-	lastSeen time.Time
+	last observation.RecorderHealth
 }
 
 // projectRecorderHealth reads recorder health and emits on transition.
@@ -90,7 +93,7 @@ type recorderHealthState struct {
 // mutex-guarded snapshot. Behavioral persistence is supplementary, and a
 // degraded learning pipeline must not fail or delay the primary doctor report
 // (#238 required behaviour: keep behavioral persistence supplementary).
-func (s *ClusterDoctorServer) projectRecorderHealth(now time.Time) {
+func (s *ClusterDoctorServer) projectRecorderHealth() {
 	var (
 		stats  observation.Stats
 		health observation.RecorderHealth
@@ -109,11 +112,9 @@ func (s *ClusterDoctorServer) projectRecorderHealth(now time.Time) {
 
 	prev := s.recorderHealth.last
 	if prev == health {
-		s.recorderHealth.lastSeen = now
 		return
 	}
 	s.recorderHealth.last = health
-	s.recorderHealth.lastSeen = now
 
 	// prev == "" is the first observation of this process, not a transition
 	// from healthy. Reporting it as a change would announce a state nothing

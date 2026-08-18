@@ -50,7 +50,7 @@ func TestRecorderHealth_AcceptedThenFailedBecomesVisibleWithoutNewEnqueue(t *tes
 
 	// Bundle accepted, delivered fine.
 	rec.stats = observation.Stats{Enqueued: 1, Persisted: 1, LastSuccessAt: time.Unix(100, 0)}
-	s.projectRecorderHealth(time.Unix(100, 0))
+	s.projectRecorderHealth()
 
 	// A later bundle is accepted and then terminally lost by the worker. No
 	// further Enqueue happens — the old code would never have looked again.
@@ -59,7 +59,7 @@ func TestRecorderHealth_AcceptedThenFailedBecomesVisibleWithoutNewEnqueue(t *tes
 		LastSuccessAt: time.Unix(100, 0), LastFailureAt: time.Unix(200, 0),
 		LastError: "rpc error: code = Unavailable",
 	}
-	s.projectRecorderHealth(time.Unix(200, 0))
+	s.projectRecorderHealth()
 
 	if len(*events) != 2 {
 		t.Fatalf("got %d transitions, want 2: %+v", len(*events), *events)
@@ -86,7 +86,7 @@ func TestRecorderHealth_EmitsOnlyOnTransition(t *testing.T) {
 	s := &ClusterDoctorServer{behavioralRecorder: rec}
 
 	for i := 0; i < 6; i++ {
-		s.projectRecorderHealth(time.Unix(int64(10+i), 0))
+		s.projectRecorderHealth()
 	}
 	if len(*events) != 1 {
 		t.Errorf("got %d emissions for one sustained failure, want 1 — a repeated "+
@@ -103,10 +103,10 @@ func TestRecorderHealth_RecoveryIsReportedOnlyAfterSuccess(t *testing.T) {
 		Enqueued: 3, Failed: 3, LastFailureAt: time.Unix(10, 0), LastError: "down",
 	}}
 	s := &ClusterDoctorServer{behavioralRecorder: rec}
-	s.projectRecorderHealth(time.Unix(10, 0))
+	s.projectRecorderHealth()
 
 	// Time passes with no new failures and no successes. Still failing.
-	s.projectRecorderHealth(time.Unix(999, 0))
+	s.projectRecorderHealth()
 	if len(*events) != 1 {
 		t.Fatalf("state changed without an observed success: %+v", *events)
 	}
@@ -114,7 +114,7 @@ func TestRecorderHealth_RecoveryIsReportedOnlyAfterSuccess(t *testing.T) {
 	// An actual successful persist after the failure.
 	rec.stats.Persisted = 1
 	rec.stats.LastSuccessAt = time.Unix(1000, 0)
-	s.projectRecorderHealth(time.Unix(1000, 0))
+	s.projectRecorderHealth()
 
 	if len(*events) != 2 {
 		t.Fatalf("recovery was not reported: %+v", *events)
@@ -130,7 +130,7 @@ func TestRecorderHealth_RecoveryIsReportedOnlyAfterSuccess(t *testing.T) {
 func TestRecorderHealth_IdleIsNotReportedAsHealthy(t *testing.T) {
 	events := captureHealth(t)
 	s := &ClusterDoctorServer{behavioralRecorder: &statsRecorder{}}
-	s.projectRecorderHealth(time.Unix(1, 0))
+	s.projectRecorderHealth()
 
 	if len(*events) != 1 {
 		t.Fatalf("want one initial classification, got %+v", *events)
@@ -147,7 +147,7 @@ func TestRecorderHealth_IdleIsNotReportedAsHealthy(t *testing.T) {
 func TestRecorderHealth_NilRecorderIsUnavailableNotSilent(t *testing.T) {
 	events := captureHealth(t)
 	s := &ClusterDoctorServer{}
-	s.projectRecorderHealth(time.Unix(1, 0))
+	s.projectRecorderHealth()
 
 	if len(*events) != 1 {
 		t.Fatalf("a nil recorder produced no health signal: %+v", *events)
@@ -242,7 +242,7 @@ func TestRecorderHealth_PrimaryReportUnaffectedWhileDeliveryIsUnavailable(t *tes
 	// And the failure is not merely survived, it is REPORTED. Surviving in
 	// silence would be the original defect wearing a passing test.
 	events := captureHealth(t)
-	s.projectRecorderHealth(time.Unix(300, 0))
+	s.projectRecorderHealth()
 	if len(*events) != 1 || (*events)[0].cur != observation.RecorderFailing {
 		t.Fatalf("delivery failure not surfaced while the report succeeded: %+v", *events)
 	}
@@ -285,7 +285,7 @@ func TestRecorderHealth_NoRecorderStillProducesTheReport(t *testing.T) {
 		t.Fatal("report damaged by the absence of a recorder")
 	}
 
-	s.projectRecorderHealth(time.Unix(400, 0))
+	s.projectRecorderHealth()
 	if len(*events) != 1 || (*events)[0].cur != recorderUnavailable {
 		t.Fatalf("missing recorder must be reported as unavailable, got %+v", *events)
 	}
