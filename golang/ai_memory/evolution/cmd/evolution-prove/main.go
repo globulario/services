@@ -61,6 +61,14 @@ func main() {
 					fmt.Sprintf("%s: reject learning: %v", scenario.Proof.Scenario, err))
 				continue
 			}
+			// The learning artifact is about to be recorded as learning from
+			// this proof run, so it must be this proof occurrence. An artifact
+			// that cannot say so is refused rather than adopted.
+			if err := learning.RequireBoundTo(scenario.ChangeID, scenario.Proof); err != nil {
+				response.LearningErrors = append(response.LearningErrors,
+					fmt.Sprintf("%s: reject learning: %v", scenario.Proof.Scenario, err))
+				continue
+			}
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			ingested, err := (evolution.SimulationIngestor{
 				Recorder:  recorder,

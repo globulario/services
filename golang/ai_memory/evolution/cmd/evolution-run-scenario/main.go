@@ -64,6 +64,11 @@ func main() {
 			if parseErr != nil {
 				fmt.Fprintf(os.Stderr, "evolution-run-scenario: learning artifact rejected: %v\n", parseErr)
 				learningDegraded = true
+			} else if bindErr := learning.RequireBoundTo(result.ChangeID, result.Proof); bindErr != nil {
+				// Recorded as learning from this proof run, so it must be this
+				// proof occurrence. Never repaired from the proof.
+				fmt.Fprintf(os.Stderr, "evolution-run-scenario: learning artifact not bound to this proof: %v\n", bindErr)
+				learningDegraded = true
 			} else {
 				recorder := evolution.NewRemoteRecorder(5 * time.Second)
 				ingestCtx, ingestCancel := context.WithTimeout(context.Background(), 30*time.Second)

@@ -2,6 +2,8 @@ package evolution
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -88,6 +90,7 @@ type SimulationLearning struct {
 	Result                string                 `json:"result"`
 	SourceRevision        string                 `json:"source_revision"`
 	Change                ChangeBinding          `json:"change,omitempty"`
+	Invocation            ProofInvocation        `json:"invocation,omitempty"`
 	Proof                 SimulationProof        `json:"proof"`
 	Observations          SimulationObservations `json:"observations"`
 	CandidatePolicy       CandidatePolicy        `json:"candidate_policy"`
@@ -153,6 +156,102 @@ func (l SimulationLearning) Validate() error {
 	return nil
 }
 
+// RequireBoundTo refuses any learning artifact that is not this exact proof
+// occurrence. It compares only; it never copies a missing value across from the
+// proof, because filling a gap here would launder an unidentified artifact into
+// looking bound and make the consumer the authority for an identity it cannot
+// actually vouch for.
+//
+// Absence is not a legacy allowance on this path. The caller is about to record
+// these observations as learning from this proof run, so an artifact that cannot
+// say which run it came from must be refused, not adopted.
+func (l SimulationLearning) RequireBoundTo(changeID string, p ProofRecord) error {
+	for _, field := range []struct{ name, got, want string }{
+		{"change.id", l.Change.ID, changeID},
+		{"scenario", l.Scenario, p.Scenario},
+		{"change.candidate_repository", l.Change.CandidateRepository, p.CandidateRepository},
+		{"change.candidate_revision", l.Change.CandidateRevision, p.CandidateRevision},
+		{"change.plan_digest", l.Change.PlanDigest, p.PlanDigest},
+		{"change.simulation_revision", l.Change.SimulationRevision, p.SimulationRevision},
+		{"invocation.id", l.Invocation.ID, p.InvocationID},
+	} {
+		got := strings.TrimSpace(field.got)
+		want := strings.TrimSpace(field.want)
+		if got == "" {
+			return fmt.Errorf(
+				"learning artifact has no %s; it cannot be attributed to this proof run",
+				field.name,
+			)
+		}
+		if want == "" {
+			return fmt.Errorf(
+				"scenario proof has no %s to bind the learning artifact against",
+				field.name,
+			)
+		}
+		if got != want {
+			return fmt.Errorf(
+				"learning %s %q does not match this proof %q",
+				field.name,
+				got,
+				want,
+			)
+		}
+	}
+	return nil
+}
+
+// occurrenceIdentity is the immutable identity of one simulation execution. It
+// is what makes a retry after a partial write idempotent: the same execution
+// re-derives the same record IDs, while a genuinely new execution — a new
+// invocation of the scenario — derives different ones and is correctly counted
+// as a second observation.
+//
+// It returns "" when the artifact is not fully identified. Idempotence is a
+// property of having an identity; without one the server allocates, and the
+// proof path forbids that case outright via RequireBoundTo.
+func (l SimulationLearning) occurrenceIdentity() string {
+	parts := []string{
+		l.Change.ID,
+		l.Change.CandidateRevision,
+		l.Change.PlanDigest,
+		l.Scenario,
+		l.Invocation.ID,
+	}
+	for _, part := range parts {
+		if strings.TrimSpace(part) == "" {
+			return ""
+		}
+	}
+	return strings.Join(parts, "\x00")
+}
+
+// recordID derives one stable record identity within an occurrence. kind and
+// index keep the signal, each evidence row, and the outcome distinct.
+func (l SimulationLearning) recordID(kind string, index int) string {
+	occurrence := l.occurrenceIdentity()
+	if occurrence == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(fmt.Sprintf("%s\x00%s\x00%d", occurrence, kind, index)))
+	return fmt.Sprintf("sim-%s-%s", kind, hex.EncodeToString(sum[:16]))
+}
+
+// requireAllocatedAs guards against silently accepting a collision. When we
+// supplied an identity, the store must answer with that identity; a different
+// one means the record we asked for is not the record that exists.
+func requireAllocatedAs(kind, requested, returned string) error {
+	if requested == "" || returned == "" || requested == returned {
+		return nil
+	}
+	return fmt.Errorf(
+		"%s identity mismatch: requested %q but behavioral memory returned %q; refusing to treat this as a replay",
+		kind,
+		requested,
+		returned,
+	)
+}
+
 // BehavioralRecorder is intentionally narrower than behavioral.Core. The simulation
 // ingestion path can record observations/evidence/outcomes, but it has no method
 // capable of promoting a principle. This makes the authority boundary structural.
@@ -214,11 +313,16 @@ func (i SimulationIngestor) Ingest(ctx context.Context, l SimulationLearning) (S
 		metadata["candidate_revision"] = l.Change.CandidateRevision
 		metadata["plan_digest"] = l.Change.PlanDigest
 	}
+	if l.Invocation.ID != "" {
+		metadata["proof_invocation_id"] = l.Invocation.ID
+	}
 	if len(l.CandidatePolicy.CandidateTypes) > 0 {
 		metadata["candidate_types"] = strings.Join(l.CandidatePolicy.CandidateTypes, ",")
 	}
 
+	signalID := l.recordID("signal", 0)
 	sigRes, err := i.Recorder.RecordSignal(ctx, &behavioral.RecordSignalRequest{Signal: behavioral.Signal{
+		ID:             signalID,
 		Project:        project,
 		Domain:         domain,
 		Kind:           behavioral.SignalObservedRuntimeFact,
@@ -238,13 +342,18 @@ func (i SimulationIngestor) Ingest(ctx context.Context, l SimulationLearning) (S
 	if err != nil {
 		return SimulationIngestResult{}, fmt.Errorf("record simulation signal: %w", err)
 	}
+	if err := requireAllocatedAs("signal", signalID, sigRes.SignalID); err != nil {
+		return SimulationIngestResult{}, err
+	}
 
 	result := SimulationIngestResult{SignalID: sigRes.SignalID}
-	for _, ref := range []struct{ kind, path string }{{"simulation_proof", l.ProofRef}, {"simulation_evidence", l.EvidenceRef}} {
+	for idx, ref := range []struct{ kind, path string }{{"simulation_proof", l.ProofRef}, {"simulation_evidence", l.EvidenceRef}} {
 		if strings.TrimSpace(ref.path) == "" {
 			continue
 		}
+		evidenceID := l.recordID("evidence", idx)
 		evRes, err := i.Recorder.RecordEvidence(ctx, &behavioral.RecordEvidenceRequest{Evidence: behavioral.Evidence{
+			ID:             evidenceID,
 			Project:        project,
 			Domain:         domain,
 			TargetKind:     "signal",
@@ -267,10 +376,15 @@ func (i SimulationIngestor) Ingest(ctx context.Context, l SimulationLearning) (S
 		if err != nil {
 			return result, fmt.Errorf("record %s: %w", ref.kind, err)
 		}
+		if err := requireAllocatedAs("evidence", evidenceID, evRes.EvidenceID); err != nil {
+			return result, err
+		}
 		result.EvidenceIDs = append(result.EvidenceIDs, evRes.EvidenceID)
 	}
 
+	outcomeID := l.recordID("outcome", 0)
 	outRes, err := i.Recorder.RecordOutcome(ctx, &behavioral.RecordOutcomeRequest{Outcome: behavioral.Outcome{
+		ID:          outcomeID,
 		Project:     project,
 		Domain:      domain,
 		EvidenceIDs: append([]string(nil), result.EvidenceIDs...),
@@ -284,6 +398,9 @@ func (i SimulationIngestor) Ingest(ctx context.Context, l SimulationLearning) (S
 	}})
 	if err != nil {
 		return result, fmt.Errorf("record simulation outcome: %w", err)
+	}
+	if err := requireAllocatedAs("outcome", outcomeID, outRes.OutcomeID); err != nil {
+		return result, err
 	}
 	result.OutcomeID = outRes.OutcomeID
 

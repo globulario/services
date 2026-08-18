@@ -49,7 +49,10 @@ type QuickstartRunOptions struct {
 }
 
 type QuickstartRunResult struct {
-	ExitCode     int
+	ExitCode int
+	// ChangeID is carried so a caller ingesting the learning artifact can bind
+	// it to this exact proof occurrence without reopening the envelope.
+	ChangeID     string
 	InvocationID string
 	ProofPath    string
 	LearningPath string
@@ -159,6 +162,7 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 	learningPath := filepath.Join(runDir, "learning.json")
 	partial := QuickstartRunResult{
 		ExitCode:     exitCode,
+		ChangeID:     envelope.ID,
 		InvocationID: invocationID,
 		ProofPath:    proofPath,
 		LearningPath: learningPath,
@@ -250,6 +254,7 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 
 	return QuickstartRunResult{
 		ExitCode:     exitCode,
+		ChangeID:     envelope.ID,
 		InvocationID: invocationID,
 		ProofPath:    proofPath,
 		LearningPath: learningPath,

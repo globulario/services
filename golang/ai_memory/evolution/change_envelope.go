@@ -213,6 +213,9 @@ func (e ChangeEnvelope) Validate() error {
 	if err := validateTestRequirements(e.RequiredTests); err != nil {
 		return err
 	}
+	if err := validateScenarioRequirements(e.RequiredScenarios); err != nil {
+		return err
+	}
 
 	if stageAtLeast(e.Stage, StageCandidate) {
 		if strings.TrimSpace(e.CandidateRepository) == "" || strings.TrimSpace(e.CandidateRevision) == "" {
@@ -544,6 +547,31 @@ func validateTestRequirements(requirements []TestRequirement) error {
 				return fmt.Errorf("required test %q command contains an empty argument", name)
 			}
 		}
+	}
+	return nil
+}
+
+// validateScenarioRequirements enforces that one obligation has one name.
+//
+// Proof closure indexes required scenarios by name, so two obligations sharing
+// a name collapse into a single boolean and one PASS satisfies both. Repairing
+// that ambiguity later in closure is the wrong place: by then the plan has
+// already promised something it cannot express. The plan is where it is
+// refused, before anything runs.
+func validateScenarioRequirements(requirements []ScenarioRequirement) error {
+	seen := map[string]struct{}{}
+	for _, requirement := range requirements {
+		name := strings.TrimSpace(requirement.Name)
+		if name == "" {
+			return fmt.Errorf("required_scenarios contains an empty name")
+		}
+		if _, ok := seen[name]; ok {
+			return fmt.Errorf(
+				"required_scenarios contains duplicate %q; one required scenario name is one proof obligation",
+				name,
+			)
+		}
+		seen[name] = struct{}{}
 	}
 	return nil
 }
