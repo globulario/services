@@ -89,27 +89,20 @@ func (s *Service) applicablePromotedPrinciples(ctx context.Context, project stri
 // domain pack (forbidden moves have no store table — they live only in the pack, so
 // the kernel resolves them through the registry). Returns nil when the registry or
 // the domain pack is absent; callers then fall back to exact id/target matching.
-func (s *Service) forbiddenAliasIndex(domain api.DomainRef) map[string][]string {
+func (s *Service) forbiddenAliasIndex(dom api.DomainRef) map[string][]string {
 	if s.registry == nil {
 		return nil
 	}
-	d, ok := s.registry.Lookup(string(domain))
+	d, ok := s.registry.Lookup(string(dom))
 	if !ok {
 		return nil
 	}
 	out := map[string][]string{}
 	for _, fm := range d.Catalogs().ForbiddenMoves {
-		raw := fm.Fields["action_aliases"]
-		if raw == "" {
-			continue
-		}
-		var aliases []string
-		for _, a := range strings.Split(raw, ",") {
-			if a = strings.TrimSpace(a); a != "" {
-				aliases = append(aliases, a)
-			}
-		}
-		if len(aliases) > 0 {
+		// Parsed by domain.ForbiddenMoveAliases, not inline: the learning-template
+		// matcher resolves the same aliases, and two parsers of one field are free
+		// to disagree.
+		if aliases := domain.ForbiddenMoveAliases(fm); len(aliases) > 0 {
 			out[fm.ID] = aliases
 		}
 	}

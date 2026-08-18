@@ -32,7 +32,10 @@ package domain
 // hold — and it would do so in the one place nobody looks, since a wrong draft
 // and a right draft are equally silent until someone reviews them.
 
-import "sort"
+import (
+	"sort"
+	"strings"
+)
 
 // LearningObservation is what the kernel can honestly say about a repeated
 // pattern: which theme it accumulated under, what action was attempted, and
@@ -117,25 +120,39 @@ func MatchCandidateTemplate(cats Catalogs, obs LearningObservation) (PrincipleSe
 	return best[0].seed, true
 }
 
-// forbiddenMoveCoversAction reports whether a forbidden-move ref names the
-// attempted action. It matches on the catalog entry's declared action alias,
-// never on substring resemblance between a ref and an action type — two
-// unrelated ids sharing a prefix is a naming coincidence, not a governance
-// statement.
+// ForbiddenMoveAliases returns the action_type aliases a forbidden-move catalog
+// entry declares, parsed from its comma-separated `action_aliases` field.
 //
-// No pack declares an alias today, so this path is currently inert for
-// cluster_operator: its forbidden moves carry reason/recommended_behavior/
-// safe_next_step but no action key. That is stated rather than hidden, because
-// a scoring branch that silently always contributes zero looks like coverage it
-// does not provide. #249 gap 4's scylla.data.wipe rule is the first expected
-// user; until a pack declares an alias, matching is by condition alone.
+// This is the SINGLE parser for that field. The behavioral kernel resolves the
+// same aliases when deciding whether a forbidden move blocks an action, and an
+// independent copy here would be free to disagree with it — which is how one
+// governance claim becomes two, and how the two drift. Same field, same parse,
+// both callers.
+func ForbiddenMoveAliases(fm CatalogEntry) []string {
+	raw := fm.Fields["action_aliases"]
+	if raw == "" {
+		return nil
+	}
+	var aliases []string
+	for _, a := range strings.Split(raw, ",") {
+		if a = strings.TrimSpace(a); a != "" {
+			aliases = append(aliases, a)
+		}
+	}
+	return aliases
+}
+
+// forbiddenMoveCoversAction reports whether a forbidden-move ref names the
+// attempted action, via the aliases the pack declared. Never by substring
+// resemblance between a ref and an action type — two unrelated ids sharing a
+// prefix is a naming coincidence, not a governance statement.
 func forbiddenMoveCoversAction(cats Catalogs, moveRef, actionType string) bool {
 	for _, fm := range cats.ForbiddenMoves {
 		if fm.ID != moveRef {
 			continue
 		}
-		for _, key := range []string{"action", "action_type", "action_alias"} {
-			if fm.Fields[key] == actionType {
+		for _, alias := range ForbiddenMoveAliases(fm) {
+			if alias == actionType {
 				return true
 			}
 		}

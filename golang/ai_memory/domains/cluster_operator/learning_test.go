@@ -118,3 +118,69 @@ func TestTemplateAuthorityComesFromThePack(t *testing.T) {
 			seed.Authorities)
 	}
 }
+
+// TestScyllaWipeActionResolvesItsSeed proves the forbidden-move alias path
+// works against the REAL pack, not a synthetic one.
+//
+// This test exists because the first version of the matcher read a field name
+// no pack uses ("action"/"action_type"), and the accompanying comment asserted
+// that no pack declared aliases at all. Both were wrong: gap 4 already shipped
+// forbidden.cluster.raw_scylla_data_wipe carrying
+// `action_aliases: scylla.data.wipe, ...`. The matcher silently scored zero and
+// looked deliberate.
+//
+// A capability claimed in a comment and contradicted by the data is worse than
+// an absent one — nothing fails, so nobody looks.
+func TestScyllaWipeActionResolvesItsSeed(t *testing.T) {
+	p, err := New()
+	if err != nil {
+		t.Fatalf("pack: %v", err)
+	}
+	seed, ok := domain.CandidateTemplateFor(p, domain.LearningObservation{
+		ActionType: "scylla.data.wipe",
+	})
+	if !ok {
+		t.Fatal("the declared action alias scylla.data.wipe resolved no template; " +
+			"the forbidden-move matching path is not reaching action_aliases")
+	}
+	if seed.ID != "principle.cluster.no_raw_scylla_data_wipe" {
+		t.Errorf("matched %q, want principle.cluster.no_raw_scylla_data_wipe", seed.ID)
+	}
+	if seed.RiskLevel != "irreversible" && seed.RiskLevel != "high" {
+		t.Errorf("risk_level = %q; a raw data wipe must carry irreversible/high risk",
+			seed.RiskLevel)
+	}
+}
+
+// TestDeclaredAliasesAreReachable is the general form: every action alias any
+// forbidden move declares must resolve to some seed template. An alias that
+// resolves to nothing is a governance statement with no reachable rule behind
+// it — the pack says "this action is forbidden" and the learner cannot find the
+// principle that says so.
+func TestDeclaredAliasesAreReachable(t *testing.T) {
+	p, err := New()
+	if err != nil {
+		t.Fatalf("pack: %v", err)
+	}
+	cats := p.Catalogs()
+	// A forbidden move is only reachable through a seed that references it.
+	referenced := map[string]bool{}
+	for _, s := range cats.Principles {
+		for _, fm := range s.ForbiddenMoves {
+			referenced[fm] = true
+		}
+	}
+	for _, fm := range cats.ForbiddenMoves {
+		aliases := domain.ForbiddenMoveAliases(fm)
+		if len(aliases) == 0 || !referenced[fm.ID] {
+			continue
+		}
+		for _, alias := range aliases {
+			if _, ok := domain.CandidateTemplateFor(p, domain.LearningObservation{ActionType: alias}); !ok {
+				t.Errorf("forbidden move %q declares alias %q, but no seed template resolves "+
+					"for it — the action is declared forbidden with no reachable rule",
+					fm.ID, alias)
+			}
+		}
+	}
+}
