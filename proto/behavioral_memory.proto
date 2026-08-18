@@ -656,6 +656,11 @@ message PromotionCandidate {
     int64                    updated_at               = 15;
     string                   materialized_principle_id = 16;
     map<string, string>      metadata                 = 17;
+    // Ungoverned action checks that motivated this candidate. Kept distinct
+    // from supporting_outcome_ids: an ActionCheck is a PRE-action verdict, an
+    // Outcome is what happened afterwards. Collapsing them would let a
+    // coverage gap masquerade as a result.
+    repeated string          supporting_action_check_ids = 18;
 }
 
 // ReconciliationReport is an advisory bridge artifact between
@@ -786,6 +791,12 @@ message ActionCheck {
     // evaluated. Distinguishes "allowed: principles satisfied" (governed) from
     // "allowed: no applicable principle" (ungoverned default-allow).
     bool governed = 19;
+    // Stable grouping key for coverage-gap learning. Derived from the action
+    // type and declared conditions, so repeated ungoverned checks of the same
+    // shape accumulate under one theme and can be cited as supporting evidence
+    // by a promotion candidate. A theme groups observations; it never confers
+    // authority.
+    string theme = 20;
 }
 
 // ── Request / response messages ──────────────────────────────────────────────
@@ -935,6 +946,28 @@ message GetGovernanceCoverageResponse {
     int64  governed       = 2; // CheckActions where >=1 applicable promoted principle was evaluated
     int64  ungoverned     = 3; // CheckActions allowed only because no principle applied
     double coverage_ratio = 4; // governed / total (0 when total == 0)
+
+    // How much governance EXISTS, independent of how much traffic reached it.
+    // Without these, "0 governed" is ambiguous: it can mean no principle is
+    // promoted (nothing can ever bind) or that promoted principles simply did
+    // not apply to the actions seen. Those need different responses, and a
+    // cluster with zero action checks and zero promoted principles must not
+    // read as a healthy safety layer merely because nothing has been asked yet.
+    int64 promoted_principle_count = 5;
+    int64 proposed_principle_count = 6;
+
+    // Proposed principles that already have supporting evidence recorded
+    // against them — the review material closest to becoming enforcement.
+    repeated SupportedProposal supported_proposals = 7;
+}
+
+// SupportedProposal is a PROPOSED principle with observed support. It is not a
+// promoted rule and governs nothing; it is what a human would look at first.
+message SupportedProposal {
+    string id             = 1;
+    string title          = 2;
+    string risk_level     = 3;
+    int64  evidence_count = 4;
 }
 
 message RecordOutcomeRequest  { Outcome outcome = 1; }

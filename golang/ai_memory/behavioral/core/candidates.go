@@ -134,13 +134,31 @@ func (s *Service) GeneratePromotionCandidate(ctx context.Context, req *api.Gener
 	if err != nil {
 		return nil, fmt.Errorf("generate promotion candidate: list outcomes: %w", err)
 	}
-	if len(outcomes) < int(req.MinRepeats) {
-		return nil, fmt.Errorf("generate promotion candidate: theme %q has %d outcomes, need at least %d", req.Theme, len(outcomes), req.MinRepeats)
+	// A theme can be review-worthy for two different reasons, and they are not
+	// interchangeable: repeated OUTCOMES say "this keeps happening", repeated
+	// UNGOVERNED CHECKS say "nothing governs this". Before this, only the first
+	// could produce a candidate, so a coverage gap could repeat indefinitely and
+	// produce nothing but a counter. Both are counted as support; neither is
+	// relabelled as the other.
+	gaps, err := s.store.ListUngovernedActionChecksByTheme(ctx, req.Project, string(req.Domain), req.Theme)
+	if err != nil {
+		return nil, fmt.Errorf("generate promotion candidate: list ungoverned action checks: %w", err)
+	}
+	support := len(outcomes) + len(gaps)
+	if support < int(req.MinRepeats) {
+		return nil, fmt.Errorf(
+			"generate promotion candidate: theme %q has %d outcome(s) and %d ungoverned check(s), need at least %d observation(s)",
+			req.Theme, len(outcomes), len(gaps), req.MinRepeats)
 	}
 
 	supportingOutcomeIDs := collectOutcomeIDs(outcomes)
+	supportingCheckIDs := collectActionCheckIDs(gaps)
 	supportingEvidenceIDs := normalizeStrings(append(collectOutcomeEvidenceIDs(outcomes), req.SupportingEvidenceIDs...))
 	if len(supportingEvidenceIDs) == 0 {
+		// Unchanged on purpose. An ungoverned check proves a gap exists; it
+		// proves nothing about what the rule should be. The domain must still
+		// supply the evidence that justifies the draft — otherwise repeated
+		// absence of governance would manufacture its own justification.
 		return nil, fmt.Errorf("generate promotion candidate: explicit supporting evidence is required")
 	}
 
@@ -158,21 +176,22 @@ func (s *Service) GeneratePromotionCandidate(ctx context.Context, req *api.Gener
 	draft.Provenance.UpdatedAt = now
 
 	candidate := api.PromotionCandidate{
-		ID:                    id,
-		Project:               req.Project,
-		Domain:                req.Domain,
-		Theme:                 req.Theme,
-		Status:                api.PromotionCandidateStatusQueued,
-		Title:                 draft.Title,
-		Summary:               fmt.Sprintf("%d repeated outcome(s) for theme %q", len(outcomes), req.Theme),
-		Rationale:             req.Rationale,
-		SupportingOutcomeIDs:  supportingOutcomeIDs,
-		SupportingEvidenceIDs: supportingEvidenceIDs,
-		RepeatCount:           int32(len(outcomes)),
-		DraftPrinciple:        draft,
-		GeneratedBy:           req.Actor,
-		CreatedAt:             now,
-		UpdatedAt:             now,
+		ID:                       id,
+		Project:                  req.Project,
+		Domain:                   req.Domain,
+		Theme:                    req.Theme,
+		Status:                   api.PromotionCandidateStatusQueued,
+		Title:                    draft.Title,
+		Summary:                  summarizeSupport(req.Theme, len(outcomes), len(gaps)),
+		Rationale:                req.Rationale,
+		SupportingOutcomeIDs:     supportingOutcomeIDs,
+		SupportingEvidenceIDs:    supportingEvidenceIDs,
+		SupportingActionCheckIDs: supportingCheckIDs,
+		RepeatCount:              int32(support),
+		DraftPrinciple:           draft,
+		GeneratedBy:              req.Actor,
+		CreatedAt:                now,
+		UpdatedAt:                now,
 		Metadata: map[string]string{
 			"candidate_kind": "PROPOSED_PRINCIPLE",
 		},
@@ -185,7 +204,7 @@ func (s *Service) GeneratePromotionCandidate(ctx context.Context, req *api.Gener
 		return nil, fmt.Errorf("generate promotion candidate: load existing: %w", err)
 	}
 	if strings.TrimSpace(candidate.Rationale) == "" {
-		candidate.Rationale = fmt.Sprintf("theme %q repeated %d time(s); explicit authority, condition, and evidence inputs supplied for review", req.Theme, len(outcomes))
+		candidate.Rationale = fmt.Sprintf("theme %q repeated %d time(s); explicit authority, condition, and evidence inputs supplied for review", req.Theme, support)
 	}
 	if err := s.store.UpsertPromotionCandidate(ctx, &candidate); err != nil {
 		return nil, fmt.Errorf("generate promotion candidate: persist: %w", err)
@@ -207,4 +226,30 @@ func (s *Service) ListPromotionCandidates(ctx context.Context, req *api.ListProm
 		return nil, fmt.Errorf("list promotion candidates: %w", err)
 	}
 	return &api.ListPromotionCandidatesResponse{Candidates: list}, nil
+}
+
+// collectActionCheckIDs returns the ids of the supporting ungoverned checks in
+// a stable order, so the same gap set always cites the same list.
+func collectActionCheckIDs(checks []api.ActionCheck) []string {
+	ids := make([]string, 0, len(checks))
+	for _, c := range checks {
+		if strings.TrimSpace(c.ID) != "" {
+			ids = append(ids, c.ID)
+		}
+	}
+	return normalizeStrings(ids)
+}
+
+// summarizeSupport says which kind of observation made a theme review-worthy.
+// A reviewer must be able to tell "this keeps failing" from "nothing governs
+// this" without opening the supporting rows.
+func summarizeSupport(theme string, outcomes, gaps int) string {
+	switch {
+	case gaps == 0:
+		return fmt.Sprintf("%d repeated outcome(s) for theme %q", outcomes, theme)
+	case outcomes == 0:
+		return fmt.Sprintf("%d repeated ungoverned action check(s) for theme %q (coverage gap: no promoted principle engaged)", gaps, theme)
+	default:
+		return fmt.Sprintf("%d repeated outcome(s) and %d ungoverned action check(s) for theme %q", outcomes, gaps, theme)
+	}
 }

@@ -59,8 +59,13 @@ func cacheCleanupFinding(findingID, nodeID, publisher, pkg string) rules.Finding
 	return rules.Finding{
 		FindingID:   findingID,
 		InvariantID: "artifact.cache_digest_mismatch",
-		Summary:     "Cached artifact digest mismatch",
-		EntityRef:   nodeID + "/" + pkg,
+		// Conclusive by construction: this fixture exercises cache cleanup and
+		// audit behaviour, not verdict closure, so it must present a finding that
+		// is actually eligible for remediation rather than accidentally testing
+		// the closure gate.
+		InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+		Summary:         "Cached artifact digest mismatch",
+		EntityRef:       nodeID + "/" + pkg,
 		Evidence: []*cluster_doctorpb.Evidence{{
 			SourceService: "cluster_doctor",
 			SourceRpc:     "snapshot",

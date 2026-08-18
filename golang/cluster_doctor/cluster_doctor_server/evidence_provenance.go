@@ -50,7 +50,12 @@ func inferEvidenceSource(service, rpc string) evidence.Source {
 		return evidence.SourceVerifierAttestation
 	case s == "cluster_controller" || s == "cluster-controller":
 		return evidence.SourceControllerSnapshot
-	case s == "node_agent" || s == "node-agent":
+	case s == "node_agent" || s == "node-agent" ||
+		strings.HasPrefix(s, "node_agent@") || strings.HasPrefix(s, "node-agent@"):
+		// Per-node collector evidence preserves the writer instance as
+		// node_agent@<node_id>. It is still a node-agent service observation,
+		// not inferred evidence; retaining the instance is what lets harvest
+		// completeness be scoped to the remediation target.
 		return evidence.SourceServiceLog
 	case strings.Contains(s, "prometheus") || strings.Contains(s, "telemetry") || strings.Contains(s, "metric"):
 		return evidence.SourceTelemetry
@@ -67,6 +72,18 @@ func inferEvidenceSource(service, rpc string) evidence.Source {
 // returns the worst trust level across all entries. A finding with no
 // evidence is Untrusted (silence is not freshness).
 //
+// It answers exactly one question: how good is this finding's evidence.
+//
+// Whether the finding's *verdict* is conclusive enough to authorize a mutation
+// is a different question, and it is asked separately by the remediation path
+// through rules.RemediationEvidenceClosure. Folding the two together made a
+// finding with fresh, authoritative, complete evidence report UNTRUSTED because
+// of its verdict, so a caller could no longer tell which gate had refused it —
+// and the ETCD_PUT hard block, which must always cite itself, reported a trust
+// refusal instead of naming the blocklist.
+//
+// The trust gate itself is unchanged and still blocks stale or unverifiable
+// evidence before any remediation dispatch.
 func findingEvidenceTrust(f rules.Finding, now time.Time) evidence.TrustLevel {
 	if len(f.Evidence) == 0 {
 		return evidence.TrustUntrusted

@@ -32,8 +32,22 @@ func TestInstallPayloadExtractsAndInstallsBundledDebs(t *testing.T) {
 	}
 	body := string(src)
 
-	if !strings.Contains(body, `strings.HasPrefix(name, "debs/")`) {
+	// The entry-kind mapping moved out of an inline switch in artifact.go and
+	// into the extraction planner, so that every destination inherits the same
+	// path-containment enforcement. The requirement is unchanged — debs/ must be
+	// extracted — so it is asserted where that decision now lives rather than at
+	// the file it used to live in.
+	safety, err := os.ReadFile("archive_safety.go")
+	if err != nil {
+		t.Fatalf("read archive_safety.go: %v", err)
+	}
+	if !strings.Contains(string(safety), `strings.HasPrefix(name, "debs/")`) {
 		t.Fatal(`install_payload must extract the package's debs/ entries: a bundled native-library .deb that is never unpacked cannot satisfy the ldd preflight`)
+	}
+	// And the planner must actually be given somewhere to put them, or the
+	// entries classify as debs and then map to an empty destination.
+	if !strings.Contains(body, "debsDir") {
+		t.Fatal("install_payload must stage a debs/ directory and pass it to the extraction planner")
 	}
 
 	install := strings.Index(body, "installBundledDebs(")
@@ -92,7 +106,7 @@ func TestDebPackageNameFromPath(t *testing.T) {
 	cases := map[string]string{
 		"libodbc2_2.3.12-1ubuntu0.24.04.1_amd64.deb": "libodbc2",
 		"/tmp/staging/debs/libltdl7_2.4.7_amd64.deb": "libltdl7",
-		"noseparator.deb":                            "",
+		"noseparator.deb": "",
 	}
 	for in, want := range cases {
 		if got := debPackageNameFromPath(in); got != want {

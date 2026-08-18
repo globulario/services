@@ -43,16 +43,35 @@ const behavioralSeedProject = "globular-services"
 // never loaded. The programming pack shipped its authorities, conditions,
 // forbidden moves and required evidence while being absent from this function,
 // which left the whole programming domain ungoverned at runtime.
-func behavioralRegistry() *domain.Registry {
-	reg := domain.NewRegistry()
-	packs := []struct {
-		name string
-		load func() (domain.Domain, error)
-	}{
+// shippedPack names one domain pack that ships with this service.
+type shippedPack struct {
+	name string
+	load func() (domain.Domain, error)
+}
+
+// shippedPacks is the single enumeration of what this build ships.
+//
+// It exists because there were two. behavioralRegistry listed cluster_operator
+// and programming, while loadBehavioralSeed persisted only cluster_operator, so
+// the registry could resolve a pack whose store-backed catalogs were never
+// written. The discovery and promotion surfaces — ListAuthorities,
+// ListConditions, promotion ref resolution — read the store, not the in-process
+// registry, so the programming domain answered every catalog query empty while
+// looking registered: 0% governance coverage with no error anywhere to explain
+// it.
+//
+// Registration and persistence must therefore be driven from the same list. A
+// pack added here is both resolvable and seeded, or neither.
+func shippedPacks() []shippedPack {
+	return []shippedPack{
 		{"cluster_operator", func() (domain.Domain, error) { return cluster_operator.New() }},
 		{"programming", func() (domain.Domain, error) { return programming.New() }},
 	}
-	for _, p := range packs {
+}
+
+func behavioralRegistry() *domain.Registry {
+	reg := domain.NewRegistry()
+	for _, p := range shippedPacks() {
 		pack, err := p.load()
 		if err != nil {
 			logger.Error("domain pack failed to load — its domain will have no catalogs at runtime",
@@ -311,6 +330,9 @@ func (h *behavioralHandler) GetGovernanceCoverage(ctx context.Context, req *bpb.
 	c := resp.Coverage
 	return &bpb.GetGovernanceCoverageResponse{
 		Total: c.Total, Governed: c.Governed, Ungoverned: c.Ungoverned, CoverageRatio: c.Ratio,
+		PromotedPrincipleCount: c.PromotedPrinciples,
+		ProposedPrincipleCount: c.ProposedPrinciples,
+		SupportedProposals:     supportedProposalsToPB(c.SupportedProposals),
 	}, nil
 }
 
@@ -1039,23 +1061,24 @@ func promotionCandidateToPB(c *api.PromotionCandidate) *bpb.PromotionCandidate {
 		return nil
 	}
 	return &bpb.PromotionCandidate{
-		Id:                      c.ID,
-		Project:                 c.Project,
-		Domain:                  string(c.Domain),
-		Theme:                   c.Theme,
-		Status:                  apiPromotionCandidateStatusToPB(c.Status),
-		Title:                   c.Title,
-		Summary:                 c.Summary,
-		Rationale:               c.Rationale,
-		SupportingOutcomeIds:    c.SupportingOutcomeIDs,
-		SupportingEvidenceIds:   c.SupportingEvidenceIDs,
-		RepeatCount:             c.RepeatCount,
-		DraftPrinciple:          principleToPB(&c.DraftPrinciple),
-		GeneratedBy:             c.GeneratedBy,
-		CreatedAt:               c.CreatedAt,
-		UpdatedAt:               c.UpdatedAt,
-		MaterializedPrincipleId: c.MaterializedPrincipleID,
-		Metadata:                c.Metadata,
+		Id:                       c.ID,
+		Project:                  c.Project,
+		Domain:                   string(c.Domain),
+		Theme:                    c.Theme,
+		Status:                   apiPromotionCandidateStatusToPB(c.Status),
+		Title:                    c.Title,
+		Summary:                  c.Summary,
+		Rationale:                c.Rationale,
+		SupportingOutcomeIds:     c.SupportingOutcomeIDs,
+		SupportingEvidenceIds:    c.SupportingEvidenceIDs,
+		SupportingActionCheckIds: c.SupportingActionCheckIDs,
+		RepeatCount:              c.RepeatCount,
+		DraftPrinciple:           principleToPB(&c.DraftPrinciple),
+		GeneratedBy:              c.GeneratedBy,
+		CreatedAt:                c.CreatedAt,
+		UpdatedAt:                c.UpdatedAt,
+		MaterializedPrincipleId:  c.MaterializedPrincipleID,
+		Metadata:                 c.Metadata,
 	}
 }
 
@@ -1139,6 +1162,7 @@ func actionCheckToPB(a *api.ActionCheck) *bpb.ActionCheck {
 		CheckedAgainstPrinciples: a.CheckedAgainstPrinciples,
 		Metadata:                 a.Metadata,
 		Governed:                 a.Governed,
+		Theme:                    a.Theme,
 	}
 }
 
@@ -1229,4 +1253,17 @@ func apiSignalKindToPB(k api.SignalKind) bpb.SignalKind {
 	default:
 		return bpb.SignalKind_SIGNAL_KIND_UNSPECIFIED
 	}
+}
+
+func supportedProposalsToPB(in []api.SupportedProposal) []*bpb.SupportedProposal {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]*bpb.SupportedProposal, 0, len(in))
+	for _, p := range in {
+		out = append(out, &bpb.SupportedProposal{
+			Id: p.ID, Title: p.Title, RiskLevel: p.RiskLevel, EvidenceCount: p.EvidenceCount,
+		})
+	}
+	return out
 }

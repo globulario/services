@@ -74,7 +74,13 @@ func startLeaderElection(ctx context.Context, cli *clientv3.Client, srv *server,
 			// Increment the fencing epoch. This prevents stale leaders (who
 			// lost their lease but haven't noticed yet) from making writes
 			// that conflict with the new leader.
-			epoch := incrementEpoch(ctx, cli)
+			epoch, epochErr := incrementEpoch(ctx, cli)
+			if epochErr != nil {
+				// Leadership without a provable epoch cannot fence its own
+				// writes, so the mutation gate will refuse until a later
+				// campaign establishes one.
+				log.Printf("leader election: proceeding without a provable fencing epoch: %v", epochErr)
+			}
 			srv.leaderEpoch.Store(epoch)
 			log.Printf("leader election: epoch incremented to %d", epoch)
 
@@ -239,10 +245,16 @@ func sleepWithJitter(current, max time.Duration) time.Duration {
 	return next
 }
 
-// incrementEpoch atomically increments the fencing epoch in etcd.
-// Returns the new epoch value. If etcd is unavailable, returns 0
-// (the leader should still function; epoch is a safety net, not a gate).
-func incrementEpoch(ctx context.Context, cli *clientv3.Client) int64 {
+// incrementEpoch atomically increments the fencing epoch in etcd and returns the
+// new value.
+//
+// A failure is returned rather than folded into 0. The epoch is now an execution
+// gate on the mutation surface, not the safety net it was when this returned 0
+// on error: a leader that could not establish its epoch cannot prove it is
+// current, and requireLeaderEpoch refuses on that basis instead of waving it
+// through. Returning a sentinel that is indistinguishable from a real epoch is
+// what made the gate fail open.
+func incrementEpoch(ctx context.Context, cli *clientv3.Client) (int64, error) {
 	epochCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
@@ -250,7 +262,7 @@ func incrementEpoch(ctx context.Context, cli *clientv3.Client) int64 {
 	resp, err := cli.Get(epochCtx, leaderEpochKey)
 	if err != nil {
 		log.Printf("leader election: read epoch failed: %v", err)
-		return 0
+		return 0, fmt.Errorf("read fencing epoch: %w", err)
 	}
 
 	var current int64
@@ -269,7 +281,7 @@ func incrementEpoch(ctx context.Context, cli *clientv3.Client) int64 {
 		Commit()
 	if err != nil {
 		log.Printf("leader election: increment epoch failed: %v", err)
-		return 0
+		return 0, fmt.Errorf("increment fencing epoch: %w", err)
 	}
 	if !txnResp.Succeeded {
 		// Someone else incremented — read their value.
@@ -280,20 +292,28 @@ func incrementEpoch(ctx context.Context, cli *clientv3.Client) int64 {
 			}
 		}
 	}
-	return next
+	return next, nil
 }
 
 // readEpoch reads the current fencing epoch from etcd.
-func readEpoch(ctx context.Context, cli *clientv3.Client) int64 {
+//
+// A read failure and an absent key are different answers and are no longer
+// collapsed into 0. Absent is legitimate on a cluster that has never elected;
+// a failed read means the current epoch is unknown, and an unknown epoch cannot
+// be used to conclude that this leader is still current.
+func readEpoch(ctx context.Context, cli *clientv3.Client) (int64, error) {
 	epochCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	resp, err := cli.Get(epochCtx, leaderEpochKey)
-	if err != nil || len(resp.Kvs) == 0 {
-		return 0
+	if err != nil {
+		return 0, fmt.Errorf("read fencing epoch: %w", err)
+	}
+	if len(resp.Kvs) == 0 {
+		return 0, nil // never elected — not an error
 	}
 	var epoch int64
 	fmt.Sscanf(string(resp.Kvs[0].Value), "%d", &epoch)
-	return epoch
+	return epoch, nil
 }
 
 func sleepWithCustomJitter(current, max, jitterMax time.Duration) time.Duration {

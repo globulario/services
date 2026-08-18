@@ -26,7 +26,13 @@
       "mcp__globular__nodeagent_list_installed_packages",
       "mcp__globular__memory_query",
       "mcp__globular__cluster_get_desired_state",
-      "mcp__globular__cluster_get_drift_report"
+      "mcp__globular__cluster_get_drift_report",
+      "mcp__globular__behavioral_resolve_context",
+      "mcp__globular__behavioral_check_action",
+      "mcp__globular__behavioral_record_signal",
+      "mcp__globular__behavioral_record_outcome",
+      "mcp__globular__behavioral_list_promotion_candidates",
+      "mcp__globular__cluster_learning_report"
     ],
     "deny": []
   },

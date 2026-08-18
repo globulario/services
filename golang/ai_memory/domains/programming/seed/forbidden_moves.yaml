@@ -6,28 +6,34 @@
   reason: a red or untested change entering a shared environment breaks the runtime for everyone
   recommended_behavior: Make the covering tests pass (or add them) before merge; if truly untestable, get maintainer authority on record.
   safe_next_step: gather evidence.prog.tests_pass, or resolve authority.prog.maintainer.codeowner
+  action_aliases: merge_without_passing_tests, deploy_without_passing_tests, merge_red_change, deploy_red_change, merge_untested_change, deploy_untested_change
 - id: forbidden.prog.break_public_contract_without_version_bump
   title: Change a published interface without a compatible version bump
   reason: silently breaking a contract breaks every downstream consumer that trusted the spec
   recommended_behavior: Keep the contract backward-compatible, or bump the version and record the migration path.
   safe_next_step: gather evidence.prog.contract_compat_checked against authority.prog.contract.api_spec
+  action_aliases: break_public_contract, change_public_api_without_version_bump, remove_public_api_without_version_bump, incompatible_api_change_without_version_bump
 - id: forbidden.prog.destructive_migration_without_backup
   title: Run a destructive schema/data migration without a verified backup
   reason: a failed destructive migration with no backup is unrecoverable data loss
   recommended_behavior: Verify a restorable backup exists first; prefer expand-then-contract (additive) migrations.
   safe_next_step: gather evidence.prog.backup_verified before applying the migration
+  action_aliases: destructive_migration_without_backup, drop_schema_without_backup, truncate_without_backup, rewrite_data_without_backup
 - id: forbidden.prog.trust_forum_over_spec
   title: Follow a forum/blog answer that contradicts the authoritative spec
   reason: community lore is a weak signal; acting on it over the contract propagates plausible-but-wrong behavior
   recommended_behavior: Verify the claim against the spec, the tests, or the runtime before acting on it.
   safe_next_step: resolve authority.prog.contract.api_spec (or reproduce against runtime) before trusting the forum claim
+  action_aliases: trust_forum_over_spec, follow_forum_over_spec, override_spec_with_forum_answer
 - id: forbidden.prog.suppress_failing_test_to_go_green
   title: Skip, delete, or weaken a failing test to make the suite pass
   reason: silencing the test destroys the very evidence that would reveal the regression
   recommended_behavior: Fix the code the test protects, or — with maintainer authority — narrow the test with a recorded reason.
   safe_next_step: resolve authority.prog.maintainer.codeowner before altering test intent
+  action_aliases: skip_failing_test, delete_failing_test, disable_failing_test, weaken_failing_test, weaken_test_assertion_to_pass, mark_failing_test_skipped
 - id: forbidden.prog.commit_secret_in_source
   title: Commit a credential, key, or secret into source or config
   reason: secrets in history are effectively permanently leaked and hard to fully revoke
   recommended_behavior: Move the secret to the secret store / env injection and reference it; rotate any value already exposed.
   safe_next_step: remove the value from the diff and wire it through the secret path before committing
+  action_aliases: commit_secret, write_secret_to_source, add_credential_to_source, add_credential_to_config, commit_api_key, commit_private_key

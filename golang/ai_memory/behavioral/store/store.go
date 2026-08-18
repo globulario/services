@@ -131,6 +131,12 @@ type Store interface {
 	CreatePrinciple(ctx context.Context, p *api.Principle) error
 	GetPrinciple(ctx context.Context, project, domain, id string) (*api.Principle, error)
 	UpdatePrincipleStatus(ctx context.Context, project, domain, id string, status api.GovernanceStatus, updatedAt int64) error
+	// ListPrincipleSummaries enumerates every principle in a scope with its
+	// current status. It answers "how much governance EXISTS", which no
+	// condition-keyed index can: principles_by_condition holds only PROMOTED
+	// rules, and only under the conditions they declare, so it can never report
+	// that a scope has none.
+	ListPrincipleSummaries(ctx context.Context, project, domain string) ([]api.PrincipleSummary, error)
 	// SetPrincipleContradictionChecked records that a contradiction check
 	// completed for a principle. This is the governed write-path behind the
 	// RunContradictionCheck RPC — the promotion gate's ContradictionChecked
@@ -156,6 +162,12 @@ type Store interface {
 	// Action-check audit trail.
 	RecordActionCheck(ctx context.Context, a *api.ActionCheck) error
 	GetActionCheck(ctx context.Context, project, domain, id string) (*api.ActionCheck, error)
+	// ListUngovernedActionChecksByTheme returns the UNGOVERNED checks recorded
+	// under a coverage theme, so a repeated gap can be cited as supporting
+	// material by a promotion candidate. Governed checks are excluded: a check
+	// a principle already reached is not a coverage gap and must not inflate
+	// the support for creating one.
+	ListUngovernedActionChecksByTheme(ctx context.Context, project, domain, theme string) ([]api.ActionCheck, error)
 
 	// Governance-coverage counters (PR-13). IncrementCoverage bumps the governed or
 	// ungoverned tally for one CheckAction; GetCoverage reads the running totals so
@@ -243,6 +255,9 @@ func (Unconfigured) CreatePrinciple(context.Context, *api.Principle) error { ret
 func (Unconfigured) GetPrinciple(context.Context, string, string, string) (*api.Principle, error) {
 	return nil, ErrUnconfigured
 }
+func (Unconfigured) ListPrincipleSummaries(context.Context, string, string) ([]api.PrincipleSummary, error) {
+	return nil, ErrUnconfigured
+}
 func (Unconfigured) UpdatePrincipleStatus(context.Context, string, string, string, api.GovernanceStatus, int64) error {
 	return ErrUnconfigured
 }
@@ -287,6 +302,9 @@ func (Unconfigured) GetOutcome(context.Context, string, string, string) (*api.Ou
 	return nil, ErrUnconfigured
 }
 func (Unconfigured) ListOutcomesByTheme(context.Context, string, string, string) ([]api.Outcome, error) {
+	return nil, ErrUnconfigured
+}
+func (Unconfigured) ListUngovernedActionChecksByTheme(context.Context, string, string, string) ([]api.ActionCheck, error) {
 	return nil, ErrUnconfigured
 }
 func (Unconfigured) UpsertPromotionCandidate(context.Context, *api.PromotionCandidate) error {

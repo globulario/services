@@ -89,27 +89,20 @@ func (s *Service) applicablePromotedPrinciples(ctx context.Context, project stri
 // domain pack (forbidden moves have no store table — they live only in the pack, so
 // the kernel resolves them through the registry). Returns nil when the registry or
 // the domain pack is absent; callers then fall back to exact id/target matching.
-func (s *Service) forbiddenAliasIndex(domain api.DomainRef) map[string][]string {
+func (s *Service) forbiddenAliasIndex(dom api.DomainRef) map[string][]string {
 	if s.registry == nil {
 		return nil
 	}
-	d, ok := s.registry.Lookup(string(domain))
+	d, ok := s.registry.Lookup(string(dom))
 	if !ok {
 		return nil
 	}
 	out := map[string][]string{}
 	for _, fm := range d.Catalogs().ForbiddenMoves {
-		raw := fm.Fields["action_aliases"]
-		if raw == "" {
-			continue
-		}
-		var aliases []string
-		for _, a := range strings.Split(raw, ",") {
-			if a = strings.TrimSpace(a); a != "" {
-				aliases = append(aliases, a)
-			}
-		}
-		if len(aliases) > 0 {
+		// Parsed by domain.ForbiddenMoveAliases, not inline: the learning-template
+		// matcher resolves the same aliases, and two parsers of one field are free
+		// to disagree.
+		if aliases := domain.ForbiddenMoveAliases(fm); len(aliases) > 0 {
 			out[fm.ID] = aliases
 		}
 	}
@@ -543,6 +536,10 @@ func (s *Service) CheckAction(ctx context.Context, req *api.CheckActionRequest) 
 	// rule being in scope is not governance of this action.
 	ac.Governed = len(engaged) > 0
 	if ac.Status == "allowed" && !ac.Governed {
+		// Stamp the coverage theme so this gap is groupable. Without it the
+		// row is only a counter increment, and repeated ungoverned checks can
+		// never become reviewable learning material.
+		ac.Theme = coverageTheme(req.ActionType, req.CurrentConditions)
 		ac.Explanation = fmt.Sprintf("allowed: no applicable promoted principle for %q (ungoverned default-allow)", req.ActionType)
 	} else {
 		ac.Explanation = fmt.Sprintf("checked %q against %d engaged promoted principle(s): %s",
@@ -579,14 +576,43 @@ func (s *Service) GetGovernanceCoverage(ctx context.Context, req *api.GetGoverna
 	if total > 0 {
 		ratio = float64(governed) / float64(total)
 	}
-	return &api.GetGovernanceCoverageResponse{Coverage: api.GovernanceCoverage{
+
+	// How much governance EXISTS. Reported alongside how much traffic it
+	// reached, because the two answer different questions and only together
+	// distinguish "nothing is promoted" from "promoted rules did not apply".
+	//
+	// Best-effort: an enumeration failure must not fail the coverage read the
+	// operator already has. It reports zero counts, which is the conservative
+	// direction — understating enforcement prompts a look, overstating it does
+	// not.
+	cov := api.GovernanceCoverage{
 		Project:    req.Project,
 		Domain:     string(req.Domain),
 		Total:      total,
 		Governed:   governed,
 		Ungoverned: ungoverned,
 		Ratio:      ratio,
-	}}, nil
+	}
+	if sums, err := s.store.ListPrincipleSummaries(ctx, req.Project, string(req.Domain)); err == nil {
+		for _, p := range sums {
+			switch p.Status {
+			case api.StatusPromotedPrinciple:
+				cov.PromotedPrinciples++
+			case api.StatusProposedPrinciple:
+				cov.ProposedPrinciples++
+				// Support = evidence already recorded against the proposal. A
+				// proposal with support is the review item closest to becoming
+				// enforcement; one without is a draft nobody has substantiated.
+				if ev, err := s.store.ListEvidenceForTarget(ctx, req.Project, string(req.Domain), p.ID); err == nil && len(ev) > 0 {
+					cov.SupportedProposals = append(cov.SupportedProposals, api.SupportedProposal{
+						ID: p.ID, Title: p.Title, RiskLevel: p.RiskLevel,
+						EvidenceCount: int64(len(ev)),
+					})
+				}
+			}
+		}
+	}
+	return &api.GetGovernanceCoverageResponse{Coverage: cov}, nil
 }
 
 // RecordOutcome records what happened after an action/check. It records facts
