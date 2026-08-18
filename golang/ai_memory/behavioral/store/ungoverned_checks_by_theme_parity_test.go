@@ -121,3 +121,59 @@ func TestListUngovernedActionChecksByTheme_UnknownThemeIsEmptyNotError(t *testin
 		t.Errorf("got %d checks for an unrecorded theme, want 0", len(got))
 	}
 }
+
+// TestListPrincipleSummaries_ReportsEveryStatus backs the enforcement summary.
+// A scope with nothing promoted must be distinguishable from a scope nobody has
+// asked about — principles_by_condition cannot do that, because it indexes only
+// PROMOTED rules and only under the conditions they declare.
+func TestListPrincipleSummaries_ReportsEveryStatus(t *testing.T) {
+	ctx := context.Background()
+	m := NewMemoryStore()
+
+	for _, p := range []api.Principle{
+		{ID: "p.promoted", Project: gapProject, Domain: api.DomainRef(gapDomain),
+			Title: "Promoted", Status: api.StatusPromotedPrinciple, RiskLevel: "high"},
+		{ID: "p.proposed", Project: gapProject, Domain: api.DomainRef(gapDomain),
+			Title: "Proposed", Status: api.StatusProposedPrinciple, RiskLevel: "low"},
+		{ID: "p.other_scope", Project: gapProject, Domain: api.DomainRef("other"),
+			Title: "Elsewhere", Status: api.StatusPromotedPrinciple},
+	} {
+		cp := p
+		if err := m.CreatePrinciple(ctx, &cp); err != nil {
+			t.Fatalf("create %s: %v", p.ID, err)
+		}
+	}
+
+	got, err := m.ListPrincipleSummaries(ctx, gapProject, gapDomain)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d summaries, want 2 (the other scope must not leak in): %+v", len(got), got)
+	}
+	var promoted int
+	for _, s := range got {
+		if s.Status == api.StatusPromotedPrinciple {
+			promoted++
+		}
+		if s.Title == "" {
+			t.Errorf("%s came back with no title", s.ID)
+		}
+	}
+	if promoted != 1 {
+		t.Errorf("counted %d promoted, want 1", promoted)
+	}
+}
+
+// TestListPrincipleSummaries_EmptyScopeIsZeroNotError — "this scope has no
+// principles" is the answer that makes NO ENFORCEMENT reportable. It must be a
+// normal empty result, not a fault that the caller swallows into a zero.
+func TestListPrincipleSummaries_EmptyScopeIsZeroNotError(t *testing.T) {
+	got, err := NewMemoryStore().ListPrincipleSummaries(context.Background(), gapProject, gapDomain)
+	if err != nil {
+		t.Fatalf("empty scope must not error: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("got %d summaries for an empty scope, want 0", len(got))
+	}
+}

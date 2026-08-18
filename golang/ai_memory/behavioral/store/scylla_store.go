@@ -508,7 +508,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
 	).WithContext(ctx).Exec(); err != nil {
 		return fmt.Errorf("create principle: %w", err)
 	}
-	return nil
+	return s.indexPrincipleByScope(ctx, p.Project, string(p.Domain), p.ID, p.Title, string(p.Status), p.RiskLevel)
 }
 
 func (s *ScyllaStore) GetPrinciple(ctx context.Context, project, domain, id string) (*api.Principle, error) {
@@ -541,6 +541,14 @@ func (s *ScyllaStore) UpdatePrincipleStatus(ctx context.Context, project, domain
 	const q = `UPDATE behavioral_memory.principles SET status = ?, updated_at = ? WHERE project = ? AND domain = ? AND id = ?`
 	if err := s.session.Query(q, string(status), updatedAt, project, domain, id).WithContext(ctx).Exec(); err != nil {
 		return fmt.Errorf("update principle status: %w", err)
+	}
+	// Keep the scope index's status in step with the base row. A promotion that
+	// updated only the base row would leave the index reporting PROPOSED, and
+	// the enforcement summary would keep saying nothing is promoted while a
+	// rule was actively binding actions.
+	const idx = `UPDATE behavioral_memory.principles_by_scope SET status = ? WHERE project = ? AND domain = ? AND id = ?`
+	if err := s.session.Query(idx, string(status), project, domain, id).WithContext(ctx).Exec(); err != nil {
+		return fmt.Errorf("update principle status: index: %w", err)
 	}
 	return nil
 }
@@ -1043,4 +1051,39 @@ func toForbiddenMoveRefs(in []string) []api.ForbiddenMoveRef {
 		out[i] = api.ForbiddenMoveRef(v)
 	}
 	return out
+}
+
+// indexPrincipleByScope maintains principles_by_scope. Called on create and on
+// every status change, so the index never disagrees with the base row about
+// whether a principle is promoted — a stale status here would misreport
+// enforcement, which is the one thing this index exists to get right.
+func (s *ScyllaStore) indexPrincipleByScope(ctx context.Context, project, domain, id, title, status, risk string) error {
+	const q = `INSERT INTO behavioral_memory.principles_by_scope
+(project, domain, id, status, title, risk_level) VALUES (?, ?, ?, ?, ?, ?)`
+	if err := s.session.Query(q, project, domain, id, status, title, risk).WithContext(ctx).Exec(); err != nil {
+		return fmt.Errorf("index principle by scope: %w", err)
+	}
+	return nil
+}
+
+// ListPrincipleSummaries enumerates a scope's principles from the by-scope
+// index. Served from the index rather than hydrated: a summary is exactly the
+// four columns the index carries, so hydrating would read every principle row
+// to return fields the caller does not use.
+func (s *ScyllaStore) ListPrincipleSummaries(ctx context.Context, project, domain string) ([]api.PrincipleSummary, error) {
+	const q = `SELECT id, status, title, risk_level FROM behavioral_memory.principles_by_scope
+WHERE project = ? AND domain = ?`
+	iter := s.session.Query(q, project, domain).WithContext(ctx).Iter()
+	var out []api.PrincipleSummary
+	var id, status, title, risk string
+	for iter.Scan(&id, &status, &title, &risk) {
+		out = append(out, api.PrincipleSummary{
+			ID: id, Title: title, Status: api.GovernanceStatus(status), RiskLevel: risk,
+		})
+	}
+	if err := iter.Close(); err != nil {
+		return nil, fmt.Errorf("list principle summaries: %w", err)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
 }

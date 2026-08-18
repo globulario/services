@@ -603,6 +603,25 @@ CREATE TABLE IF NOT EXISTS behavioral_memory.reconciliation_reports (
 // index; theme/status/created_at are read from (and sorted on) the entity row, so
 // the index carries only the keys. There is no delete path for either entity, so
 // the index needs no maintenance beyond upsert.
+// principles_by_scope enumerates a scope's principles with their status, so
+// "how many principles are promoted here" is a single-partition read.
+//
+// principles_by_condition cannot answer that question: it indexes only PROMOTED
+// rules, and only under the conditions they declare. A scope with nothing
+// promoted is indistinguishable there from a scope nobody has queried — which
+// is exactly the ambiguity that let zero enforcement read as a healthy safety
+// layer.
+const createPrinciplesByScopeTableCQL = `
+CREATE TABLE IF NOT EXISTS behavioral_memory.principles_by_scope (
+    project    text,
+    domain     text,
+    id         text,
+    status     text,
+    title      text,
+    risk_level text,
+    PRIMARY KEY ((project, domain), id)
+) WITH CLUSTERING ORDER BY (id ASC)`
+
 const createPromotionCandidatesByScopeTableCQL = `
 CREATE TABLE IF NOT EXISTS behavioral_memory.promotion_candidates_by_scope (
     project text,
@@ -670,6 +689,7 @@ var behavioralSchemaStatements = []string{
 	createReconciliationReportsTableCQL,
 	// v10 list-by-scope indexes: make the List RPCs single-partition reads instead
 	// of (project,domain)-prefix scans on a composite partition key (ALLOW FILTERING).
+	createPrinciplesByScopeTableCQL,
 	createPromotionCandidatesByScopeTableCQL,
 	createReconciliationReportsByScopeTableCQL,
 	// P4 discovery indexes for list_authorities / list_conditions.

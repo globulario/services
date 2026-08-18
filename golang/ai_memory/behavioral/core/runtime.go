@@ -583,14 +583,43 @@ func (s *Service) GetGovernanceCoverage(ctx context.Context, req *api.GetGoverna
 	if total > 0 {
 		ratio = float64(governed) / float64(total)
 	}
-	return &api.GetGovernanceCoverageResponse{Coverage: api.GovernanceCoverage{
+
+	// How much governance EXISTS. Reported alongside how much traffic it
+	// reached, because the two answer different questions and only together
+	// distinguish "nothing is promoted" from "promoted rules did not apply".
+	//
+	// Best-effort: an enumeration failure must not fail the coverage read the
+	// operator already has. It reports zero counts, which is the conservative
+	// direction — understating enforcement prompts a look, overstating it does
+	// not.
+	cov := api.GovernanceCoverage{
 		Project:    req.Project,
 		Domain:     string(req.Domain),
 		Total:      total,
 		Governed:   governed,
 		Ungoverned: ungoverned,
 		Ratio:      ratio,
-	}}, nil
+	}
+	if sums, err := s.store.ListPrincipleSummaries(ctx, req.Project, string(req.Domain)); err == nil {
+		for _, p := range sums {
+			switch p.Status {
+			case api.StatusPromotedPrinciple:
+				cov.PromotedPrinciples++
+			case api.StatusProposedPrinciple:
+				cov.ProposedPrinciples++
+				// Support = evidence already recorded against the proposal. A
+				// proposal with support is the review item closest to becoming
+				// enforcement; one without is a draft nobody has substantiated.
+				if ev, err := s.store.ListEvidenceForTarget(ctx, req.Project, string(req.Domain), p.ID); err == nil && len(ev) > 0 {
+					cov.SupportedProposals = append(cov.SupportedProposals, api.SupportedProposal{
+						ID: p.ID, Title: p.Title, RiskLevel: p.RiskLevel,
+						EvidenceCount: int64(len(ev)),
+					})
+				}
+			}
+		}
+	}
+	return &api.GetGovernanceCoverageResponse{Coverage: cov}, nil
 }
 
 // RecordOutcome records what happened after an action/check. It records facts

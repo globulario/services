@@ -458,8 +458,9 @@ func containsStrT(ss []string, v string) bool {
 // practically invisible — an operator reads "0.0" as a metric that has not
 // warmed up yet, not as "governance is off". So the words are the contract.
 func TestLearningAssessment_NamesTheInertCase(t *testing.T) {
-	got := learningAssessment(6, 0, 6, 2)
-	for _, want := range []string{"INERT", "no promoted principle applied", "await human review"} {
+	// Promoted rules EXIST but none reached the traffic seen.
+	got := learningAssessment(6, 0, 6, 3, 0, 2)
+	for _, want := range []string{"INERT", "do not reach the actions", "await human review"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("assessment must contain %q so the inert case is unmissable.\ngot: %s", want, got)
 		}
@@ -470,20 +471,59 @@ func TestLearningAssessment_NamesTheInertCase(t *testing.T) {
 // not reported as "governance is inert". They look alike in the numbers and mean
 // opposite things: one needs traffic, the other needs a promotion.
 func TestLearningAssessment_DistinguishesEmptyFromInert(t *testing.T) {
-	empty := learningAssessment(0, 0, 0, 0)
-	if strings.Contains(empty, "INERT") {
-		t.Errorf("a cluster with no action checks is not inert governance, it is an idle governor.\ngot: %s", empty)
+	// Governance EXISTS, no traffic yet: idle, not inert.
+	empty := learningAssessment(0, 0, 0, 3, 0, 0)
+	if strings.Contains(empty, "INERT") || strings.Contains(empty, "NO ENFORCEMENT") {
+		t.Errorf("a cluster with promoted rules and no action checks is not inert governance, "+
+			"it is an idle governor.\ngot: %s", empty)
 	}
-	if !strings.Contains(empty, "nothing has asked the governor") {
+	if !strings.Contains(empty, "no action check") {
 		t.Errorf("the empty case must say nothing has been asked.\ngot: %s", empty)
+	}
+}
+
+// TestLearningAssessment_ZeroPromotedIsNoEnforcement is the #249 gap 5
+// requirement. Enforcement must be judged on promoted principles, not traffic:
+// keying it off "governed == 0" made zero enforcement invisible whenever
+// nothing had been asked yet, and an operator reading "nothing to learn from"
+// hears an idle-but-healthy safety layer rather than "nothing can ever bind".
+//
+// Absence of questions is not evidence of protection.
+func TestLearningAssessment_ZeroPromotedIsNoEnforcement(t *testing.T) {
+	for _, tc := range []struct {
+		name                             string
+		total, governed, ungov, promoted int64
+	}{
+		{"no traffic at all", 0, 0, 0, 0},
+		{"traffic but nothing promoted", 12, 0, 12, 0},
+	} {
+		got := learningAssessment(tc.total, tc.governed, tc.ungov, tc.promoted, 4, 1)
+		if !strings.Contains(got, "NO ENFORCEMENT") {
+			t.Errorf("%s: assessment must say NO ENFORCEMENT when 0 principles are promoted.\ngot: %s",
+				tc.name, got)
+		}
+	}
+}
+
+// TestLearningAssessment_NoTrafficAndNoEnforcementSaysBoth — with neither
+// promoted rules nor checks, both facts are true and they need different
+// responses (one needs a promotion, the other needs traffic). Reporting only
+// one hides half the problem.
+func TestLearningAssessment_NoTrafficAndNoEnforcementSaysBoth(t *testing.T) {
+	got := learningAssessment(0, 0, 0, 0, 2, 0)
+	if !strings.Contains(got, "NO ENFORCEMENT") {
+		t.Errorf("must report no enforcement.\ngot: %s", got)
+	}
+	if !strings.Contains(got, "Nothing has asked the governor") {
+		t.Errorf("must also report that nothing has been asked.\ngot: %s", got)
 	}
 }
 
 // TestLearningAssessment_FullyGoverned reports the healthy end state without
 // mentioning candidates the operator does not need to act on.
 func TestLearningAssessment_FullyGoverned(t *testing.T) {
-	got := learningAssessment(4, 4, 0, 0)
-	if strings.Contains(got, "INERT") || strings.Contains(got, "await") {
+	got := learningAssessment(4, 4, 0, 2, 0, 0)
+	if strings.Contains(got, "INERT") || strings.Contains(got, "await") || strings.Contains(got, "NO ENFORCEMENT") {
 		t.Errorf("a fully governed cluster must not be described as inert or pending.\ngot: %s", got)
 	}
 }
