@@ -76,6 +76,7 @@ type ProofRecord struct {
 	SimulationRevision  string `json:"simulation_revision,omitempty" yaml:"simulation_revision,omitempty"`
 	CandidateRepository string `json:"candidate_repository,omitempty" yaml:"candidate_repository,omitempty"`
 	CandidateRevision   string `json:"candidate_revision,omitempty" yaml:"candidate_revision,omitempty"`
+	PlanDigest          string `json:"plan_digest,omitempty" yaml:"plan_digest,omitempty"`
 	Result              string `json:"result" yaml:"result"`
 	ProofEligible       bool   `json:"proof_eligible" yaml:"proof_eligible"`
 	ProofRef            string `json:"proof_ref,omitempty" yaml:"proof_ref,omitempty"`
@@ -84,11 +85,12 @@ type ProofRecord struct {
 }
 
 // TestRecord proves one required local/static/invariant test against the exact
-// candidate revision and records the exact command that was executed.
+// candidate revision and frozen plan, and records the exact command executed.
 type TestRecord struct {
 	Name                string   `json:"name" yaml:"name"`
 	CandidateRepository string   `json:"candidate_repository,omitempty" yaml:"candidate_repository,omitempty"`
 	CandidateRevision   string   `json:"candidate_revision" yaml:"candidate_revision"`
+	PlanDigest          string   `json:"plan_digest" yaml:"plan_digest"`
 	Command             []string `json:"command" yaml:"command"`
 	Result              string   `json:"result" yaml:"result"`
 	EvidenceRef         string   `json:"evidence_ref,omitempty" yaml:"evidence_ref,omitempty"`
@@ -96,16 +98,18 @@ type TestRecord struct {
 }
 
 type AdmissionRecord struct {
-	Status   string `json:"status,omitempty" yaml:"status,omitempty"`
-	Revision string `json:"revision,omitempty" yaml:"revision,omitempty"`
-	Ref      string `json:"ref,omitempty" yaml:"ref,omitempty"`
-	Actor    string `json:"actor,omitempty" yaml:"actor,omitempty"`
-	At       string `json:"at,omitempty" yaml:"at,omitempty"`
+	Status     string `json:"status,omitempty" yaml:"status,omitempty"`
+	Revision   string `json:"revision,omitempty" yaml:"revision,omitempty"`
+	PlanDigest string `json:"plan_digest,omitempty" yaml:"plan_digest,omitempty"`
+	Ref        string `json:"ref,omitempty" yaml:"ref,omitempty"`
+	Actor      string `json:"actor,omitempty" yaml:"actor,omitempty"`
+	At         string `json:"at,omitempty" yaml:"at,omitempty"`
 }
 
 type ReleaseRecord struct {
 	Status            string        `json:"status,omitempty" yaml:"status,omitempty"`
 	CandidateRevision string        `json:"candidate_revision,omitempty" yaml:"candidate_revision,omitempty"`
+	PlanDigest        string        `json:"plan_digest,omitempty" yaml:"plan_digest,omitempty"`
 	ReleaseRevision   string        `json:"release_revision,omitempty" yaml:"release_revision,omitempty"`
 	Artifacts         []ArtifactRef `json:"artifacts,omitempty" yaml:"artifacts,omitempty"`
 	Ref               string        `json:"ref,omitempty" yaml:"ref,omitempty"`
@@ -222,7 +226,7 @@ func (e ChangeEnvelope) Validate() error {
 		}
 		if e.PlanDigest != expected {
 			return fmt.Errorf(
-				"proof plan changed after candidate binding: stored %s, current %s; create/rebind a governed plan before proof",
+				"proof plan changed after candidate binding: stored %s, current %s; create a new governed plan before proof",
 				e.PlanDigest,
 				expected,
 			)
@@ -244,6 +248,13 @@ func (e ChangeEnvelope) Validate() error {
 				e.CandidateRevision,
 			)
 		}
+		if e.Admission.PlanDigest != e.PlanDigest {
+			return fmt.Errorf(
+				"admission plan digest %q does not match candidate plan %q",
+				e.Admission.PlanDigest,
+				e.PlanDigest,
+			)
+		}
 	}
 	if stageAtLeast(e.Stage, StageReleased) {
 		if e.Release.Status != "RELEASED" {
@@ -254,6 +265,13 @@ func (e ChangeEnvelope) Validate() error {
 				"release candidate revision %q does not match envelope candidate revision %q",
 				e.Release.CandidateRevision,
 				e.CandidateRevision,
+			)
+		}
+		if e.Release.PlanDigest != e.PlanDigest {
+			return fmt.Errorf(
+				"release plan digest %q does not match admitted plan %q",
+				e.Release.PlanDigest,
+				e.PlanDigest,
 			)
 		}
 		if strings.TrimSpace(e.Release.ReleaseRevision) == "" {
@@ -321,6 +339,14 @@ func (e ChangeEnvelope) validateProofClosure() error {
 				e.CandidateRevision,
 			)
 		}
+		if proof.PlanDigest != e.PlanDigest {
+			return fmt.Errorf(
+				"proof %q plan digest %q does not match %q",
+				proof.Scenario,
+				proof.PlanDigest,
+				e.PlanDigest,
+			)
+		}
 		if proof.Result == "PASS" && proof.ProofEligible {
 			if _, ok := requiredScenarios[proof.Scenario]; ok {
 				requiredScenarios[proof.Scenario] = true
@@ -361,6 +387,14 @@ func (e ChangeEnvelope) validateProofClosure() error {
 				e.CandidateRevision,
 			)
 		}
+		if test.PlanDigest != e.PlanDigest {
+			return fmt.Errorf(
+				"test %q plan digest %q does not match %q",
+				test.Name,
+				test.PlanDigest,
+				e.PlanDigest,
+			)
+		}
 		requirement, required := requiredTests[test.Name]
 		if required && test.Result == "PASS" {
 			if !stringSlicesEqual(test.Command, requirement.Command) {
@@ -386,22 +420,22 @@ func (e ChangeEnvelope) validateProofClosure() error {
 // every contract/proof obligation that determines what PROVEN means.
 func (e ChangeEnvelope) IdentityDigest() (string, error) {
 	identity := struct {
-		SchemaVersion      int                   `json:"schema_version"`
-		ID                 string                `json:"change_id"`
-		Kind               ChangeKind            `json:"kind"`
-		Intent             string                `json:"intent"`
-		SourceRevision     string                `json:"source_revision"`
-		ProductionRevision string                `json:"production_revision,omitempty"`
-		CandidateRepository string               `json:"candidate_repository,omitempty"`
-		CandidateRevision   string               `json:"candidate_revision,omitempty"`
-		RiskClass          RiskClass             `json:"risk_class"`
-		AuthorityScope     []string              `json:"authority_scope,omitempty"`
-		GoverningContracts []string              `json:"governing_contracts,omitempty"`
-		RelevantInvariants []string              `json:"relevant_invariants,omitempty"`
-		KnownFailureModes  []string              `json:"known_failure_modes,omitempty"`
-		ForbiddenRepairs   []string              `json:"forbidden_repairs,omitempty"`
-		RequiredScenarios  []ScenarioRequirement `json:"required_scenarios,omitempty"`
-		RequiredTests      []TestRequirement     `json:"required_tests,omitempty"`
+		SchemaVersion       int                   `json:"schema_version"`
+		ID                  string                `json:"change_id"`
+		Kind                ChangeKind            `json:"kind"`
+		Intent              string                `json:"intent"`
+		SourceRevision      string                `json:"source_revision"`
+		ProductionRevision  string                `json:"production_revision,omitempty"`
+		CandidateRepository string                `json:"candidate_repository,omitempty"`
+		CandidateRevision   string                `json:"candidate_revision,omitempty"`
+		RiskClass           RiskClass             `json:"risk_class"`
+		AuthorityScope      []string              `json:"authority_scope,omitempty"`
+		GoverningContracts  []string              `json:"governing_contracts,omitempty"`
+		RelevantInvariants  []string              `json:"relevant_invariants,omitempty"`
+		KnownFailureModes   []string              `json:"known_failure_modes,omitempty"`
+		ForbiddenRepairs    []string              `json:"forbidden_repairs,omitempty"`
+		RequiredScenarios   []ScenarioRequirement `json:"required_scenarios,omitempty"`
+		RequiredTests       []TestRequirement     `json:"required_tests,omitempty"`
 	}{
 		SchemaVersion:       e.SchemaVersion,
 		ID:                  e.ID,
@@ -502,6 +536,7 @@ func validateTestRequirements(requirements []TestRequirement) error {
 			if strings.TrimSpace(arg) == "" {
 				return fmt.Errorf("required test %q command contains an empty argument", name)
 			}
+		}
 	}
 	return nil
 }
