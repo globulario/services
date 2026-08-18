@@ -64,12 +64,24 @@ func SaveChangeEnvelope(path string, envelope ChangeEnvelope) error {
 
 func (e *ChangeEnvelope) AddOrReplaceProof(proof ProofRecord) {
 	for idx := range e.Proofs {
-		if e.Proofs[idx].Scenario == proof.Scenario && e.Proofs[idx].CandidateRevision == proof.CandidateRevision {
+		if e.Proofs[idx].Scenario == proof.Scenario &&
+			e.Proofs[idx].CandidateRevision == proof.CandidateRevision {
 			e.Proofs[idx] = proof
 			return
 		}
 	}
 	e.Proofs = append(e.Proofs, proof)
+}
+
+func (e *ChangeEnvelope) AddOrReplaceTest(test TestRecord) {
+	for idx := range e.Tests {
+		if e.Tests[idx].Name == test.Name &&
+			e.Tests[idx].CandidateRevision == test.CandidateRevision {
+			e.Tests[idx] = test
+			return
+		}
+	}
+	e.Tests = append(e.Tests, test)
 }
 
 // MarkProvenIfComplete advances only the local proof stage. It does not perform
