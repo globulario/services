@@ -131,6 +131,12 @@ type Store interface {
 	CreatePrinciple(ctx context.Context, p *api.Principle) error
 	GetPrinciple(ctx context.Context, project, domain, id string) (*api.Principle, error)
 	UpdatePrincipleStatus(ctx context.Context, project, domain, id string, status api.GovernanceStatus, updatedAt int64) error
+	// ListPrincipleSummaries enumerates every principle in a scope with its
+	// current status. It answers "how much governance EXISTS", which no
+	// condition-keyed index can: principles_by_condition holds only PROMOTED
+	// rules, and only under the conditions they declare, so it can never report
+	// that a scope has none.
+	ListPrincipleSummaries(ctx context.Context, project, domain string) ([]api.PrincipleSummary, error)
 	// SetPrincipleContradictionChecked records that a contradiction check
 	// completed for a principle. This is the governed write-path behind the
 	// RunContradictionCheck RPC — the promotion gate's ContradictionChecked
@@ -247,6 +253,9 @@ func (Unconfigured) ListContradictionsForTarget(context.Context, string, string,
 }
 func (Unconfigured) CreatePrinciple(context.Context, *api.Principle) error { return ErrUnconfigured }
 func (Unconfigured) GetPrinciple(context.Context, string, string, string) (*api.Principle, error) {
+	return nil, ErrUnconfigured
+}
+func (Unconfigured) ListPrincipleSummaries(context.Context, string, string) ([]api.PrincipleSummary, error) {
 	return nil, ErrUnconfigured
 }
 func (Unconfigured) UpdatePrincipleStatus(context.Context, string, string, string, api.GovernanceStatus, int64) error {

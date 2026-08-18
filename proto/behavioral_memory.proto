@@ -946,6 +946,28 @@ message GetGovernanceCoverageResponse {
     int64  governed       = 2; // CheckActions where >=1 applicable promoted principle was evaluated
     int64  ungoverned     = 3; // CheckActions allowed only because no principle applied
     double coverage_ratio = 4; // governed / total (0 when total == 0)
+
+    // How much governance EXISTS, independent of how much traffic reached it.
+    // Without these, "0 governed" is ambiguous: it can mean no principle is
+    // promoted (nothing can ever bind) or that promoted principles simply did
+    // not apply to the actions seen. Those need different responses, and a
+    // cluster with zero action checks and zero promoted principles must not
+    // read as a healthy safety layer merely because nothing has been asked yet.
+    int64 promoted_principle_count = 5;
+    int64 proposed_principle_count = 6;
+
+    // Proposed principles that already have supporting evidence recorded
+    // against them — the review material closest to becoming enforcement.
+    repeated SupportedProposal supported_proposals = 7;
+}
+
+// SupportedProposal is a PROPOSED principle with observed support. It is not a
+// promoted rule and governs nothing; it is what a human would look at first.
+message SupportedProposal {
+    string id             = 1;
+    string title          = 2;
+    string risk_level     = 3;
+    int64  evidence_count = 4;
 }
 
 message RecordOutcomeRequest  { Outcome outcome = 1; }

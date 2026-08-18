@@ -680,3 +680,22 @@ func (m *MemoryStore) ListReconciliationReports(_ context.Context, project, doma
 	}
 	return out, nil
 }
+
+// ListPrincipleSummaries enumerates a scope's principles. The in-memory store
+// holds them in one map keyed by (project|domain|id), so the scope filter is a
+// prefix test rather than an index.
+func (m *MemoryStore) ListPrincipleSummaries(_ context.Context, project, domain string) ([]api.PrincipleSummary, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]api.PrincipleSummary, 0, len(m.principles))
+	for _, p := range m.principles {
+		if p.Project != project || string(p.Domain) != domain {
+			continue
+		}
+		out = append(out, api.PrincipleSummary{
+			ID: p.ID, Title: p.Title, Status: p.Status, RiskLevel: p.RiskLevel,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
+}

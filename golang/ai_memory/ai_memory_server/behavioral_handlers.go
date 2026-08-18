@@ -330,6 +330,9 @@ func (h *behavioralHandler) GetGovernanceCoverage(ctx context.Context, req *bpb.
 	c := resp.Coverage
 	return &bpb.GetGovernanceCoverageResponse{
 		Total: c.Total, Governed: c.Governed, Ungoverned: c.Ungoverned, CoverageRatio: c.Ratio,
+		PromotedPrincipleCount: c.PromotedPrinciples,
+		ProposedPrincipleCount: c.ProposedPrinciples,
+		SupportedProposals:     supportedProposalsToPB(c.SupportedProposals),
 	}, nil
 }
 
@@ -1250,4 +1253,17 @@ func apiSignalKindToPB(k api.SignalKind) bpb.SignalKind {
 	default:
 		return bpb.SignalKind_SIGNAL_KIND_UNSPECIFIED
 	}
+}
+
+func supportedProposalsToPB(in []api.SupportedProposal) []*bpb.SupportedProposal {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]*bpb.SupportedProposal, 0, len(in))
+	for _, p := range in {
+		out = append(out, &bpb.SupportedProposal{
+			Id: p.ID, Title: p.Title, RiskLevel: p.RiskLevel, EvidenceCount: p.EvidenceCount,
+		})
+	}
+	return out
 }

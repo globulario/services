@@ -407,4 +407,29 @@ type GovernanceCoverage struct {
 	Governed   int64
 	Ungoverned int64
 	Ratio      float64 // Governed / Total (0 when Total == 0)
+
+	// How much governance EXISTS, independent of traffic. "0 governed" is
+	// ambiguous without these: it can mean nothing is promoted (nothing can
+	// ever bind) or that promoted rules did not apply to the actions seen.
+	PromotedPrinciples int64
+	ProposedPrinciples int64
+	SupportedProposals []SupportedProposal
+}
+
+// SupportedProposal is a PROPOSED principle with supporting evidence already
+// recorded against it. It governs nothing — it is review material.
+type SupportedProposal struct {
+	ID            string
+	Title         string
+	RiskLevel     string
+	EvidenceCount int64
+}
+
+// PrincipleSummary is the light projection used to enumerate a scope's
+// principles without hydrating every field.
+type PrincipleSummary struct {
+	ID        string
+	Title     string
+	Status    GovernanceStatus
+	RiskLevel string
 }
