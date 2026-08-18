@@ -13,27 +13,10 @@ type evidenceClosureDispatcher struct {
 	dryRuns []bool
 }
 
-func (d *evidenceClosureDispatcher) Dispatch(_ context.Context, _ Finding, _ string, dryRun bool) DispatchResult {
+func (d *evidenceClosureDispatcher) Dispatch(_ context.Context, _ Finding, _ string, dryRun bool) (bool, string, error) {
 	d.calls++
 	d.dryRuns = append(d.dryRuns, dryRun)
-	if dryRun {
-		// A rehearsal starts a real dry-run and is PROPOSED, never CONVERGED.
-		return DispatchResult{
-			Disposition:   DispatchProposed,
-			WorkflowRunID: "run-evidence-closure-dry",
-			AuditID:       "rem-evidence-closure-dry",
-			ActionCheckID: "chk-evidence-closure",
-		}
-	}
-	return DispatchResult{
-		Disposition:   DispatchConverged,
-		WorkflowRunID: "run-evidence-closure",
-		AuditID:       "rem-evidence-closure",
-		ActionCheckID: "chk-evidence-closure",
-		Executed:      true,
-		Verified:      true,
-		Converged:     true,
-	}
+	return true, "rem-evidence-closure", nil
 }
 
 func reducedHarvestEvidence() *cluster_doctorpb.Evidence {
@@ -170,8 +153,8 @@ func TestHealerFailWithCheckErrorIsRefusedBeforeDispatch(t *testing.T) {
 func TestHealerReducedHarvest_CompromisedFindingDryRunReachesCentralGate(t *testing.T) {
 	dispatcher := &evidenceClosureDispatcher{}
 	h := &Healer{
-		DryRun:       true,
-		Dispatcher:   dispatcher,
+		DryRun:      true,
+		Dispatcher:  dispatcher,
 		PolicyLookup: autoPolicy,
 	}
 
