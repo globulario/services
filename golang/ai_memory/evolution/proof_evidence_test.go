@@ -216,3 +216,37 @@ func TestVerifyEvidenceArtifactsIgnoresPreProvenStages(t *testing.T) {
 		t.Fatalf("candidate stage should not require reachable artifacts: %v", err)
 	}
 }
+
+func TestAdmittedEnvelopeIsNeverDemotedOnLoad(t *testing.T) {
+	// Demotion exists so an unsubstantiated PROVEN claim cannot stand. It must
+	// stop there. ADMITTED and later are accepted history: an envelope whose
+	// evidence no longer validates at those stages is a hard refusal, because
+	// silently rewriting it to CANDIDATE would erase the accepted record
+	// instead of forcing a new candidate.
+	path := filepath.Join(t.TempDir(), "change.yaml")
+	e := provenFixture(t)
+	e.Stage = StageAdmitted
+	e.Admission = AdmissionRecord{
+		Status:     "ACCEPT",
+		Revision:   e.CandidateRevision,
+		PlanDigest: e.PlanDigest,
+	}
+	if err := SaveChangeEnvelope(path, e); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tampered := strings.Replace(string(raw), "digest: sha256:unit-evidence", `digest: ""`, 1)
+	if tampered == string(raw) {
+		t.Fatal("fixture did not contain the expected evidence digest")
+	}
+	if err := os.WriteFile(path, []byte(tampered), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := LoadChangeEnvelope(path)
+	if err == nil {
+		t.Fatalf("admitted history was silently rewritten to %s", loaded.Stage)
+	}
+}
