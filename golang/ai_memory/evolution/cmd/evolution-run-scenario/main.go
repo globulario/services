@@ -23,6 +23,7 @@ func main() {
 		ingest        = flag.Bool("ingest-learning", false, "ingest resulting learning.json into Behavioral Memory")
 		clusterID     = flag.String("cluster-id", "", "cluster id/scope attached to behavioral observations")
 	)
+	runnerKey := flag.String("runner-key", "", "trusted proof-runner signing key; without it a run is recorded but cannot certify")
 	flag.Parse()
 	if *envelopePath == "" || *quickstartDir == "" || *scenario == "" {
 		fmt.Fprintln(os.Stderr, "evolution-run-scenario: --envelope, --quickstart-dir, and --scenario are required")
@@ -32,6 +33,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	result, err := evolution.RunQuickstartScenario(ctx, evolution.QuickstartRunOptions{
+		RunnerKeyPath: *runnerKey,
 		QuickstartDir: *quickstartDir,
 		Scenario:      *scenario,
 		ScenarioName:  *scenarioName,

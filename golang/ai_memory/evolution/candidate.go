@@ -74,6 +74,12 @@ type ProofStatus struct {
 	// say which simulator repository produced it. Not a failure — an explicit
 	// decision for the admission authority.
 	SimulatorIdentityUnproven []string `json:"simulator_identity_unproven,omitempty"`
+	// ObligationsComplete reports that every declared obligation has a PASS
+	// record. It is deliberately separate from ProofComplete: an envelope may
+	// describe complete evidence while none of it is independently attested.
+	ObligationsComplete bool `json:"obligations_complete"`
+	// AttestationUnproven lists certifying occurrences with no runner receipt.
+	AttestationUnproven []string `json:"attestation_unproven,omitempty"`
 	// AdmissionUnverified reports that the admission recorded here is a claim
 	// referencing a decision taken elsewhere, which this process cannot check.
 	AdmissionUnverified   bool   `json:"admission_unverified,omitempty"`
@@ -132,6 +138,11 @@ func (e ChangeEnvelope) ProofStatus() ProofStatus {
 		}
 	}
 	status.SimulatorIdentityUnproven = e.SimulatorIdentityUnproven()
+	status.AttestationUnproven = e.AttestationUnproven()
+	status.ObligationsComplete = len(status.MissingRequiredTests) == 0 &&
+		len(status.FailedRequiredTests) == 0 &&
+		len(status.MissingScenarios) == 0 &&
+		len(status.FailedScenarios) == 0
 	status.AdmissionUnverified = e.Admission != (AdmissionRecord{})
 	candidate := e
 	candidate.Stage = StageProven

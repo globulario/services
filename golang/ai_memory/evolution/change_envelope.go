@@ -83,6 +83,10 @@ type ProofRecord struct {
 	ProofRef            string `json:"proof_ref,omitempty" yaml:"proof_ref,omitempty"`
 	EvidenceRef         string `json:"evidence_ref,omitempty" yaml:"evidence_ref,omitempty"`
 	Digest              string `json:"digest,omitempty" yaml:"digest,omitempty"`
+	// Receipt is the runner's independent attestation that it executed this
+	// obligation and observed this result. Without it the record is an
+	// unattested observation, not proof.
+	Receipt *ProofOccurrenceReceipt `json:"receipt,omitempty" yaml:"receipt,omitempty"`
 }
 
 // TestRecord proves one required local/static/invariant test against the exact
@@ -97,6 +101,8 @@ type TestRecord struct {
 	Result              string   `json:"result" yaml:"result"`
 	EvidenceRef         string   `json:"evidence_ref,omitempty" yaml:"evidence_ref,omitempty"`
 	Digest              string   `json:"digest,omitempty" yaml:"digest,omitempty"`
+	// Receipt is the runner's independent attestation for this occurrence.
+	Receipt *ProofOccurrenceReceipt `json:"receipt,omitempty" yaml:"receipt,omitempty"`
 }
 
 // RequiredProductionLayers is the fixed set a VERIFIED change must evidence.
@@ -254,6 +260,20 @@ func (e ChangeEnvelope) Validate() error {
 		// Closure alone only proves a PASS marker exists.
 		if err := e.ValidateEvidenceIdentity(); err != nil {
 			return err
+		}
+		// And content-addressed evidence is still only self-consistent. An author
+		// who writes the files, computes their digests and records matching PASS
+		// entries satisfies every check above while nothing was executed —
+		// evidence integrity is not evidence provenance. Every certifying record
+		// must therefore carry a runner's attestation, which originates outside
+		// this artifact. The signature is checked where the trusted keys are
+		// known; presence and binding are checked here, because they are portable.
+		if unproven := e.AttestationUnproven(); len(unproven) > 0 {
+			return fmt.Errorf(
+				"stage %s requires an independent runner attestation for every certifying occurrence; "+
+					"unattested: %s — a self-authored PASS record is an observation, not proof",
+				e.Stage, strings.Join(unproven, ", "),
+			)
 		}
 	}
 	if e.Stage == StageBlocked && strings.TrimSpace(e.BlockedReason) == "" {

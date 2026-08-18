@@ -27,6 +27,8 @@ func TestProvenRequiresProofForExactCandidate(t *testing.T) {
 		t.Fatal("expected candidate revision mismatch")
 	}
 	e.Proofs[0].CandidateRevision = "candidate-sha"
+	keyPath, _ := newTestRunner(t)
+	attestFixture(t, &e, keyPath)
 	if err := e.Validate(); err != nil {
 		t.Fatalf("valid proof rejected: %v", err)
 	}

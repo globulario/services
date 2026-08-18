@@ -252,7 +252,8 @@ func TestUnreproducibleLocalEvidenceBlocksSimulationLaunch(t *testing.T) {
 		t.Fatal(err)
 	}
 	local, err := RunDeclaredTest(context.Background(), TestRunOptions{
-		EnvelopePath: envelopePath, WorkspaceDir: workspace, TestName: "echo-contents",
+		RunnerKeyPath: testRunnerKey(t),
+		EnvelopePath:  envelopePath, WorkspaceDir: workspace, TestName: "echo-contents",
 	})
 	if err != nil || local.Record.Result != "PASS" {
 		t.Fatalf("local test should pass: %+v err=%v", local, err)
@@ -374,7 +375,8 @@ func TestLocalGateFailureAlsoWithdrawsTheProvenClaim(t *testing.T) {
 		t.Fatal(err)
 	}
 	local, err := RunDeclaredTest(context.Background(), TestRunOptions{
-		EnvelopePath: envelopePath, WorkspaceDir: workspace, TestName: "echo-contents",
+		RunnerKeyPath: testRunnerKey(t),
+		EnvelopePath:  envelopePath, WorkspaceDir: workspace, TestName: "echo-contents",
 	})
 	if err != nil {
 		t.Fatal(err)

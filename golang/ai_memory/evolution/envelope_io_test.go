@@ -67,6 +67,8 @@ func TestMarkProvenOnlyAfterRequiredTestAndScenarioClosure(t *testing.T) {
 		EvidenceRef:         "tests/go-test-evolution.log",
 		Digest:              "sha256:go-test-evolution",
 	})
+	keyPath, _ := newTestRunner(t)
+	attestFixture(t, &e, keyPath)
 	if !e.MarkProvenIfComplete() || e.Stage != StageProven {
 		t.Fatalf("expected PROVEN after test + scenario closure, got %s", e.Stage)
 	}

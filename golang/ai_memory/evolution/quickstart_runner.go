@@ -37,6 +37,8 @@ type QuickstartProofArtifact struct {
 }
 
 type QuickstartRunOptions struct {
+	// RunnerKeyPath is the trusted runner's signing key; see TestRunOptions.
+	RunnerKeyPath string
 	QuickstartDir string
 	Scenario      string
 	// ScenarioName is the required-scenario name this run answers for. It is
@@ -295,6 +297,32 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 		return fail(partial, fmt.Errorf("digest scenario proof artifacts: %w", err))
 	}
 	proof.Digest = digest
+
+	if opts.RunnerKeyPath != "" {
+		key, keyErr := LoadRunnerKey(opts.RunnerKeyPath)
+		if keyErr != nil {
+			return fail(partial, fmt.Errorf("load runner key: %w", keyErr))
+		}
+		receipt, signErr := ProofOccurrenceReceipt{
+			ChangeID:            envelope.ID,
+			CandidateRepository: envelope.CandidateRepository,
+			CandidateRevision:   envelope.CandidateRevision,
+			PlanDigest:          envelope.PlanDigest,
+			ObligationKind:      "scenario",
+			ObligationName:      scenarioName,
+			ObligationRef:       requirement.Path,
+			InvocationID:        invocationID,
+			SimulationRevision:  simulationRevision,
+			Result:              proof.Result,
+			ProofEligible:       proof.ProofEligible,
+			EvidenceDigest:      proof.Digest,
+			ObservedAt:          time.Now().UTC().Format(time.RFC3339Nano),
+		}.Sign(key)
+		if signErr != nil {
+			return fail(partial, fmt.Errorf("attest scenario occurrence: %w", signErr))
+		}
+		proof.Receipt = &receipt
+	}
 
 	marked, err := MutateEnvelope(opts.EnvelopePath, identity, func(e *ChangeEnvelope) {
 		e.AddOrReplaceProof(proof)

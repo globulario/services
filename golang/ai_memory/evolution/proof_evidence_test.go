@@ -53,6 +53,10 @@ func provenFixture(t *testing.T, planMutators ...func(*ChangeEnvelope)) ChangeEn
 		EvidenceRef:         "evidence/inv-1/evidence.json",
 		Digest:              "sha256:chaos-evidence",
 	}}
+	// A complete evidence set is still only self-consistent, so the fixture must
+	// carry a runner attestation to be PROVEN at all.
+	keyPath, _ := newTestRunner(t)
+	attestFixture(t, &e, keyPath)
 	e.Stage = StageProven
 	if err := e.Validate(); err != nil {
 		t.Fatalf("fixture should be PROVEN: %v", err)

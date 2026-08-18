@@ -137,7 +137,9 @@ func scenarioEnvelope(t *testing.T, id string) (envelopePath string) {
 
 func runScenario(t *testing.T, quickstartDir, envelopePath string) (QuickstartRunResult, error) {
 	t.Helper()
+	keyPath, _ := newTestRunner(t)
 	return RunQuickstartScenario(context.Background(), QuickstartRunOptions{
+		RunnerKeyPath: keyPath,
 		QuickstartDir: quickstartDir,
 		Scenario:      filepath.Join(quickstartDir, "tests", "scenarios", "chaos.yaml"),
 		ScenarioName:  "chaos",

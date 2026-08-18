@@ -60,6 +60,8 @@ func TestProofStatusNamesMissingEvidenceAndAdmissionBoundary(t *testing.T) {
 		ProofRef: "runs/inv-1/scenario-proof.json", EvidenceRef: "runs/inv-1/evidence.json",
 		Digest: "sha256:chaos",
 	}}
+	keyPath, _ := newTestRunner(t)
+	attestFixture(t, &e, keyPath)
 	e.Stage = StageProven
 	status = e.ProofStatus()
 	if !status.ProofComplete || status.NextAuthorityBoundary != "sensei_admission" {

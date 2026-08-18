@@ -11,12 +11,18 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 )
 
 type TestRunOptions struct {
-	EnvelopePath string
-	WorkspaceDir string
-	TestName     string
+	// RunnerKeyPath is the trusted runner's signing key. The runner attests what
+	// it executed and observed; without a key it still records the observation,
+	// but that record cannot certify, because an unattested PASS is something the
+	// envelope's author could equally have written.
+	RunnerKeyPath string
+	EnvelopePath  string
+	WorkspaceDir  string
+	TestName      string
 }
 
 type TestRunResult struct {
@@ -177,6 +183,33 @@ func RunDeclaredTest(ctx context.Context, opts TestRunOptions) (TestRunResult, e
 		EvidenceRef:         evidencePath,
 		Digest:              digest,
 	}
+	// The runner attests its own observation. It signs what it ran and what
+	// happened — never a result handed to it.
+	if opts.RunnerKeyPath != "" {
+		key, keyErr := LoadRunnerKey(opts.RunnerKeyPath)
+		if keyErr != nil {
+			return fail(fmt.Errorf("load runner key: %w", keyErr))
+		}
+		receipt, signErr := ProofOccurrenceReceipt{
+			ChangeID:            envelope.ID,
+			CandidateRepository: envelope.CandidateRepository,
+			CandidateRevision:   envelope.CandidateRevision,
+			PlanDigest:          envelope.PlanDigest,
+			ObligationKind:      "test",
+			ObligationName:      requirement.Name,
+			ObligationRef:       strings.Join(requirement.Command, " "),
+			InvocationID:        invocationID,
+			Result:              result,
+			ProofEligible:       exitCode == 0,
+			EvidenceDigest:      digest,
+			ObservedAt:          time.Now().UTC().Format(time.RFC3339Nano),
+		}.Sign(key)
+		if signErr != nil {
+			return fail(fmt.Errorf("attest test occurrence: %w", signErr))
+		}
+		record.Receipt = &receipt
+	}
+
 	marked, err := MutateEnvelope(opts.EnvelopePath, identity, func(e *ChangeEnvelope) {
 		e.AddOrReplaceTest(record)
 	})

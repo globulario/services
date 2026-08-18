@@ -7,6 +7,7 @@ import (
 )
 
 type ProofPlanOptions struct {
+	RunnerKeyPath string
 	EnvelopePath  string
 	WorkspaceDir  string
 	QuickstartDir string
@@ -42,9 +43,10 @@ func RunProofPlan(ctx context.Context, opts ProofPlanOptions) (ProofPlanResult, 
 			continue
 		}
 		testResult, runErr := RunDeclaredTest(ctx, TestRunOptions{
-			EnvelopePath: opts.EnvelopePath,
-			WorkspaceDir: opts.WorkspaceDir,
-			TestName:     requirement.Name,
+			RunnerKeyPath: opts.RunnerKeyPath,
+			EnvelopePath:  opts.EnvelopePath,
+			WorkspaceDir:  opts.WorkspaceDir,
+			TestName:      requirement.Name,
 		})
 		result.Tests = append(result.Tests, testResult)
 		if runErr != nil {
@@ -97,6 +99,7 @@ func RunProofPlan(ctx context.Context, opts ProofPlanOptions) (ProofPlanResult, 
 			scenarioPath = filepath.Join(opts.QuickstartDir, scenarioPath)
 		}
 		scenarioResult, runErr := RunQuickstartScenario(ctx, QuickstartRunOptions{
+			RunnerKeyPath: opts.RunnerKeyPath,
 			QuickstartDir: opts.QuickstartDir,
 			Scenario:      scenarioPath,
 			ScenarioName:  requirement.Name,

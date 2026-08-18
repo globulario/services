@@ -27,9 +27,10 @@ func TestRunDeclaredTestRecordsEvidenceForExactRevision(t *testing.T) {
 	}
 
 	result, err := RunDeclaredTest(context.Background(), TestRunOptions{
-		EnvelopePath: envelopePath,
-		WorkspaceDir: workspace,
-		TestName:     "declared-test",
+		RunnerKeyPath: testRunnerKey(t),
+		EnvelopePath:  envelopePath,
+		WorkspaceDir:  workspace,
+		TestName:      "declared-test",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -65,9 +66,10 @@ func TestRunDeclaredTestRejectsWrongCheckoutRevision(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := RunDeclaredTest(context.Background(), TestRunOptions{
-		EnvelopePath: envelopePath,
-		WorkspaceDir: workspace,
-		TestName:     "declared-test",
+		RunnerKeyPath: testRunnerKey(t),
+		EnvelopePath:  envelopePath,
+		WorkspaceDir:  workspace,
+		TestName:      "declared-test",
 	})
 	if err == nil || !strings.Contains(err.Error(), "does not match candidate revision") {
 		t.Fatalf("expected revision rejection, got %v", err)
@@ -94,9 +96,10 @@ func TestFailedRerunDowngradesProvenCandidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	first, err := RunDeclaredTest(context.Background(), TestRunOptions{
-		EnvelopePath: envelopePath,
-		WorkspaceDir: workspace,
-		TestName:     "flippable",
+		RunnerKeyPath: testRunnerKey(t),
+		EnvelopePath:  envelopePath,
+		WorkspaceDir:  workspace,
+		TestName:      "flippable",
 	})
 	if err != nil || !first.MarkedProven {
 		t.Fatalf("first run should prove candidate: result=%+v err=%v", first, err)
@@ -105,9 +108,10 @@ func TestFailedRerunDowngradesProvenCandidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	second, err := RunDeclaredTest(context.Background(), TestRunOptions{
-		EnvelopePath: envelopePath,
-		WorkspaceDir: workspace,
-		TestName:     "flippable",
+		RunnerKeyPath: testRunnerKey(t),
+		EnvelopePath:  envelopePath,
+		WorkspaceDir:  workspace,
+		TestName:      "flippable",
 	})
 	if err != nil {
 		t.Fatal(err)

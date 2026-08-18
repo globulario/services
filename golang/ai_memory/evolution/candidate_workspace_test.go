@@ -33,10 +33,14 @@ func candidateUnderTest(t *testing.T, name string) (workspace, revision, envelop
 
 func runCandidateTest(t *testing.T, workspace, envelopePath string) (TestRunResult, error) {
 	t.Helper()
+	// A real run attests its own observation, so the helper gives the runner a
+	// key exactly as production does.
+	keyPath, _ := newTestRunner(t)
 	return RunDeclaredTest(context.Background(), TestRunOptions{
-		EnvelopePath: envelopePath,
-		WorkspaceDir: workspace,
-		TestName:     "echo-contents",
+		RunnerKeyPath: keyPath,
+		EnvelopePath:  envelopePath,
+		WorkspaceDir:  workspace,
+		TestName:      "echo-contents",
 	})
 }
 

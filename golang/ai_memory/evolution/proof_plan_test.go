@@ -23,8 +23,9 @@ func TestProofPlanCanReachProvenWithDeclaredLocalTestsOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := RunProofPlan(context.Background(), ProofPlanOptions{
-		EnvelopePath: envelopePath,
-		WorkspaceDir: workspace,
+		RunnerKeyPath: testRunnerKey(t),
+		EnvelopePath:  envelopePath,
+		WorkspaceDir:  workspace,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -60,6 +61,7 @@ func TestProofPlanStopsBeforeSimulationOnLocalTestFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := RunProofPlan(context.Background(), ProofPlanOptions{
+		RunnerKeyPath: testRunnerKey(t),
 		EnvelopePath:  envelopePath,
 		WorkspaceDir:  workspace,
 		QuickstartDir: t.TempDir(),

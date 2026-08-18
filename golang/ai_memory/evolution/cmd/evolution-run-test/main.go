@@ -16,15 +16,17 @@ func main() {
 		workspace = flag.String("workspace-dir", "", "candidate repository checkout")
 		testName  = flag.String("test", "", "declared test name")
 	)
+	runnerKey := flag.String("runner-key", "", "trusted proof-runner signing key; without it a run is recorded but cannot certify")
 	flag.Parse()
 	if *envelope == "" || *workspace == "" || *testName == "" {
 		fmt.Fprintln(os.Stderr, "evolution-run-test: --envelope, --workspace-dir, and --test are required")
 		os.Exit(2)
 	}
 	result, err := evolution.RunDeclaredTest(context.Background(), evolution.TestRunOptions{
-		EnvelopePath: *envelope,
-		WorkspaceDir: *workspace,
-		TestName:     *testName,
+		RunnerKeyPath: *runnerKey,
+		EnvelopePath:  *envelope,
+		WorkspaceDir:  *workspace,
+		TestName:      *testName,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "evolution-run-test: %v\n", err)

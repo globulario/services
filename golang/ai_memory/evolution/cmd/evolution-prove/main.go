@@ -28,6 +28,7 @@ func main() {
 		ingestLearning = flag.Bool("ingest-learning", false, "ingest learning from every scenario actually executed")
 		clusterID      = flag.String("cluster-id", "", "cluster id/scope attached to behavioral observations")
 	)
+	runnerKey := flag.String("runner-key", "", "trusted proof-runner signing key; without it a run is recorded but cannot certify")
 	flag.Parse()
 	if *envelope == "" || *workspace == "" || *quickstart == "" {
 		fmt.Fprintln(os.Stderr, "evolution-prove: --envelope, --workspace-dir, and --quickstart-dir are required")
@@ -35,6 +36,7 @@ func main() {
 	}
 
 	proofResult, proofErr := evolution.RunProofPlan(context.Background(), evolution.ProofPlanOptions{
+		RunnerKeyPath: *runnerKey,
 		EnvelopePath:  *envelope,
 		WorkspaceDir:  *workspace,
 		QuickstartDir: *quickstart,
