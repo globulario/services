@@ -97,6 +97,19 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 		scenarioName = strings.TrimSuffix(filepath.Base(opts.Scenario), filepath.Ext(opts.Scenario))
 	}
 
+	requirement, err := requiredScenarioByName(envelope.RequiredScenarios, scenarioName)
+	if err != nil {
+		return QuickstartRunResult{}, err
+	}
+	// The plan digest covers each obligation's repository and path, so the file
+	// about to run must be the file the plan froze. Another file declaring the
+	// same scenario name — what a moved or copied scenario leaves behind — would
+	// otherwise discharge the obligation without executing the plan-digested
+	// path. Checked before launching, not after the artifact comes back.
+	if err := requireFrozenScenarioPath(opts.QuickstartDir, requirement, opts.Scenario); err != nil {
+		return QuickstartRunResult{}, err
+	}
+
 	identity := envelope.Identity()
 
 	// From here on the invocation owns a proof slot. Any path that fails to fill
@@ -428,4 +441,56 @@ func rebaseScenarioPath(quickstartDir, simTree, scenario string) (string, error)
 		)
 	}
 	return rebased, nil
+}
+
+func requiredScenarioByName(requirements []ScenarioRequirement, name string) (ScenarioRequirement, error) {
+	for _, requirement := range requirements {
+		if requirement.Name == name {
+			return requirement, nil
+		}
+	}
+	return ScenarioRequirement{}, fmt.Errorf(
+		"scenario %q is not declared in the change envelope; there is no obligation for it to discharge",
+		name,
+	)
+}
+
+// requireFrozenScenarioPath compares the requested file against the one the plan
+// digest covers. Both sides are resolved relative to the quickstart checkout so
+// an absolute and a relative spelling of the same file agree.
+func requireFrozenScenarioPath(quickstartDir string, requirement ScenarioRequirement, requested string) error {
+	if requirement.Repository != "" && requirement.Repository != "globulario/globular-quickstart" {
+		return fmt.Errorf(
+			"scenario %q is declared against repository %q, which this runner does not execute",
+			requirement.Name,
+			requirement.Repository,
+		)
+	}
+	if strings.TrimSpace(requirement.Path) == "" {
+		return fmt.Errorf(
+			"required scenario %q declares no path, so no file can be shown to be the frozen one",
+			requirement.Name,
+		)
+	}
+	root, err := filepath.Abs(quickstartDir)
+	if err != nil {
+		return fmt.Errorf("resolve quickstart dir: %w", err)
+	}
+	resolve := func(p string) string {
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(root, p)
+		}
+		return filepath.Clean(p)
+	}
+	frozen := resolve(requirement.Path)
+	if resolve(requested) != frozen {
+		return fmt.Errorf(
+			"scenario %q is frozen in the plan as %q, but %q was requested; "+
+				"proving a different file would not discharge the declared obligation",
+			requirement.Name,
+			requirement.Path,
+			requested,
+		)
+	}
+	return nil
 }

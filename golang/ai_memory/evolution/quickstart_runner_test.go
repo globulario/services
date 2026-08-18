@@ -97,6 +97,11 @@ fi
 	if err := os.WriteFile(filepath.Join(scenarioDir, "chaos.yaml"), []byte("name: chaos\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// A second committed file that also declares the name "chaos" — the shape a
+	// moved or copied scenario leaves behind.
+	if err := os.WriteFile(filepath.Join(scenarioDir, "chaos-moved.yaml"), []byte("name: chaos\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := os.Stat(filepath.Join(quickstartDir, ".git")); err != nil {
 		runGit(t, quickstartDir, "init")
 		runGit(t, quickstartDir, "config", "user.email", "evolution-test@example.invalid")
@@ -110,7 +115,12 @@ func scenarioEnvelope(t *testing.T, id string) (envelopePath string) {
 	t.Helper()
 	envelopePath = filepath.Join(t.TempDir(), "change.yaml")
 	e := NewChangeEnvelope(id, ChangeSimulationRepair, "repair", "source-sha", RiskCritical)
-	e.RequiredScenarios = []ScenarioRequirement{{Name: "chaos", Required: true}}
+	e.RequiredScenarios = []ScenarioRequirement{{
+		Name:       "chaos",
+		Repository: "globulario/globular-quickstart",
+		Path:       "tests/scenarios/chaos.yaml",
+		Required:   true,
+	}}
 	if err := e.BindCandidate("globulario/services", "candidate-sha"); err != nil {
 		t.Fatal(err)
 	}

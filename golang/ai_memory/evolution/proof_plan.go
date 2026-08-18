@@ -134,16 +134,25 @@ func RunProofPlan(ctx context.Context, opts ProofPlanOptions) (ProofPlanResult, 
 	if err != nil {
 		return result, err
 	}
-	if err := proven.VerifyEvidenceArtifacts(); err != nil {
-		proven.Stage = StageCandidate
-		if saveErr := SaveChangeEnvelope(opts.EnvelopePath, proven); saveErr != nil {
+	if verifyErr := proven.VerifyEvidenceArtifacts(); verifyErr != nil {
+		if err := withdrawUnreproducibleProof(opts.EnvelopePath, proven.Identity()); err != nil {
 			return withProofStatus(opts.EnvelopePath, result), fmt.Errorf(
-				"%w (and could not withdraw the PROVEN claim: %v)", err, saveErr,
+				"%w (and could not withdraw the PROVEN claim: %v)", verifyErr, err,
 			)
 		}
-		return withProofStatus(opts.EnvelopePath, result), fmt.Errorf("proof evidence is not reproducible: %w", err)
+		return withProofStatus(opts.EnvelopePath, result), fmt.Errorf("proof evidence is not reproducible: %w", verifyErr)
 	}
 	return result, nil
+}
+
+// withdrawUnreproducibleProof demotes through the one durable owner. Reading,
+// verifying, and saving outside the lock would make this a second writer: a test
+// or scenario recording or withdrawing proof between the load and the save would
+// be overwritten by this stale snapshot, and a later mutation could reconcile the
+// resurrected set straight back to PROVEN.
+func withdrawUnreproducibleProof(path string, identity EnvelopeIdentity) error {
+	_, err := MutateEnvelope(path, identity, func(e *ChangeEnvelope) {})
+	return err
 }
 
 func withProofStatus(path string, result ProofPlanResult) ProofPlanResult {

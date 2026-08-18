@@ -131,18 +131,18 @@ func RunDeclaredTest(ctx context.Context, opts TestRunOptions) (TestRunResult, e
 		"tests",
 	)
 	if err := os.MkdirAll(evidenceDir, 0o755); err != nil {
-		return TestRunResult{}, fmt.Errorf("create test evidence dir: %w", err)
+		return fail(fmt.Errorf("create test evidence dir: %w", err))
 	}
 	evidencePath := filepath.Join(evidenceDir, safeEvidenceName(requirement.Name)+".log")
 	if err := os.WriteFile(evidencePath, captured.Bytes(), 0o644); err != nil {
-		return TestRunResult{}, fmt.Errorf("write test evidence: %w", err)
+		return fail(fmt.Errorf("write test evidence: %w", err))
 	}
 	// Digest through the same helper the verifier uses. Two different hash
 	// framings over the same bytes are two different identities, and evidence
 	// that cannot be re-derived exactly as recorded is not evidence.
 	digest, err := DigestFiles(evidencePath)
 	if err != nil {
-		return TestRunResult{}, err
+		return fail(err)
 	}
 	result := "FAIL"
 	if exitCode == 0 {

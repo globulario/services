@@ -149,6 +149,19 @@ func MutateEnvelope(path string, identity EnvelopeIdentity, apply func(*ChangeEn
 		}
 		apply(&current)
 		marked = current.ReconcileProofStage()
+		// Artifact verification belongs to the transition that sets PROVEN, not
+		// to whichever wrapper happens to be driving. ReconcileProofStage checks
+		// stored references and digests, which is portable and stays that way so
+		// an envelope can be reviewed away from its artifacts. This is the
+		// durable owner, and it only ever runs where the evidence lives — so a
+		// digest that can no longer be re-derived demotes the claim here, before
+		// it is committed, whichever command performed the mutation.
+		if marked {
+			if err := current.VerifyEvidenceArtifacts(); err != nil {
+				current.Stage = StageCandidate
+				marked = false
+			}
+		}
 		return SaveChangeEnvelope(path, current)
 	})
 	return marked, err
