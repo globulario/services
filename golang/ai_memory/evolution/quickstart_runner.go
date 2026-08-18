@@ -104,8 +104,25 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 	}
 
 	latest := filepath.Join(opts.QuickstartDir, "tests", "reports", "latest")
-	proofPath := filepath.Join(latest, "scenario-proof.json")
-	learningPath := filepath.Join(latest, "learning.json")
+	concreteRunDir, err := filepath.EvalSymlinks(latest)
+	if err != nil {
+		return QuickstartRunResult{ExitCode: exitCode}, fmt.Errorf(
+			"resolve quickstart concrete report run from %q: %w",
+			latest,
+			err,
+		)
+	}
+	if !filepath.IsAbs(concreteRunDir) {
+		concreteRunDir, err = filepath.Abs(concreteRunDir)
+		if err != nil {
+			return QuickstartRunResult{ExitCode: exitCode}, fmt.Errorf(
+				"resolve quickstart report run path: %w",
+				err,
+			)
+		}
+	}
+	proofPath := filepath.Join(concreteRunDir, "scenario-proof.json")
+	learningPath := filepath.Join(concreteRunDir, "learning.json")
 	artifact, err := loadQuickstartProof(proofPath)
 	if err != nil {
 		return QuickstartRunResult{
@@ -148,7 +165,7 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 		Result:              artifact.Execution.Result,
 		ProofEligible:       artifact.Execution.ProofEligible && artifact.Status == "SUPPORTED",
 		ProofRef:            proofPath,
-		EvidenceRef:         filepath.Join(latest, "evidence.json"),
+		EvidenceRef:         filepath.Join(concreteRunDir, "evidence.json"),
 	}
 	envelope.AddOrReplaceProof(proof)
 	marked := envelope.ReconcileProofStage()
