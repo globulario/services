@@ -28,6 +28,9 @@ func (e ChangeEnvelope) ValidateEvidenceIdentity() error {
 				continue
 			}
 			matched = true
+			if strings.TrimSpace(record.CandidateRepository) == "" {
+				return fmt.Errorf("required test %q names no candidate repository", requirement.Name)
+			}
 			if strings.TrimSpace(record.EvidenceRef) == "" {
 				return fmt.Errorf("required test %q has no evidence_ref", requirement.Name)
 			}
@@ -55,6 +58,20 @@ func (e ChangeEnvelope) ValidateEvidenceIdentity() error {
 				continue
 			}
 			matched = true
+			// The runner populates the whole occurrence identity. Validation has
+			// to require it too, or an envelope arriving for independent review
+			// or admission can present a PASS that cannot be tied back to the
+			// repository, the simulator revision, or the run that produced it.
+			for _, field := range []struct{ name, value string }{
+				{"candidate repository", proof.CandidateRepository},
+				{"simulation repository", proof.Repository},
+				{"simulation revision", proof.SimulationRevision},
+				{"invocation id", proof.InvocationID},
+			} {
+				if strings.TrimSpace(field.value) == "" {
+					return fmt.Errorf("required scenario %q names no %s", requirement.Name, field.name)
+				}
+			}
 			if strings.TrimSpace(proof.ProofRef) == "" {
 				return fmt.Errorf("required scenario %q has no proof_ref", requirement.Name)
 			}

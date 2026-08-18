@@ -445,3 +445,76 @@ func TestFailedOccurrenceRejectsForeignIdentity(t *testing.T) {
 		t.Fatalf("a foreign-identity artifact was preserved as an occurrence: %+v", result.Proof)
 	}
 }
+
+// An envelope arriving for independent review or admission must not be able to
+// present a PASS that cannot be tied back to the repository, the simulator
+// revision, or the run that produced it.
+func TestIncompleteOccurrenceIdentityIsNotEvidence(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		strip  func(*ProofRecord)
+		expect string
+	}{
+		{"candidate repository", func(p *ProofRecord) { p.CandidateRepository = "" }, "candidate repository"},
+		{"simulation repository", func(p *ProofRecord) { p.Repository = "" }, "simulation repository"},
+		{"simulation revision", func(p *ProofRecord) { p.SimulationRevision = "" }, "simulation revision"},
+		{"invocation id", func(p *ProofRecord) { p.InvocationID = "" }, "invocation id"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := provenFixture(t)
+			tc.strip(&e.Proofs[0])
+			err := e.Validate()
+			if err == nil {
+				t.Fatal("a proof missing part of its occurrence identity was accepted as evidence")
+			}
+			if !strings.Contains(err.Error(), tc.expect) {
+				t.Fatalf("expected an error naming %q, got %v", tc.expect, err)
+			}
+			// And it cannot be reached by reconciliation either.
+			reconciled := e
+			if reconciled.MarkProvenIfComplete() {
+				t.Fatal("reconciliation restored PROVEN on incomplete identity")
+			}
+		})
+	}
+}
+
+// A test record must also name the repository it was proven against.
+func TestTestRecordWithoutCandidateRepositoryIsNotEvidence(t *testing.T) {
+	e := provenFixture(t)
+	e.Tests[0].CandidateRepository = ""
+	if err := e.Validate(); err == nil {
+		t.Fatal("a test record naming no candidate repository was accepted as evidence")
+	}
+}
+
+// A crash mid-create must not leave a corrupt file at the published path where
+// every retry is then refused as already-existing.
+func TestCreatePublishesNothingPartial(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "change.yaml")
+	e := NewChangeEnvelope("chg-atomic-create", ChangeFeature, "intent", "sha", RiskLow)
+	if err := CreateChangeEnvelope(path, e); err != nil {
+		t.Fatal(err)
+	}
+	// Nothing but the published envelope is left behind.
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "change.yaml" {
+		names := []string{}
+		for _, entry := range entries {
+			names = append(names, entry.Name())
+		}
+		t.Fatalf("staging artifacts survived publication: %v", names)
+	}
+	// What is published is complete and loadable.
+	loaded, err := LoadChangeEnvelope(path)
+	if err != nil {
+		t.Fatalf("published envelope is not loadable: %v", err)
+	}
+	if loaded.ID != "chg-atomic-create" {
+		t.Fatalf("published envelope is not the one written: %+v", loaded)
+	}
+}

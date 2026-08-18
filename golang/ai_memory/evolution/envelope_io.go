@@ -103,22 +103,37 @@ func CreateChangeEnvelope(path string, envelope ChangeEnvelope) error {
 	if err != nil {
 		return err
 	}
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	// Writing straight to the published path makes a partial file visible at the
+	// name readers use, and a crash leaves that corrupt file behind where every
+	// retry is then refused as already-existing. Stage the complete file
+	// privately, then install it with a hard link: link is atomic and fails if
+	// the destination exists, so the no-overwrite guarantee survives without
+	// publishing anything half-written.
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".change-envelope-new-*")
 	if err != nil {
+		return fmt.Errorf("stage change envelope: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("write change envelope: %w", err)
+	}
+	if err := tmp.Chmod(0o644); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("set change envelope mode: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("flush change envelope: %w", err)
+	}
+	if err := os.Link(tmpName, path); err != nil {
 		if os.IsExist(err) {
 			return fmt.Errorf(
 				"%s already exists; a new change needs its own envelope, and an existing one is superseded by a new candidate rather than overwritten",
 				path,
 			)
 		}
-		return fmt.Errorf("create change envelope: %w", err)
-	}
-	if _, err := f.Write(data); err != nil {
-		_ = f.Close()
-		return fmt.Errorf("write change envelope: %w", err)
-	}
-	if err := f.Close(); err != nil {
-		return fmt.Errorf("flush change envelope: %w", err)
+		return fmt.Errorf("publish change envelope: %w", err)
 	}
 	return nil
 }

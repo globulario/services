@@ -96,6 +96,15 @@ func main() {
 	if result.ExitCode != 0 {
 		os.Exit(result.ExitCode)
 	}
+	// A harness can exit zero and still emit FAIL, UNSUPPORTED, or an ineligible
+	// result. The experiment did not produce proof, so automation calling this
+	// command must not read success from the exit status.
+	if result.Proof.Result != "PASS" || !result.Proof.ProofEligible {
+		fmt.Fprintf(os.Stderr,
+			"evolution-run-scenario: scenario produced no eligible PASS proof (result=%q eligible=%t)\n",
+			result.Proof.Result, result.Proof.ProofEligible)
+		os.Exit(1)
+	}
 	if learningDegraded {
 		// Proof remains valid, but autonomous learning did not complete. Keep this
 		// visible to callers instead of silently treating the lifecycle as closed.

@@ -41,12 +41,15 @@ func TestProofStatusNamesMissingEvidenceAndAdmissionBoundary(t *testing.T) {
 		t.Fatalf("unexpected incomplete status: %+v", status)
 	}
 	e.Tests = []TestRecord{{
-		Name: "unit", CandidateRevision: "sha", PlanDigest: e.PlanDigest,
+		Name: "unit", CandidateRepository: "globulario/services",
+		CandidateRevision: "sha", PlanDigest: e.PlanDigest,
 		Command: []string{"go", "test"}, Result: "PASS",
 		EvidenceRef: "tests/unit.log", Digest: "sha256:unit",
 	}}
 	e.Proofs = []ProofRecord{{
-		Scenario: "chaos", CandidateRevision: "sha", PlanDigest: e.PlanDigest,
+		Scenario: "chaos", CandidateRepository: "globulario/services", CandidateRevision: "sha",
+		Repository: "globulario/globular-quickstart", SimulationRevision: "sim-sha",
+		InvocationID: "inv-1", PlanDigest: e.PlanDigest,
 		Result: "PASS", ProofEligible: true,
 		ProofRef: "runs/inv-1/scenario-proof.json", EvidenceRef: "runs/inv-1/evidence.json",
 		Digest: "sha256:chaos",

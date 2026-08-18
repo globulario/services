@@ -36,6 +36,8 @@ func provenFixture(t *testing.T) ChangeEnvelope {
 		Scenario:            "chaos",
 		CandidateRepository: "globulario/services",
 		CandidateRevision:   "candidate-sha",
+		Repository:          "globulario/globular-quickstart",
+		SimulationRevision:  "sim-sha",
 		PlanDigest:          e.PlanDigest,
 		InvocationID:        "inv-1",
 		Result:              "PASS",
