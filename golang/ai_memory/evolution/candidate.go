@@ -20,9 +20,11 @@ func NewChangeID() (string, error) {
 	), nil
 }
 
-// BindCandidate establishes the exact implementation revision under proof. It
-// may be used only before Sensei admission. Rebinding a different candidate
-// clears all candidate-derived evidence so no proof can leak across revisions.
+// BindCandidate establishes the exact implementation revision and freezes the
+// complete proof plan under PlanDigest. Rebinding a different candidate clears
+// all candidate-derived evidence so no proof leaks across revisions. Changing
+// contracts/tests/scenarios after binding makes the envelope invalid; re-plan
+// explicitly before proof instead of silently shrinking obligations.
 func (e *ChangeEnvelope) BindCandidate(repository, revision string) error {
 	repository = strings.TrimSpace(repository)
 	revision = strings.TrimSpace(revision)
@@ -35,11 +37,18 @@ func (e *ChangeEnvelope) BindCandidate(repository, revision string) error {
 			e.Stage,
 		)
 	}
-	changed := e.CandidateRepository != repository || e.CandidateRevision != revision
+
+	candidateChanged := e.CandidateRepository != repository || e.CandidateRevision != revision
 	e.CandidateRepository = repository
 	e.CandidateRevision = revision
 	e.Stage = StageCandidate
-	if changed {
+
+	planDigest, err := e.IdentityDigest()
+	if err != nil {
+		return fmt.Errorf("calculate candidate plan digest: %w", err)
+	}
+	planChanged := e.PlanDigest != "" && e.PlanDigest != planDigest
+	if candidateChanged || planChanged {
 		e.Tests = nil
 		e.Proofs = nil
 		e.Admission = AdmissionRecord{}
@@ -48,6 +57,7 @@ func (e *ChangeEnvelope) BindCandidate(repository, revision string) error {
 		e.Learning = nil
 		e.BlockedReason = ""
 	}
+	e.PlanDigest = planDigest
 	return e.Validate()
 }
 
@@ -55,6 +65,7 @@ type ProofStatus struct {
 	Stage                 ChangeStage `json:"stage"`
 	CandidateRepository   string      `json:"candidate_repository,omitempty"`
 	CandidateRevision     string      `json:"candidate_revision,omitempty"`
+	PlanDigest            string      `json:"plan_digest,omitempty"`
 	MissingRequiredTests  []string    `json:"missing_required_tests,omitempty"`
 	FailedRequiredTests   []string    `json:"failed_required_tests,omitempty"`
 	MissingScenarios      []string    `json:"missing_required_scenarios,omitempty"`
@@ -65,9 +76,10 @@ type ProofStatus struct {
 
 func (e ChangeEnvelope) ProofStatus() ProofStatus {
 	status := ProofStatus{
-		Stage: e.Stage,
-		CandidateRepository: e.CandidateRepository,
-		CandidateRevision: e.CandidateRevision,
+		Stage:                 e.Stage,
+		CandidateRepository:   e.CandidateRepository,
+		CandidateRevision:     e.CandidateRevision,
+		PlanDigest:            e.PlanDigest,
 		NextAuthorityBoundary: "local_and_simulation_proof",
 	}
 	for _, requirement := range e.RequiredTests {
