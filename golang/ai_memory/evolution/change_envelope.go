@@ -131,6 +131,7 @@ type ChangeEnvelope struct {
 	ProductionRevision  string    `json:"production_revision,omitempty" yaml:"production_revision,omitempty"`
 	CandidateRepository string    `json:"candidate_repository,omitempty" yaml:"candidate_repository,omitempty"`
 	CandidateRevision   string    `json:"candidate_revision,omitempty" yaml:"candidate_revision,omitempty"`
+	PlanDigest          string    `json:"plan_digest,omitempty" yaml:"plan_digest,omitempty"`
 	RiskClass           RiskClass `json:"risk_class" yaml:"risk_class"`
 
 	AuthorityScope         []string              `json:"authority_scope,omitempty" yaml:"authority_scope,omitempty"`
@@ -211,6 +212,20 @@ func (e ChangeEnvelope) Validate() error {
 	if stageAtLeast(e.Stage, StageCandidate) {
 		if strings.TrimSpace(e.CandidateRepository) == "" || strings.TrimSpace(e.CandidateRevision) == "" {
 			return fmt.Errorf("candidate_repository and candidate_revision are required at stage %s", e.Stage)
+		}
+		if strings.TrimSpace(e.PlanDigest) == "" {
+			return fmt.Errorf("plan_digest is required at stage %s", e.Stage)
+		}
+		expected, err := e.IdentityDigest()
+		if err != nil {
+			return fmt.Errorf("calculate plan digest: %w", err)
+		}
+		if e.PlanDigest != expected {
+			return fmt.Errorf(
+				"proof plan changed after candidate binding: stored %s, current %s; create/rebind a governed plan before proof",
+				e.PlanDigest,
+				expected,
+			)
 		}
 	}
 	if stageAtLeast(e.Stage, StageProven) {
@@ -366,6 +381,9 @@ func (e ChangeEnvelope) validateProofClosure() error {
 	return nil
 }
 
+// IdentityDigest is the immutable candidate proof-plan identity. It deliberately
+// excludes mutable evidence/results but includes the exact candidate revision and
+// every contract/proof obligation that determines what PROVEN means.
 func (e ChangeEnvelope) IdentityDigest() (string, error) {
 	identity := struct {
 		SchemaVersion      int                   `json:"schema_version"`
@@ -374,6 +392,8 @@ func (e ChangeEnvelope) IdentityDigest() (string, error) {
 		Intent             string                `json:"intent"`
 		SourceRevision     string                `json:"source_revision"`
 		ProductionRevision string                `json:"production_revision,omitempty"`
+		CandidateRepository string               `json:"candidate_repository,omitempty"`
+		CandidateRevision   string               `json:"candidate_revision,omitempty"`
 		RiskClass          RiskClass             `json:"risk_class"`
 		AuthorityScope     []string              `json:"authority_scope,omitempty"`
 		GoverningContracts []string              `json:"governing_contracts,omitempty"`
@@ -383,20 +403,22 @@ func (e ChangeEnvelope) IdentityDigest() (string, error) {
 		RequiredScenarios  []ScenarioRequirement `json:"required_scenarios,omitempty"`
 		RequiredTests      []TestRequirement     `json:"required_tests,omitempty"`
 	}{
-		SchemaVersion:      e.SchemaVersion,
-		ID:                 e.ID,
-		Kind:               e.Kind,
-		Intent:             e.Intent,
-		SourceRevision:     e.SourceRevision,
-		ProductionRevision: e.ProductionRevision,
-		RiskClass:          e.RiskClass,
-		AuthorityScope:     sorted(e.AuthorityScope),
-		GoverningContracts: sorted(e.GoverningContracts),
-		RelevantInvariants: sorted(e.RelevantInvariants),
-		KnownFailureModes:  sorted(e.KnownFailureModes),
-		ForbiddenRepairs:   sorted(e.ForbiddenRepairs),
-		RequiredScenarios:  canonicalScenarios(e.RequiredScenarios),
-		RequiredTests:      canonicalTests(e.RequiredTests),
+		SchemaVersion:       e.SchemaVersion,
+		ID:                  e.ID,
+		Kind:                e.Kind,
+		Intent:              e.Intent,
+		SourceRevision:      e.SourceRevision,
+		ProductionRevision:  e.ProductionRevision,
+		CandidateRepository: e.CandidateRepository,
+		CandidateRevision:   e.CandidateRevision,
+		RiskClass:           e.RiskClass,
+		AuthorityScope:      sorted(e.AuthorityScope),
+		GoverningContracts:  sorted(e.GoverningContracts),
+		RelevantInvariants:  sorted(e.RelevantInvariants),
+		KnownFailureModes:   sorted(e.KnownFailureModes),
+		ForbiddenRepairs:    sorted(e.ForbiddenRepairs),
+		RequiredScenarios:   canonicalScenarios(e.RequiredScenarios),
+		RequiredTests:       canonicalTests(e.RequiredTests),
 	}
 	encoded, err := json.Marshal(identity)
 	if err != nil {
@@ -480,7 +502,6 @@ func validateTestRequirements(requirements []TestRequirement) error {
 			if strings.TrimSpace(arg) == "" {
 				return fmt.Errorf("required test %q command contains an empty argument", name)
 			}
-		}
 	}
 	return nil
 }
