@@ -64,10 +64,6 @@ func RunDeclaredTest(ctx context.Context, opts TestRunOptions) (TestRunResult, e
 		return TestRunResult{}, fmt.Errorf("test %q has no declared command", requirement.Name)
 	}
 
-	invocationID, err := newInvocationID()
-	if err != nil {
-		return TestRunResult{}, err
-	}
 	identity := envelope.Identity()
 	// A rerun that cannot execute must not leave the previous PASS standing. A
 	// missing executable, a cancelled context, an unusable workspace — none of
@@ -87,6 +83,15 @@ func RunDeclaredTest(ctx context.Context, opts TestRunOptions) (TestRunResult, e
 			return TestRunResult{}, fmt.Errorf("%w (and could not withdraw the prior proof claim: %v)", cause, invalidateErr)
 		}
 		return TestRunResult{}, cause
+	}
+
+	// Minted after the withdrawal helper exists, not before. Everything from the
+	// point this rerun commits to superseding the standing claim has to be able
+	// to withdraw it, and code inserted above the helper silently cannot — which
+	// is how this same ordering slipped once already.
+	invocationID, err := newInvocationID()
+	if err != nil {
+		return fail(err)
 	}
 
 	workspace, err := filepath.Abs(opts.WorkspaceDir)
@@ -176,7 +181,12 @@ func RunDeclaredTest(ctx context.Context, opts TestRunOptions) (TestRunResult, e
 		e.AddOrReplaceTest(record)
 	})
 	if err != nil {
-		return TestRunResult{}, err
+		// ratchet:no-withdrawal-possible — the durable mutation is the withdrawal
+		// channel, so a failure here cannot be repaired by attempting it again.
+		// The standing claim is reported as unchanged rather than silently kept.
+		return TestRunResult{}, fmt.Errorf(
+			"record test result (prior proof claim left untouched): %w", err,
+		)
 	}
 	return TestRunResult{
 		ExitCode:     exitCode,
