@@ -15,6 +15,10 @@ const (
 	// Capped deliberately: exemptions are the pressure valve, and an uncapped
 	// valve is how the rule quietly stops applying.
 	maxRatchetExemptions = 1
+	// Bare failure returns above the identity, all of them precondition checks
+	// that cannot have superseded anything yet. Frozen so new work cannot be
+	// quietly added above the boundary.
+	expectedPreconditionReturns = 6
 )
 
 // TestEveryFailurePathAfterTheHelperWithdraws is a structural ratchet, not a
@@ -50,12 +54,22 @@ func TestEveryFailurePathAfterTheHelperWithdraws(t *testing.T) {
 
 	// Where the withdrawal helper comes into existence, and the span of its own
 	// body — the helper necessarily returns directly, and must not flag itself.
+	//
+	// identityPos is the real boundary. From the moment the envelope's identity
+	// is taken, this run has committed to superseding whatever claim stands, so
+	// every failure from there must withdraw. Anchoring on the helper instead
+	// left the pre-helper region unguarded — which is exactly where both prior
+	// regressions were inserted.
 	helperPos := token.NoPos
+	identityPos := token.NoPos
 	helperStart, helperEnd := token.NoPos, token.NoPos
 	ast.Inspect(fn, func(n ast.Node) bool {
 		assign, ok := n.(*ast.AssignStmt)
 		if !ok || len(assign.Lhs) != 1 {
 			return true
+		}
+		if ident, ok := assign.Lhs[0].(*ast.Ident); ok && ident.Name == "identity" && !identityPos.IsValid() {
+			identityPos = assign.Pos()
 		}
 		if ident, ok := assign.Lhs[0].(*ast.Ident); ok && ident.Name == "fail" {
 			helperPos = assign.Pos()
@@ -71,6 +85,25 @@ func TestEveryFailurePathAfterTheHelperWithdraws(t *testing.T) {
 	if !helperPos.IsValid() {
 		t.Fatal("RunDeclaredTest no longer defines a `fail` withdrawal helper")
 	}
+	if !identityPos.IsValid() {
+		t.Fatal("RunDeclaredTest no longer takes the envelope identity; this ratchet must be re-pointed")
+	}
+	if identityPos > helperPos {
+		t.Fatal("the withdrawal helper is declared before the identity it withdraws with")
+	}
+
+	// Nothing may be inserted between taking the identity and declaring the
+	// helper. Both prior regressions were work slipped into exactly that gap,
+	// where a failure can supersede a claim but cannot yet withdraw it.
+	for _, stmt := range fn.Body.List {
+		if stmt.Pos() > identityPos && stmt.End() <= helperPos {
+			t.Fatalf(
+				"statement at %s sits between the identity and the withdrawal helper; "+
+					"a failure there supersedes a standing claim without being able to withdraw it",
+				fset.Position(stmt.Pos()),
+			)
+		}
+	}
 
 	// An explicit, greppable exemption. A failure of the durable mutation itself
 	// cannot be withdrawn through that same mutation, so those returns carry a
@@ -84,11 +117,58 @@ func TestEveryFailurePathAfterTheHelperWithdraws(t *testing.T) {
 		}
 	}
 
+	// The superseding operation itself must sit below the helper. A region rule
+	// alone cannot hold: both regressions were evaded by moving work *above* the
+	// boundary, so the operation is pinned rather than the neighbourhood.
+	ast.Inspect(fn, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		ident, ok := call.Fun.(*ast.Ident)
+		if !ok || ident.Name != "newInvocationID" {
+			return true
+		}
+		if call.Pos() < helperPos {
+			t.Errorf(
+				"newInvocationID is called at %s, above the withdrawal helper; "+
+					"minting an invocation commits this run to superseding the standing claim, "+
+					"so its failure must be able to withdraw",
+				fset.Position(call.Pos()),
+			)
+		}
+		return true
+	})
+
+	// Everything above the identity is precondition checking, which legitimately
+	// returns without withdrawing because no claim has been superseded yet. That
+	// region is frozen by count: a new bare failure return there is how work gets
+	// smuggled in above the boundary, and it must be justified rather than added.
+	preconditionReturns := 0
+	ast.Inspect(fn, func(n ast.Node) bool {
+		ret, ok := n.(*ast.ReturnStmt)
+		if !ok || ret.Pos() >= identityPos || len(ret.Results) != 2 {
+			return true
+		}
+		if lit, ok := ret.Results[0].(*ast.CompositeLit); ok && len(lit.Elts) == 0 {
+			preconditionReturns++
+		}
+		return true
+	})
+	if preconditionReturns != expectedPreconditionReturns {
+		t.Fatalf(
+			"precondition region has %d bare failure returns, expected %d; "+
+				"if a new one is genuinely a precondition update the constant, "+
+				"but if it can supersede a standing claim it belongs below the withdrawal helper",
+			preconditionReturns, expectedPreconditionReturns,
+		)
+	}
+
 	var bypasses []string
 	exemptions := 0
 	ast.Inspect(fn, func(n ast.Node) bool {
 		ret, ok := n.(*ast.ReturnStmt)
-		if !ok || ret.Pos() < helperPos || len(ret.Results) != 2 {
+		if !ok || ret.Pos() < identityPos || len(ret.Results) != 2 {
 			return true
 		}
 		// The helper's own body returns directly by construction.

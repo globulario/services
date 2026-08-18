@@ -633,3 +633,43 @@ func TestTestRecordWithoutInvocationIsNotEvidence(t *testing.T) {
 		t.Fatal("a test record naming no invocation was accepted as evidence")
 	}
 }
+
+// The harness runs with cmd.Dir set to the detached simulator tree, so a run
+// directory derived from a relative envelope path must still be handed over
+// absolute — otherwise the harness writes beneath the simulator while the parent
+// reads elsewhere, and a passing scenario would be read as producing no proof.
+func TestInvocationRunDirIsAbsoluteFromARelativeEnvelopePath(t *testing.T) {
+	dir := t.TempDir()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(cwd) })
+
+	runDir, err := createInvocationRunDir("change.yaml", "chg-relative", "inv-relative")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !filepath.IsAbs(runDir) {
+		t.Fatalf("run dir handed to the harness is relative: %s", runDir)
+	}
+	if _, err := os.Stat(runDir); err != nil {
+		t.Fatalf("run dir does not exist at the absolute path given to the harness: %v", err)
+	}
+	// And it resolves under the envelope's directory, not the process cwd by accident.
+	if !strings.HasPrefix(runDir, mustEvalSymlinks(t, dir)) && !strings.HasPrefix(mustEvalSymlinks(t, runDir), mustEvalSymlinks(t, dir)) {
+		t.Fatalf("run dir %s is not beneath the envelope directory %s", runDir, dir)
+	}
+}
+
+func mustEvalSymlinks(t *testing.T, p string) string {
+	t.Helper()
+	resolved, err := filepath.EvalSymlinks(p)
+	if err != nil {
+		return p
+	}
+	return resolved
+}
