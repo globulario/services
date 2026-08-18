@@ -115,6 +115,7 @@ func RunDeclaredTest(ctx context.Context, opts TestRunOptions) (TestRunResult, e
 		Name:                requirement.Name,
 		CandidateRepository: envelope.CandidateRepository,
 		CandidateRevision:   envelope.CandidateRevision,
+		PlanDigest:          envelope.PlanDigest,
 		Command:             append([]string(nil), requirement.Command...),
 		Result:              result,
 		EvidenceRef:         evidencePath,
