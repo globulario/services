@@ -18,7 +18,7 @@ import (
 
 // Recorder is the durable delivery path for governed observation bundles.
 //
-// WHY THIS EXISTS
+// # WHY THIS EXISTS
 //
 // RecordBundle (client.go) dials behavioral-memory once per bundle and closes
 // the connection on return. That is a workable bridge but a poor permanent
@@ -59,6 +59,15 @@ type Recorder struct {
 	lastSuccess time.Time
 	lastFailure time.Time
 	lastError   string
+
+	// writeBundle is the delivery seam. Production leaves it nil and goes through
+	// writeOnce, which resolves the endpoint the one sanctioned way. Tests set it
+	// to drive deterministic success and failure without depending on whether the
+	// host happens to be running an AI-memory service.
+	//
+	// It is unexported and settable only from inside this package, so it adds no
+	// configuration surface and cannot become an alternative production route.
+	writeBundle func(Bundle) error
 
 	stopOnce sync.Once
 	stopped  chan struct{}
@@ -212,6 +221,9 @@ func (r *Recorder) deliver(b Bundle) {
 
 // writeOnce performs one full bundle write against a (possibly cached) conn.
 func (r *Recorder) writeOnce(b Bundle) error {
+	if r.writeBundle != nil {
+		return r.writeBundle(b)
+	}
 	cc, err := r.conn()
 	if err != nil {
 		return err
@@ -297,6 +309,47 @@ func (r *Recorder) noteFailure(err error) {
 }
 
 // Stats reports delivery health. Safe for concurrent use.
+// RecorderHealth is the state an operator surface reports. It is derived here so
+// every consumer reaches the same verdict from the same counters, rather than
+// each re-deriving one and disagreeing.
+type RecorderHealth string
+
+const (
+	// RecorderIdle means nothing has been attempted yet. Critically this is not
+	// health: "no behavioral events occurred" must stay distinguishable from
+	// "events were accepted and lost".
+	RecorderIdle RecorderHealth = "no_delivery_attempted"
+	// RecorderHealthy means the most recent outcome was a successful write.
+	RecorderHealthy RecorderHealth = "healthy"
+	// RecorderRecovered means delivery failed before but has since succeeded.
+	RecorderRecovered RecorderHealth = "recovered"
+	// RecorderQueuePressure means bundles were dropped before delivery.
+	RecorderQueuePressure RecorderHealth = "queue_pressure"
+	// RecorderFailing means bundles were accepted and then terminally lost.
+	RecorderFailing RecorderHealth = "delivery_failing"
+)
+
+// Health classifies the recorder without requiring a new enqueue. A bundle that
+// was accepted and later failed becomes visible on the next poll, which is the
+// difference between a health surface and an error return.
+func (s Stats) Health() RecorderHealth {
+	switch {
+	case s.Failed > 0 && !s.LastFailureAt.IsZero() && s.LastSuccessAt.After(s.LastFailureAt):
+		return RecorderRecovered
+	case s.Failed > 0:
+		return RecorderFailing
+	case s.Dropped > 0:
+		return RecorderQueuePressure
+	case s.Persisted > 0:
+		return RecorderHealthy
+	default:
+		// No success, no failure, no drop — including the case where bundles are
+		// enqueued but not yet delivered. Reporting that as healthy would be the
+		// false green this issue exists to remove.
+		return RecorderIdle
+	}
+}
+
 func (r *Recorder) Stats() Stats {
 	r.lastMu.Lock()
 	ls, lf, le := r.lastSuccess, r.lastFailure, r.lastError

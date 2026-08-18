@@ -2,6 +2,8 @@ package observation
 
 import (
 	"context"
+	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -123,30 +125,132 @@ func TestRecorder_AppliesDefaults(t *testing.T) {
 // Delivery failure must be reportable. With an unresolvable endpoint every
 // attempt fails, and the recorder must surface that as failed+LastError rather
 // than appearing healthy.
-func TestRecorder_PersistentFailureIsVisible(t *testing.T) {
+// deterministicRecorder drives delivery through the in-package seam so these
+// tests do not depend on whether the host is running an AI-memory service.
+//
+// The previous version passed Addr:"" with a comment claiming it was
+// "unresolvable in test env". Empty means the opposite — resolve through
+// config.ResolveServiceAddr — so on a Globular host it could reach a real
+// service or sit in discovery, and the test proved nothing either way.
+func deterministicRecorder(t *testing.T, write func(Bundle) error) *Recorder {
+	t.Helper()
 	r := NewRecorder(RecorderOptions{
-		QueueSize:   2,
+		QueueSize:   4,
 		Workers:     1,
 		MaxAttempts: 1,
-		Addr:        "", // unresolvable in test env → conn() errors
 		CallTimeout: 200 * time.Millisecond,
 	})
-	defer func() { _ = r.Close(context.Background()) }()
+	r.writeBundle = write
+	t.Cleanup(func() { _ = r.Close(context.Background()) })
+	return r
+}
 
-	r.Enqueue(testBundle("will-fail"))
-
+func awaitStats(t *testing.T, r *Recorder, want func(Stats) bool, what string) Stats {
+	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		if st := r.Stats(); st.Failed > 0 {
-			if st.LastError == "" {
-				t.Error("failure must record LastError")
-			}
-			if !st.LastFailureAt.After(time.Time{}) {
-				t.Error("failure must stamp LastFailureAt")
-			}
-			return
+		if st := r.Stats(); want(st) {
+			return st
 		}
-		time.Sleep(20 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 	}
-	t.Fatal("persistent delivery failure never surfaced in Stats — degraded learning would be invisible")
+	t.Fatalf("recorder never reached %s: %+v", what, r.Stats())
+	return Stats{}
+}
+
+func TestRecorder_PersistentFailureIsVisible(t *testing.T) {
+	r := deterministicRecorder(t, func(Bundle) error {
+		return errors.New("behavioral-memory unavailable")
+	})
+	r.Enqueue(testBundle("will-fail"))
+
+	st := awaitStats(t, r, func(s Stats) bool { return s.Failed > 0 }, "a terminal failure")
+	if st.LastError == "" {
+		t.Error("failure must record LastError")
+	}
+	if st.LastFailureAt.IsZero() {
+		t.Error("failure must stamp LastFailureAt")
+	}
+	if got := st.Health(); got != RecorderFailing {
+		t.Errorf("health = %q, want %q: an accepted bundle that was lost must be visible", got, RecorderFailing)
+	}
+}
+
+func TestRecorder_SuccessfulDeliveryIsVisible(t *testing.T) {
+	r := deterministicRecorder(t, func(Bundle) error { return nil })
+	r.Enqueue(testBundle("will-succeed"))
+
+	st := awaitStats(t, r, func(s Stats) bool { return s.Persisted > 0 }, "a successful delivery")
+	if st.LastSuccessAt.IsZero() {
+		t.Error("success must stamp LastSuccessAt")
+	}
+	if got := st.Health(); got != RecorderHealthy {
+		t.Errorf("health = %q, want %q", got, RecorderHealthy)
+	}
+}
+
+// The state must be reachable by polling, without a further enqueue. A bundle
+// accepted and then lost is exactly the case an enqueue-rejection signal misses.
+func TestRecorder_AcceptedThenFailedIsVisibleWithoutFurtherEnqueue(t *testing.T) {
+	r := deterministicRecorder(t, func(Bundle) error { return errors.New("gone") })
+	r.Enqueue(testBundle("accepted-then-lost"))
+
+	before := r.Stats().Enqueued
+	st := awaitStats(t, r, func(s Stats) bool { return s.Health() == RecorderFailing }, "a visible failure")
+	if st.Enqueued != before {
+		t.Fatalf("failure only became visible after another enqueue (%d → %d)", before, st.Enqueued)
+	}
+}
+
+// Recovery must follow observed success, not merely the passage of time.
+func TestRecorder_RecoveryRequiresObservedSuccess(t *testing.T) {
+	var fail atomic.Bool
+	fail.Store(true)
+	r := deterministicRecorder(t, func(Bundle) error {
+		if fail.Load() {
+			return errors.New("still down")
+		}
+		return nil
+	})
+
+	r.Enqueue(testBundle("fails"))
+	awaitStats(t, r, func(s Stats) bool { return s.Health() == RecorderFailing }, "a failing state")
+
+	fail.Store(false)
+	r.Enqueue(testBundle("succeeds"))
+	st := awaitStats(t, r, func(s Stats) bool { return s.Health() == RecorderRecovered }, "recovery")
+	if !st.LastSuccessAt.After(st.LastFailureAt) {
+		t.Fatal("recovery must be justified by a success later than the failure it clears")
+	}
+}
+
+// Silence is not health. "No behavioral events occurred" must not read the same
+// as "events were accepted and lost".
+func TestRecorder_NoAttemptIsNotHealthy(t *testing.T) {
+	r := deterministicRecorder(t, func(Bundle) error { return nil })
+	if got := r.Stats().Health(); got != RecorderIdle {
+		t.Fatalf("health = %q before any delivery, want %q", got, RecorderIdle)
+	}
+}
+
+// Queue pressure and terminal delivery failure are different operator problems
+// and must not collapse into one state.
+func TestRecorder_QueueDropAndTerminalFailureStayDistinct(t *testing.T) {
+	block := make(chan struct{})
+	r := NewRecorder(RecorderOptions{
+		QueueSize: 1, Workers: 1, MaxAttempts: 1, CallTimeout: 200 * time.Millisecond,
+	})
+	r.writeBundle = func(Bundle) error { <-block; return nil }
+	t.Cleanup(func() { close(block); _ = r.Close(context.Background()) })
+
+	for i := 0; i < 12; i++ {
+		r.Enqueue(testBundle("pressure"))
+	}
+	st := awaitStats(t, r, func(s Stats) bool { return s.Dropped > 0 }, "queue pressure")
+	if st.Failed != 0 {
+		t.Fatalf("a dropped bundle was counted as a delivery failure: %+v", st)
+	}
+	if got := st.Health(); got != RecorderQueuePressure {
+		t.Errorf("health = %q, want %q", got, RecorderQueuePressure)
+	}
 }
