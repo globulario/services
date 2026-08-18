@@ -9,9 +9,9 @@ package main
 // exhausted by the worker was invisible — "no behavioral events occurred" and
 // "events were accepted and lost" produced the same silence.
 //
-// So this polls, on every healer tick, independently of any enqueue rejection.
-// A failure that happened between ticks is still reported, because the state is
-// read rather than waited for.
+// So this polls on its own ticker, independently of any enqueue rejection and
+// of healer configuration. A failure that happened between ticks is still
+// reported, because the state is read rather than waited for.
 //
 // NODE-SCOPED, and deliberately not a cluster finding. Each doctor instance has
 // its own recorder, so this describes THIS process's delivery health, not the
@@ -23,13 +23,52 @@ package main
 // Not leader-gated either, and that is the point. Remediation is leader-only
 // because only one actor may act; OBSERVING your own recorder is not an action
 // and needs no election. Gating it would make a follower's failing recorder
-// permanently invisible — precisely the silence this exists to break.
+// permanently invisible — precisely the silence this exists to break. The same
+// argument rules out riding the healer loop; see startRecorderHealthLoop.
 
 import (
+	"context"
 	"time"
 
 	observation "github.com/globulario/services/golang/ai_memory/domains/cluster_operator/observation"
 )
+
+// recorderHealthInterval is how often delivery health is re-read.
+//
+// Its own constant, not the healer interval, because this loop is not the
+// healer. Tying the two would make an operator who slows remediation down also
+// slow the surface that tells them learning is broken.
+const recorderHealthInterval = 60 * time.Second
+
+// startRecorderHealthLoop polls recorder delivery health on its own schedule.
+//
+// DELIBERATELY NOT THE HEALER TICK. It started there, and that was wrong twice
+// over: startHealerLoop returns early when healer_enabled=false, so a doctor
+// with healing turned off would still run a recorder, still emit bundles from
+// GetClusterReport, and have its delivery health permanently invisible — the
+// exact silence #238 exists to remove, reintroduced through a config flag. And
+// the healer body is leader-gated, while observing your own recorder needs no
+// election.
+//
+// So: unconditional, node-local, and independent of both healer configuration
+// and leadership.
+func (s *ClusterDoctorServer) startRecorderHealthLoop(ctx context.Context) {
+	go func() {
+		ticker := time.NewTicker(recorderHealthInterval)
+		defer ticker.Stop()
+		// Project once immediately, so a doctor that comes up with a broken or
+		// absent recorder says so at startup rather than one interval later.
+		s.projectRecorderHealth(time.Now())
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case now := <-ticker.C:
+				s.projectRecorderHealth(now)
+			}
+		}
+	}()
+}
 
 // recorderHealthState is the transition tracker. Emission is edge-triggered:
 // only a CHANGE in class is reported.

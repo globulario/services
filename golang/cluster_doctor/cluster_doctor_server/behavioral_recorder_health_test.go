@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -287,5 +288,77 @@ func TestRecorderHealth_NoRecorderStillProducesTheReport(t *testing.T) {
 	s.projectRecorderHealth(time.Unix(400, 0))
 	if len(*events) != 1 || (*events)[0].cur != recorderUnavailable {
 		t.Fatalf("missing recorder must be reported as unavailable, got %+v", *events)
+	}
+}
+
+// The projection must not depend on the healer being enabled.
+//
+// It rode the healer tick first, and that was wrong: startHealerLoop returns
+// early when healer_enabled=false, so a doctor with healing turned off would
+// still run a recorder, still emit bundles from GetClusterReport, and have its
+// delivery health permanently invisible. A config flag must not be able to
+// restore the silence this whole change exists to remove.
+func TestRecorderHealth_LoopRunsWithoutTheHealer(t *testing.T) {
+	events := make(chan observation.RecorderHealth, 4)
+	orig := behavioralRecorderHealthNotify
+	behavioralRecorderHealthNotify = func(_, cur observation.RecorderHealth, _ observation.Stats) {
+		select {
+		case events <- cur:
+		default:
+		}
+	}
+	t.Cleanup(func() { behavioralRecorderHealthNotify = orig })
+
+	// healer_enabled=false: startHealerLoop would return before ticking at all.
+	s := &ClusterDoctorServer{
+		clusterID:          "cluster-1",
+		cfg:                &clusterdoctorConfig{HealerEnabled: false},
+		behavioralRecorder: &unavailableRecorder{},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s.startRecorderHealthLoop(ctx)
+
+	select {
+	case got := <-events:
+		// Idle: the fake has accepted nothing yet, and idle is not health.
+		if got != observation.RecorderIdle {
+			t.Fatalf("first projection = %q, want %q", got, observation.RecorderIdle)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("no projection with the healer disabled: recorder health is invisible")
+	}
+}
+
+// A doctor that comes up with no recorder at all must say so at startup, not
+// one interval later. The first tick is the one an operator reads after a
+// restart, and "nothing yet" there is indistinguishable from healthy.
+func TestRecorderHealth_LoopProjectsImmediatelyOnStart(t *testing.T) {
+	events := make(chan observation.RecorderHealth, 4)
+	orig := behavioralRecorderHealthNotify
+	behavioralRecorderHealthNotify = func(_, cur observation.RecorderHealth, _ observation.Stats) {
+		select {
+		case events <- cur:
+		default:
+		}
+	}
+	t.Cleanup(func() { behavioralRecorderHealthNotify = orig })
+
+	s := &ClusterDoctorServer{clusterID: "cluster-1"} // no recorder
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	start := time.Now()
+	s.startRecorderHealthLoop(ctx)
+	select {
+	case got := <-events:
+		if got != recorderUnavailable {
+			t.Fatalf("first projection = %q, want %q", got, recorderUnavailable)
+		}
+		if elapsed := time.Since(start); elapsed >= recorderHealthInterval {
+			t.Fatalf("first projection waited %s — it must not wait a full interval", elapsed)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("no projection at startup")
 	}
 }

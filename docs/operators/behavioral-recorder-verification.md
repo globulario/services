@@ -28,8 +28,10 @@ covers, and it is the whole of what it covers.
 - `globular-cluster-doctor` active on at least two nodes (one leader, one
   follower). The follower matters: recorder health is **not** leader-gated, and
   step 4 checks that a follower reports its own recorder.
-- Healer interval known — `HealerIntervalSeconds` in the doctor config, minimum
-  30s. Every step below waits **two ticks** before concluding anything.
+- Recorder health is projected on its own 60s ticker, independent of
+  `healer_enabled` and of leadership, so this runbook works on a doctor with
+  healing turned off. Every step below waits **two ticks** before concluding
+  anything.
 
 ## Safety
 
@@ -43,14 +45,14 @@ Service control goes through the node agent's supervisor path (`globular node
 control`), never a hand-run systemd command — the supervisor is the single
 allowlisted, auditable route, and an out-of-band stop would leave no receipt.
 
-Bounded: total wall time is roughly `6 x healer interval` plus service restart
-time. If any step does not reach its expected state within **two ticks**, stop
-and treat it as a finding — do not extend the wait and do not cut the release.
+Bounded: total wall time is roughly `6 x 60s` plus service restart time. If any
+step does not reach its expected state within **two ticks**, stop and treat it
+as a finding — do not extend the wait and do not cut the release.
 
 ## The observation surface
 
 Recorder health is a node-local log projection emitted **on transition**, from
-the healer tick, on every doctor instance:
+its own 60s ticker, on every doctor instance:
 
 ```bash
 journalctl -u globular-cluster-doctor -f | grep -i "behavioral recorder"
@@ -122,7 +124,7 @@ blocker regardless of what the rest of this runbook shows.
 
 ```bash
 globular doctor report cluster --fresh   # accepted into the queue, then lost
-# wait two healer ticks
+# wait two projection ticks (~2 min)
 journalctl -u globular-cluster-doctor --since "-5min" | grep -i "behavioral recorder"
 ```
 
@@ -154,7 +156,7 @@ itself recovery of the recorder — step 6 is.
 
 ```bash
 globular doctor report cluster --fresh
-# wait two healer ticks
+# wait two projection ticks (~2 min)
 journalctl -u globular-cluster-doctor --since "-5min" | grep -i "behavioral recorder"
 ```
 
@@ -184,7 +186,7 @@ Fill this in and attach it to the release record:
 ```text
 cluster / nodes:        ...
 version under test:     1.2.295
-healer interval:        ...s
+projection interval:    60s
 
 step 1 healthy:         persisted=...  last_success_at=...  findings=...
 step 3 report intact:   findings=...   (matches step 1? yes/no)  latency=...
