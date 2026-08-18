@@ -112,59 +112,81 @@ func (e ChangeEnvelope) Identity() EnvelopeIdentity {
 	}
 }
 
-// MutateEnvelope is the single durable owner of ChangeEnvelope mutation.
+// mutateEnvelopeLocked is the transactional core every durable envelope change
+// goes through. It is a compare-and-swap on the pre-state: the caller says what
+// it believed the envelope was when it started, and the change is applied only
+// if that is still what is on disk.
 //
-// A scenario runs for a long time between reading the envelope and persisting a
-// result, and invocations for the same change can overlap. Writing back the
-// snapshot read before the run would silently undo whatever another invocation
-// decided meanwhile — including a withdrawal, which would resurrect a proof that
-// had been invalidated. So the long simulation happens outside any lock, and
-// only the mutation is transactional: take the lock, reload what is actually on
-// disk now, confirm it is still the same candidate under the same frozen plan,
-// apply just this invocation's delta, reconcile, and commit atomically.
-//
-// Every path that changes an envelope goes through here — recording a proof and
-// withdrawing one alike. Two owners would reintroduce exactly the race this
-// exists to remove.
-func MutateEnvelope(path string, identity EnvelopeIdentity, apply func(*ChangeEnvelope)) (bool, error) {
-	var marked bool
-	err := withEnvelopeLock(path, func() error {
+// A long operation runs outside this — a simulation, a test, an operator
+// deciding. Writing back the snapshot read before it would silently undo
+// whatever else happened meanwhile, including a withdrawal, which would
+// resurrect an invalidated proof.
+func mutateEnvelopeLocked(path string, expected EnvelopeIdentity, apply func(*ChangeEnvelope) error) error {
+	return withEnvelopeLock(path, func() error {
 		current, err := LoadChangeEnvelope(path)
 		if err != nil {
 			return err
 		}
-		if current.Identity() != identity {
+		if current.Identity() != expected {
 			return fmt.Errorf(
-				"change envelope moved under this invocation: expected %s@%s plan %s, found %s@%s plan %s; "+
-					"a result cannot be applied to a different candidate",
-				identity.ID, identity.CandidateRevision, identity.PlanDigest,
+				"change envelope moved under this operation: expected %s@%s plan %s, found %s@%s plan %s; "+
+					"reload before applying a change",
+				expected.ID, expected.CandidateRevision, expected.PlanDigest,
 				current.ID, current.CandidateRevision, current.PlanDigest,
 			)
 		}
+		if err := apply(&current); err != nil {
+			return err
+		}
+		return SaveChangeEnvelope(path, current)
+	})
+}
+
+// MutateEnvelope applies one proof result. It is the single durable owner of
+// proof state: recording a proof and withdrawing one both come through here,
+// because two owners would reintroduce the race this exists to remove.
+//
+// Artifact verification belongs to this transition rather than to whichever
+// wrapper is driving. ReconcileProofStage checks stored references and digests,
+// which is portable and stays that way so an envelope can be reviewed away from
+// its artifacts. This only ever runs where the evidence lives, so a digest that
+// can no longer be re-derived demotes the claim before it is committed.
+func MutateEnvelope(path string, identity EnvelopeIdentity, apply func(*ChangeEnvelope)) (bool, error) {
+	var marked bool
+	err := mutateEnvelopeLocked(path, identity, func(current *ChangeEnvelope) error {
 		if current.Stage != StageCandidate && current.Stage != StageProven {
 			return fmt.Errorf(
 				"change envelope is at stage %s; proof results only apply to CANDIDATE or PROVEN",
 				current.Stage,
 			)
 		}
-		apply(&current)
+		apply(current)
 		marked = current.ReconcileProofStage()
-		// Artifact verification belongs to the transition that sets PROVEN, not
-		// to whichever wrapper happens to be driving. ReconcileProofStage checks
-		// stored references and digests, which is portable and stays that way so
-		// an envelope can be reviewed away from its artifacts. This is the
-		// durable owner, and it only ever runs where the evidence lives — so a
-		// digest that can no longer be re-derived demotes the claim here, before
-		// it is committed, whichever command performed the mutation.
 		if marked {
 			if err := current.VerifyEvidenceArtifacts(); err != nil {
 				current.Stage = StageCandidate
 				marked = false
 			}
 		}
-		return SaveChangeEnvelope(path, current)
+		return nil
 	})
 	return marked, err
+}
+
+// RebindCandidate moves an envelope to a new candidate revision through the same
+// transaction. Rebinding deliberately changes the identity, so it cannot use
+// MutateEnvelope — but it is still a durable read-modify-write and must not be
+// the one path that writes a stale snapshot outside the lock.
+func RebindCandidate(path string, expected EnvelopeIdentity, repository, revision string) (ChangeEnvelope, error) {
+	var out ChangeEnvelope
+	err := mutateEnvelopeLocked(path, expected, func(current *ChangeEnvelope) error {
+		if err := current.BindCandidate(repository, revision); err != nil {
+			return err
+		}
+		out = *current
+		return nil
+	})
+	return out, err
 }
 
 func (e *ChangeEnvelope) AddOrReplaceProof(proof ProofRecord) {

@@ -160,3 +160,189 @@ func TestPlanDemotionRefusesAMovedEnvelope(t *testing.T) {
 		t.Fatal("demotion was applied to a different candidate")
 	}
 }
+
+// Rebinding is a durable read-modify-write like any other, so it must not be the
+// one path that writes a snapshot read before the change.
+func TestRebindRefusesAStaleSnapshot(t *testing.T) {
+	envelopePath := scenarioEnvelope(t, "chg-rebind-stale")
+	stale, err := LoadChangeEnvelope(envelopePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	staleIdentity := stale.Identity()
+
+	// Something else moves the envelope first.
+	moved, err := LoadChangeEnvelope(envelopePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RebindCandidate(envelopePath, moved.Identity(), "globulario/services", "revision-two"); err != nil {
+		t.Fatal(err)
+	}
+
+	// The holder of the pre-move snapshot must be refused, not merged.
+	if _, err := RebindCandidate(envelopePath, staleIdentity, "globulario/services", "revision-three"); err == nil {
+		t.Fatal("a rebind was applied on top of a snapshot that no longer described the envelope")
+	}
+	current, err := LoadChangeEnvelope(envelopePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.CandidateRevision != "revision-two" {
+		t.Fatalf("stale rebind overwrote the newer candidate: %s", current.CandidateRevision)
+	}
+}
+
+// A rebind still clears candidate-derived evidence, under the lock.
+func TestRebindThroughTheTransactionStillClearsEvidence(t *testing.T) {
+	quickstart := t.TempDir()
+	writeQuickstartHarness(t, quickstart, fakeHarness{mode: "pass"})
+	envelopePath := scenarioEnvelope(t, "chg-rebind-clears")
+
+	proven, err := runScenario(t, quickstart, envelopePath)
+	if err != nil || !proven.MarkedProven {
+		t.Fatalf("setup run should prove: %+v err=%v", proven, err)
+	}
+	before, err := LoadChangeEnvelope(envelopePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rebound, err := RebindCandidate(envelopePath, before.Identity(), "globulario/services", "a-new-candidate")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rebound.Proofs) != 0 || rebound.Stage != StageCandidate {
+		t.Fatalf("proof for the old candidate survived the rebind: %+v", rebound)
+	}
+	stored, err := LoadChangeEnvelope(envelopePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stored.Proofs) != 0 {
+		t.Fatalf("durable envelope kept superseded proof: %+v", stored.Proofs)
+	}
+}
+
+// The local-proof gate must ask the question it claims to ask, before anything
+// destructive starts — not after the simulation has already run.
+func TestUnreproducibleLocalEvidenceBlocksSimulationLaunch(t *testing.T) {
+	workspace, revision, _ := candidateUnderTest(t, "chg-local-gate")
+	quickstart := t.TempDir()
+	writeQuickstartHarness(t, quickstart, fakeHarness{mode: "pass"})
+
+	envelopePath := filepath.Join(t.TempDir(), "change.yaml")
+	e := NewChangeEnvelope("chg-local-gate", ChangeSimulationRepair, "repair", revision, RiskCritical)
+	e.RequiredTests = []TestRequirement{{
+		Name:     "echo-contents",
+		Command:  []string{"sh", "-c", "cat README.md"},
+		Required: true,
+	}}
+	e.RequiredScenarios = []ScenarioRequirement{{
+		Name: "chaos", Repository: "globulario/globular-quickstart",
+		Path: "tests/scenarios/chaos.yaml", Required: true,
+	}}
+	if err := e.BindCandidate("globulario/services", revision); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveChangeEnvelope(envelopePath, e); err != nil {
+		t.Fatal(err)
+	}
+	local, err := RunDeclaredTest(context.Background(), TestRunOptions{
+		EnvelopePath: envelopePath, WorkspaceDir: workspace, TestName: "echo-contents",
+	})
+	if err != nil || local.Record.Result != "PASS" {
+		t.Fatalf("local test should pass: %+v err=%v", local, err)
+	}
+
+	// The artifact behind the standing local PASS is altered afterwards.
+	if err := os.WriteFile(local.Record.EvidenceRef, []byte("rewritten\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	marker := filepath.Join(quickstart, "harness-was-launched")
+	_, err = RunQuickstartScenario(context.Background(), QuickstartRunOptions{
+		QuickstartDir: quickstart,
+		Scenario:      filepath.Join(quickstart, "tests", "scenarios", "chaos.yaml"),
+		ScenarioName:  "chaos",
+		EnvelopePath:  envelopePath,
+	})
+	if err == nil {
+		t.Fatal("simulation ran on local evidence that could not be reproduced")
+	}
+	if !strings.Contains(err.Error(), "local proof gate") {
+		t.Fatalf("expected the local gate to refuse, got %v", err)
+	}
+	if _, statErr := os.Stat(marker); statErr == nil {
+		t.Fatal("the harness was launched despite the gate")
+	}
+}
+
+// A committed scenario path may itself be a symlink out of the tree. Following
+// it would execute mutable external contents under a frozen simulator revision.
+func TestScenarioSymlinkCannotEscapeTheSimulatorRevision(t *testing.T) {
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "external.yaml"), []byte("name: chaos\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	quickstart := t.TempDir()
+	writeQuickstartHarness(t, quickstart, fakeHarness{mode: "pass"})
+
+	link := filepath.Join(quickstart, "tests", "scenarios", "chaos.yaml")
+	if err := os.Remove(link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(outside, "external.yaml"), link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	runGit(t, quickstart, "add", "-A")
+	runGit(t, quickstart, "commit", "-m", "scenario is a symlink out of the tree")
+
+	envelopePath := scenarioEnvelope(t, "chg-scenario-symlink")
+	_, err := RunQuickstartScenario(context.Background(), QuickstartRunOptions{
+		QuickstartDir: quickstart,
+		Scenario:      link,
+		ScenarioName:  "chaos",
+		EnvelopePath:  envelopePath,
+	})
+	if err == nil {
+		t.Fatal("a scenario symlinked outside the simulator revision was executed")
+	}
+	if !strings.Contains(err.Error(), "outside the simulator revision") {
+		t.Fatalf("expected an escape refusal, got %v", err)
+	}
+}
+
+// A failed run is not proof, but it is an occurrence — its identity must survive
+// so the failure that stops the plan can still be learned from.
+func TestFailedRunKeepsItsOccurrenceIdentityForLearning(t *testing.T) {
+	quickstart := t.TempDir()
+	writeQuickstartHarness(t, quickstart, fakeHarness{mode: "pass-then-exit-nonzero"})
+	envelopePath := scenarioEnvelope(t, "chg-failed-learning")
+
+	result, err := RunQuickstartScenario(context.Background(), QuickstartRunOptions{
+		QuickstartDir: quickstart,
+		Scenario:      filepath.Join(quickstart, "tests", "scenarios", "chaos.yaml"),
+		ScenarioName:  "chaos",
+		EnvelopePath:  envelopePath,
+	})
+	if err == nil {
+		t.Fatal("a nonzero exit must not certify")
+	}
+	if result.Proof.InvocationID != result.InvocationID || result.Proof.InvocationID == "" {
+		t.Fatalf("failed run lost its occurrence identity: %+v", result.Proof)
+	}
+	if result.Proof.ProofEligible {
+		t.Fatal("a failed run was marked proof eligible")
+	}
+	if result.Proof.Scenario != "chaos" || result.Proof.CandidateRevision != "candidate-sha" {
+		t.Fatalf("failed run identity incomplete: %+v", result.Proof)
+	}
+	// And it is never recorded into the envelope.
+	stored, loadErr := LoadChangeEnvelope(envelopePath)
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
+	if len(stored.Proofs) != 0 {
+		t.Fatalf("a non-certifying run was recorded as proof: %+v", stored.Proofs)
+	}
+}

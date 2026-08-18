@@ -64,6 +64,17 @@ func cmdInit(args []string) {
 	if err := envelope.Validate(); err != nil {
 		fatal(err)
 	}
+	// An envelope is the durable record of one candidate's proof, admission, and
+	// release history. Initialising over an existing one would erase that history
+	// in place rather than superseding it, so a fresh DRAFT never overwrites.
+	if _, err := os.Stat(*out); err == nil {
+		fatal(fmt.Errorf(
+			"%s already exists; a new change needs its own envelope, and an existing one is superseded by a new candidate rather than overwritten",
+			*out,
+		))
+	} else if !os.IsNotExist(err) {
+		fatal(err)
+	}
 	if err := evolution.SaveChangeEnvelope(*out, envelope); err != nil {
 		fatal(err)
 	}
@@ -84,13 +95,11 @@ func cmdBindCandidate(args []string) {
 	if err != nil {
 		fatal(err)
 	}
-	if err := envelope.BindCandidate(*repo, *revision); err != nil {
+	bound, err := evolution.RebindCandidate(*path, envelope.Identity(), *repo, *revision)
+	if err != nil {
 		fatal(err)
 	}
-	if err := evolution.SaveChangeEnvelope(*path, envelope); err != nil {
-		fatal(err)
-	}
-	printJSON(envelope.ProofStatus())
+	printJSON(bound.ProofStatus())
 }
 
 func cmdStatus(args []string) {

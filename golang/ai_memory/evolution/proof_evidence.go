@@ -94,6 +94,34 @@ func nonEmpty(values ...string) []string {
 	return out
 }
 
+// VerifyRequiredTestEvidence re-derives the digests of the required local tests
+// that are currently standing as PASS, at any stage.
+//
+// The local-proof-before-simulation gate exists so expensive and destructive lab
+// work cannot outrun the cheap exact-revision tests. Checking only the recorded
+// metadata satisfies that gate on paper while the artifact behind it may have
+// been deleted or altered, so the cluster would still be mutated on the strength
+// of evidence nothing can reproduce. The gate has to ask the question it claims
+// to ask, before the harness starts.
+func (e ChangeEnvelope) VerifyRequiredTestEvidence() error {
+	for _, record := range e.Tests {
+		if record.Result != "PASS" || !isRequiredTest(e.RequiredTests, record.Name) {
+			continue
+		}
+		if record.CandidateRevision != e.CandidateRevision || record.PlanDigest != e.PlanDigest {
+			continue
+		}
+		if err := verifyRecordedDigest(
+			fmt.Sprintf("required test %q", record.Name),
+			record.Digest,
+			record.evidenceArtifacts(),
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // VerifyEvidenceArtifacts re-derives every recorded digest from the artifacts on
 // disk. ValidateEvidenceIdentity is deliberately portable and checks identity
 // metadata only; this is the local counterpart, used where the artifacts are

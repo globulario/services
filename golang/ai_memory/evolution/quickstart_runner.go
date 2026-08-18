@@ -91,6 +91,12 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 	if err := envelope.ValidateRequiredTestClosure(); err != nil {
 		return QuickstartRunResult{}, fmt.Errorf("local proof gate: %w", err)
 	}
+	// Closure above is metadata only. Re-derive the artifacts behind it before
+	// anything destructive starts, or the gate passes on paper while the evidence
+	// it names no longer exists.
+	if err := envelope.VerifyRequiredTestEvidence(); err != nil {
+		return QuickstartRunResult{}, fmt.Errorf("local proof gate: %w", err)
+	}
 
 	scenarioName := strings.TrimSpace(opts.ScenarioName)
 	if scenarioName == "" {
@@ -210,6 +216,28 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 	// cleanup failing after the scenario itself passed — and recording that would
 	// leave the durable envelope PROVEN off a run the operator was told failed.
 	if exitCode != 0 {
+		// The run does not certify, but it is still an occurrence worth learning
+		// from. Carry its identity and verdict when the artifact is present and
+		// consistent, so the failure that stops the plan can be ingested — marked
+		// explicitly ineligible, and never recorded into the envelope.
+		if observed, obsErr := loadQuickstartProof(proofPath); obsErr == nil &&
+			observed.Invocation.ID == invocationID &&
+			observed.Scenario == scenarioName &&
+			observed.Change.ID == envelope.ID &&
+			observed.Change.CandidateRevision == envelope.CandidateRevision &&
+			observed.Change.PlanDigest == envelope.PlanDigest {
+			partial.Proof = ProofRecord{
+				Scenario:            observed.Scenario,
+				Repository:          "globulario/globular-quickstart",
+				SimulationRevision:  observed.SourceRevision,
+				CandidateRepository: observed.Change.CandidateRepository,
+				CandidateRevision:   observed.Change.CandidateRevision,
+				PlanDigest:          observed.Change.PlanDigest,
+				InvocationID:        invocationID,
+				Result:              observed.Execution.Result,
+				ProofEligible:       false,
+			}
+		}
 		return fail(partial, fmt.Errorf(
 			"quickstart scenario exited %d; a run that did not succeed cannot certify a candidate",
 			exitCode,
@@ -434,13 +462,33 @@ func rebaseScenarioPath(quickstartDir, simTree, scenario string) (string, error)
 		return "", fmt.Errorf("scenario %q is outside the quickstart checkout", scenario)
 	}
 	rebased := filepath.Join(simTree, rel)
-	if _, err := os.Stat(rebased); err != nil {
+	if _, err := os.Lstat(rebased); err != nil {
 		return "", fmt.Errorf(
 			"scenario %q is not present at simulator revision: %w; commit it before proving against it",
 			rel, err,
 		)
 	}
-	return rebased, nil
+	// A committed scenario path may itself be a symlink. Following it out of the
+	// detached tree would execute mutable external contents while stamping the
+	// frozen commit as the simulation revision — the same escape already closed
+	// for a declared work_dir, which this path never inherited.
+	treeRoot, err := filepath.EvalSymlinks(simTree)
+	if err != nil {
+		return "", fmt.Errorf("resolve simulator tree: %w", err)
+	}
+	resolved, err := filepath.EvalSymlinks(rebased)
+	if err != nil {
+		return "", fmt.Errorf("resolve scenario path at simulator revision: %w", err)
+	}
+	if relResolved, err := filepath.Rel(treeRoot, resolved); err != nil {
+		return "", fmt.Errorf("resolve scenario path: %w", err)
+	} else if relResolved == ".." || strings.HasPrefix(relResolved, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf(
+			"scenario %q resolves outside the simulator revision; proof would describe content absent from that commit",
+			rel,
+		)
+	}
+	return resolved, nil
 }
 
 func requiredScenarioByName(requirements []ScenarioRequirement, name string) (ScenarioRequirement, error) {
