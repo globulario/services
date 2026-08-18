@@ -7,212 +7,257 @@ description: Use for Globular incident repair, simulation-discovered defects, fe
 
 Use this skill whenever the task changes distributed-system behavior or learns from cluster execution.
 
-The canonical architecture is:
-
-- `docs/design/autonomous-repair-evolution-strategy.md`
-
-Read that document before planning substantial repair/evolution work. This skill is a router and operational summary, not a competing source of truth.
+Canonical architecture: `docs/design/autonomous-repair-evolution-strategy.md`.
 
 ## Foundational law
 
 > Novel repair and evolution must be proven against a reproducible model of the system before they may alter the authoritative system.
 
-Known, typed operational remedies may execute through governed workflows. Novel code/schema/workflow/architecture repair happens in an isolated engineering environment first.
-
-Never create an AI hot-patch path into production.
+Known typed operational remedies may execute through governed production workflows. Novel code/schema/workflow/architecture repair happens in an isolated engineering environment first. Never create an AI hot-patch path into production.
 
 ## Classify the task
 
 Choose one entrance:
 
-```text
-INCIDENT_REPAIR
-  production exposed a failure
+- `incident_repair`: production exposed a failure.
+- `simulation_repair`: an adversarial/scenario run found a counterexample.
+- `feature`: intentional new reachable behavior.
+- `architecture_evolution`: contract, authority, ownership, lifecycle, or system meaning changes.
 
-SIMULATION_REPAIR
-  a scenario/adversarial run found a counterexample
-
-FEATURE
-  intentional new reachable behavior
-
-ARCHITECTURE_EVOLUTION
-  contract, authority, ownership, lifecycle, or system meaning changes
-```
-
-All four converge on the same proof/promotion lifecycle.
-
-## Required loop
+All four converge on the same lifecycle:
 
 ```text
 CLASSIFY
-  → GROUND CONTRACT + AUTHORITY
-  → CREATE CHANGE ENVELOPE
-  → REPRODUCE OR SPECIFY SCENARIOS
-  → CHANGE IN ISOLATION
-  → LOCAL PROOF
-  → CLUSTER SIMULATION PROOF
-  → COUNTEREXAMPLE SEARCH WHEN RISK WARRANTS
-  → SENSEI ADMISSION
-  → NORMAL IMMUTABLE RELEASE
-  → PRODUCTION VERIFICATION
-  → BEHAVIORAL LEARNING
+  -> GROUND CONTRACT + AUTHORITY
+  -> CHANGE ENVELOPE
+  -> ISOLATED IMPLEMENTATION
+  -> DECLARED LOCAL TESTS
+  -> BOUND CLUSTER SCENARIOS
+  -> PROVEN
+  -> SENSEI ADMISSION
+  -> IMMUTABLE RELEASE
+  -> PRODUCTION VERIFICATION
+  -> BEHAVIORAL LEARNING
 ```
 
-### 1. Ground before mutation
+## Executable pre-admission workflow
 
-Use `sensei-architect` for architecture-sensitive discovery and challenge.
+### 1. Ground contract and authority
 
-Identify:
+Use `sensei-architect` before architecture-sensitive work. Identify:
 
-- state layer(s): Repository / Desired / Installed / Runtime;
-- authority owner and allowed mutation path;
-- governing contracts and invariants;
+- Repository / Desired / Installed / Runtime state layers touched;
+- authoritative owner and allowed mutation path;
+- governing contracts/invariants;
 - known failure modes;
 - forbidden repairs;
-- required proof.
+- required tests and scenarios.
 
-For an exact proposed mutation, use `sensei-admission` at the execution boundary.
+For an exact proposed mutation, use `sensei-admission` at the execution-control boundary. If the contract/authority is unknown, investigate but do not claim admission.
 
-If the contract/authority is genuinely unknown, investigate but do not claim the repair is admitted.
+### 2. Create the ChangeEnvelope
 
-### 2. Bind a change envelope
+The machine-readable envelope is implemented in `golang/ai_memory/evolution`.
 
-Bind the work to exact revisions and evidence. Conceptually track:
+Example:
 
-```yaml
-change_id: "..."
-kind: incident_repair | simulation_repair | feature | architecture_evolution
-intent: "..."
-source_revision: "..."
-production_revision: "..."
-risk_class: "..."
-authority_scope: []
-governing_contracts: []
-relevant_invariants: []
-known_failure_modes: []
-forbidden_repairs: []
-production_evidence: []
-required_scenarios: []
-required_tests: []
+```bash
+evolution-change init \
+  --out /tmp/change.yaml \
+  --kind simulation_repair \
+  --intent "resumed stale controller cannot mutate authoritative desired state" \
+  --source-revision <baseline-sha> \
+  --risk critical
 ```
 
-Until a machine-readable ChangeEnvelope exists, keep these fields explicit in the task evidence/report.
+Then author/freeze in the envelope:
 
-### 3. Reproduce failures; specify feature behavior
+- `authority_scope`
+- `governing_contracts`
+- `relevant_invariants`
+- `known_failure_modes`
+- `forbidden_repairs`
+- `required_tests`, each with the exact command
+- `required_scenarios`, each with the exact quickstart path
 
-For incidents and simulation counterexamples:
+Do not treat changing proof requirements as editorial cleanup. Required tests/scenarios are part of the envelope identity.
 
-- preserve the production/simulation evidence and exact revision;
-- reproduce in `globulario/globular-quickstart` or the appropriate isolated cluster model;
-- minimize the event trace when possible;
-- create a durable regression scenario that fails for the governing contract, not merely for a log string.
+### 3. Bind the exact implementation candidate
 
-For features:
+```bash
+evolution-change bind-candidate \
+  --envelope /tmp/change.yaml \
+  --repository globulario/services \
+  --revision <candidate-git-sha>
+```
 
-- define success scenarios;
-- define proportional interruption/recovery/concurrency/upgrade/rollback scenarios;
-- make the new behavior and old invariants executable together.
+Rebinding a different pre-admission candidate clears prior candidate-derived test/proof evidence. After `ADMITTED`, candidate evidence is immutable history; create a new change/candidate instead of rewriting it.
 
-### 4. Modify only the isolated engineering model
+### 4. Implement only in isolation
 
-The coding agent may modify source, tests, scenarios, migrations, docs, and candidate contracts in the isolated checkout.
+The coding agent may edit source, tests, scenarios, migrations, docs, and candidate contracts in isolated checkouts.
 
-It must not improvise a novel repair by editing live node files, binaries, desired state, or owner-owned runtime state.
+It must not improvise novel repair by modifying live binaries/files, raw-writing Desired State, or bypassing owner-owned mutation paths.
 
-Containment is different from repair. A pre-authorized action may fence/isolate/stop/restart through its governed production workflow while engineering repair proceeds separately.
+Containment is different from repair. Pre-authorized fencing/isolation/restart may still execute through normal production workflows.
 
-### 5. Prove locally, then as a cluster
+### 5. Run the bounded proof plan
 
-Run cheap deterministic proof first, then cluster proof.
+Preferred autonomous command:
 
-Cluster proof must include:
+```bash
+evolution-prove \
+  --envelope /tmp/change.yaml \
+  --workspace-dir /path/to/services-candidate \
+  --quickstart-dir /path/to/globular-quickstart
+```
 
-- new regression/success scenarios;
-- directly affected existing scenarios/suites;
-- exact candidate revision identity;
-- cleanup/restoration proof;
-- independent state-layer verification rather than workflow acknowledgement alone.
+The runner is intentionally ordered:
 
-**Required scenario actions that are unsupported or skipped cannot count as PASS.** Treat them as unproven/blocking for certification.
+1. rerun every required local/static test;
+2. verify candidate checkout `git HEAD` equals the envelope candidate revision;
+3. execute each exact command frozen in `TestRequirement`;
+4. capture/hash stdout+stderr evidence;
+5. stop immediately on local failure;
+6. only after local closure, run required quickstart scenarios;
+7. bind quickstart proof to change id + exact candidate revision + simulation revision;
+8. stop on first non-proof cluster result;
+9. reconcile `CANDIDATE <-> PROVEN` from current evidence.
 
-### 6. Search for counterexamples
+Individual tools also exist:
 
-For high-risk authority, generation, workflow, recovery, upgrade, security, identity, or storage changes, explore adversarial neighboring states.
+```text
+evolution-run-test
+  execute one declared exact-command local test
 
-Prefer semantic tensions such as:
+evolution-run-scenario
+  execute one governed quickstart scenario
+
+simulation-learning-ingest
+  validate/ingest one quickstart learning.json
+
+evolution-change status
+  show missing/failed test/scenario closure and next authority boundary
+
+evolution-change validate
+  validate envelope + print identity digest
+```
+
+There is deliberately no `mark-test-pass`, `admit`, `release`, or `promote` convenience command.
+
+## Proof rules
+
+A change reaches `PROVEN` only when:
+
+- every required local test has PASS evidence for the exact candidate revision;
+- every PASS record used the exact command declared in the envelope;
+- every required cluster scenario is supported and proof-eligible PASS;
+- scenario proof identifies the same candidate repository/revision;
+- quickstart `simulation_revision` matches the scenario proof source revision.
+
+A failed rerun can downgrade `PROVEN -> CANDIDATE`. Proof is not sticky green.
+
+Required unsupported/skipped scenario actions cannot count as PASS.
+
+## Quickstart simulation boundary
+
+Companion repository: `globulario/globular-quickstart`.
+
+Trusted runs produce:
+
+- `evidence.json`
+- `scenario-proof.json`
+- `learning.json`
+
+When governed, quickstart requires:
+
+```text
+GLOBULAR_CHANGE_ID
+GLOBULAR_CHANGE_ENVELOPE_REF
+GLOBULAR_CANDIDATE_REPOSITORY
+GLOBULAR_CANDIDATE_REVISION
+GLOBULAR_REQUIRE_CHANGE_BINDING=1
+```
+
+A partial/invalid binding blocks lab mutation. A green legacy executor cannot override broken proof identity.
+
+Current semantic temporal primitives include:
+
+- `chaos.pause_service` (`SIGSTOP`)
+- `chaos.resume_service` (`SIGCONT`)
+
+Add new chaos capabilities through the semantic layer and register them in the proof contract. Do not silently teach the proof validator an action the executor cannot perform.
+
+## Counterexample search
+
+For high-risk authority/generation/workflow/recovery/upgrade/security/identity/storage changes, explore semantic neighboring states such as:
 
 - zombie/old authority returning after lease/generation loss;
 - asymmetric partition;
-- stale node returning after several generations or rollback;
+- stale node after multiple generations/rollback;
 - duplicate delivery or stale workflow completion;
 - crash at durable mutation boundaries;
-- storage exhaustion during commit/publication;
+- storage exhaustion during publication/commit;
 - concurrent upgrades/mutations;
 - clock skew;
-- manifest authority without retrievable artifact;
-- absence being mistaken for destructive intent.
+- valid manifest with unavailable/corrupt artifact;
+- absence mistaken for destructive intent.
 
-Retain deterministic seeds/event traces. Minimize valuable counterexamples into named scenarios.
+Retain deterministic seeds/event traces and minimize valuable counterexamples into named scenarios.
 
-### 7. Admit and release normally
+Do not claim `controller-zombie-after-lease-loss` proven merely because SIGSTOP/SIGCONT exists. The scenario additionally needs a real owner-path mutation attempt whose generation/fencing rejection is independently observable.
 
-Use Sensei to verify the exact candidate against contracts and proof.
+## Hard stop at PROVEN
 
-If the change restores an existing contract, iterate autonomously within the admitted scope.
+`evolution-prove` may reach **PROVEN**. It may not cross into **ADMITTED**.
 
-If the change alters foundational meaning/authority/contract, surface the architectural choice to the human architect.
+After proof:
 
-Once admitted, use the normal immutable release/workflow path. Do not create a privileged deployment path because the implementation was generated by an AI agent.
+1. use Sensei admission for the exact candidate revision and exact proof set;
+2. only a real Sensei `ACCEPT` may advance the envelope to ADMITTED;
+3. release through the normal immutable release/workflow path;
+4. independently verify production Repository -> Desired -> Installed -> Runtime evidence;
+5. learn outcomes into Behavioral Memory.
 
-### 8. Verify production independently
+Do not add a local CLI flag that self-asserts Sensei acceptance. Sensei is the admission authority.
 
-After rollout, observe the relevant Repository → Desired → Installed → Runtime layers and verify the expected contract/outcome.
+## Behavioral learning boundary
 
-If production materially disagrees with simulation, record a simulation-fidelity defect. Do not erase the discrepancy as noise.
-
-### 9. Learn without auto-authority
-
-Feed scenario and production outcomes into Behavioral Memory as:
+Quickstart learning is validated before ingestion and must remain:
 
 ```text
-signal → claim → evidence → authority mapping → condition
-       → contradiction → candidate failure mode/principle
+production_authoritative = false
+promotion_required       = true
+may_promote              = false
 ```
 
-Simulation may create candidates autonomously.
+The simulation ingestion interface exposes only `RecordSignal`, `RecordEvidence`, and `RecordOutcome`. It has no `PromotePrinciple` capability.
 
-Simulation must not auto-promote:
-
-- new production-enforced principles;
-- destructive remedies;
-- authority/ownership changes;
-- contract changes;
-- permission escalation.
-
-Production may rely on promoted behavioral knowledge; unpromoted material is hypothesis/evidence only.
+Simulation may generate evidence and candidate hints. Promotion remains governed.
 
 ## Stop conditions
 
 Do not claim success when:
 
-- governing contract is unknown for architecture-sensitive behavior;
-- required scenario action skipped/unsupported;
-- injected failure did not actually occur;
+- governing contract/authority is unknown for architecture-sensitive behavior;
+- required local test is absent, substituted, stale, or failing;
+- tested checkout revision differs from the candidate revision;
+- required scenario action/probe is unsupported;
+- injected failure did not occur;
 - cleanup residue is unproven;
-- tested revision differs from proposed revision;
-- workflow success lacks installed/runtime proof;
+- workflow success lacks independent installed/runtime proof;
 - only available repair bypasses the owner path;
 - candidate behavioral knowledge is being treated as promoted policy;
 - production/simulation discrepancy is unexplained;
 - evidence freshness/provenance is unknown.
 
-The correct result is `NOT PROVEN`, `BLOCKED`, or an architecture question, never optimistic PASS.
+Use `NOT PROVEN`, `BLOCKED`, or an architecture question instead of optimistic PASS.
 
 ## Relationship to other skills
 
 - `sensei-architect`: architecture discovery, contract/authority challenge, degraded awareness handling.
 - `sensei-admission`: exact proposed change and mutation-admission decision.
-- `sensei-closure`: when admission is waiting/refused because architecture or proof is incomplete.
+- `sensei-closure`: admission waiting/refused because architecture or proof is incomplete.
 - `sensei-benchmark`: independent historical/external proof when required.
 
-This skill governs the **engineering lifecycle around those Sensei decisions**.
+This skill governs the engineering lifecycle around those Sensei decisions.
