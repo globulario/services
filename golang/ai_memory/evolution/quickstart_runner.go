@@ -41,6 +41,7 @@ type QuickstartRunResult struct {
 
 // RunQuickstartScenario executes one proof-boundary scenario against an exact
 // candidate revision and persists the resulting proof into its ChangeEnvelope.
+// Required local/static tests must already be green for the exact candidate.
 // It runs only the quickstart lab; production release/mutation is outside this
 // function's authority.
 func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (QuickstartRunResult, error) {
@@ -61,6 +62,9 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 	}
 	if envelope.CandidateRepository == "" || envelope.CandidateRevision == "" {
 		return QuickstartRunResult{}, fmt.Errorf("candidate repository/revision are required before simulation")
+	}
+	if err := envelope.ValidateRequiredTestClosure(); err != nil {
+		return QuickstartRunResult{}, fmt.Errorf("local proof gate: %w", err)
 	}
 
 	testBin := filepath.Join(opts.QuickstartDir, "tests", "harness", "bin", "globular-test")
@@ -147,7 +151,7 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 		EvidenceRef:         filepath.Join(latest, "evidence.json"),
 	}
 	envelope.AddOrReplaceProof(proof)
-	marked := envelope.MarkProvenIfComplete()
+	marked := envelope.ReconcileProofStage()
 	if err := SaveChangeEnvelope(opts.EnvelopePath, envelope); err != nil {
 		return QuickstartRunResult{}, err
 	}
