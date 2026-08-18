@@ -10,15 +10,15 @@ func TestProofPlanCanReachProvenWithDeclaredLocalTestsOnly(t *testing.T) {
 	workspace, revision := initTestRepo(t)
 	envelopePath := filepath.Join(t.TempDir(), "change.yaml")
 	e := NewChangeEnvelope("chg-plan", ChangeFeature, "feature", revision, RiskMedium)
-	if err := e.BindCandidate("globulario/services", revision); err != nil {
-		t.Fatal(err)
-	}
 	e.RequiredTests = []TestRequirement{{
 		Name:       "unit",
 		Repository: "globulario/services",
 		Command:    []string{"sh", "-c", "echo proof-plan"},
 		Required:   true,
 	}}
+	if err := e.BindCandidate("globulario/services", revision); err != nil {
+		t.Fatal(err)
+	}
 	if err := SaveChangeEnvelope(envelopePath, e); err != nil {
 		t.Fatal(err)
 	}
@@ -41,9 +41,6 @@ func TestProofPlanStopsBeforeSimulationOnLocalTestFailure(t *testing.T) {
 	workspace, revision := initTestRepo(t)
 	envelopePath := filepath.Join(t.TempDir(), "change.yaml")
 	e := NewChangeEnvelope("chg-plan-fail", ChangeFeature, "feature", revision, RiskHigh)
-	if err := e.BindCandidate("globulario/services", revision); err != nil {
-		t.Fatal(err)
-	}
 	e.RequiredTests = []TestRequirement{{
 		Name:       "must-pass",
 		Repository: "globulario/services",
@@ -56,6 +53,9 @@ func TestProofPlanStopsBeforeSimulationOnLocalTestFailure(t *testing.T) {
 		Path:       "tests/scenarios/resilience/must-not-run.yaml",
 		Required:   true,
 	}}
+	if err := e.BindCandidate("globulario/services", revision); err != nil {
+		t.Fatal(err)
+	}
 	if err := SaveChangeEnvelope(envelopePath, e); err != nil {
 		t.Fatal(err)
 	}
