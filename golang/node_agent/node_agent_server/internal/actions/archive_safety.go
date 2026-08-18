@@ -94,6 +94,13 @@ const (
 	ViolationArchiveTooBig  = "declared_bytes_exceeded"
 	ViolationEntryTooBig    = "entry_bytes_exceeded"
 	ViolationUnreadableName = "unreadable_path"
+	// ViolationUnrootedKind means the planner classified an entry as mapped but
+	// the caller supplied no destination root for its kind. That is a defect in
+	// the node's own extractionRoots, never a property of the archive, so it is
+	// reported separately: blaming the package for "escaping" a root that was
+	// never configured sends an operator hunting for a hostile artifact that
+	// does not exist.
+	ViolationUnrootedKind = "kind_has_no_destination_root"
 )
 
 // extractionRoots is the node-owned destination layout. Every field is an
@@ -107,6 +114,16 @@ type extractionRoots struct {
 	debs    string
 	state   string
 	policy  string
+}
+
+// stagingRootFor is the single derivation of a service's staging directory.
+// The installer and the audit MUST agree on it: an audit that computes a
+// different layout answers a question about an install that will never happen.
+func stagingRootFor(service string) string {
+	if ActionStagingRoot != "" {
+		return filepath.Join(ActionStagingRoot, service)
+	}
+	return filepath.Join(ActionStateDir, "staging", service)
 }
 
 func currentExtractionRoots(service, scriptsDir, debsDir string) extractionRoots {
@@ -238,6 +255,16 @@ func planArtifactExtraction(artifactPath string, roots extractionRoots) ([]archi
 		}
 
 		dest, root := archiveEntryDestination(name, kind, roots)
+		if root == "" {
+			// classifyArchiveEntry admitted this kind but the roots carry no
+			// destination for it. Fail closed — but say which of the two is
+			// actually wrong.
+			violations = append(violations, ArchiveViolation{
+				Entry: hdr.Name, Reason: ViolationUnrootedKind, Mapped: true,
+				Detail: fmt.Sprintf("entry kind %q is mapped but no destination root is configured for it", kind),
+			})
+			continue
+		}
 		if !pathContainedBy(dest, root) {
 			violations = append(violations, ArchiveViolation{
 				Entry: hdr.Name, Reason: ViolationEscapesRoot, Mapped: true,
@@ -411,15 +438,13 @@ func tarTypeName(flag byte) string {
 // service is the package name the artifact would be installed as; it only
 // affects the config/ and policy/ destination roots.
 func ValidateArtifactArchive(artifactPath, service string) ([]ArchiveViolation, error) {
-	roots := extractionRoots{
-		service: service,
-		bin:     ActionBinDir,
-		systemd: ActionSystemdDir,
-		config:  ActionConfigDir,
-		scripts: filepath.Join(ActionStateDir, "staging", service, "scripts"),
-		state:   ActionStateDir,
-		policy:  ActionPolicyDir,
-	}
+	// Built through the installer's own constructor, not a parallel literal:
+	// a hand-maintained copy silently omitted the debs root and reported every
+	// bundled .deb as escaping "".
+	staging := stagingRootFor(service)
+	roots := currentExtractionRoots(service,
+		filepath.Join(staging, "scripts"),
+		filepath.Join(staging, "debs"))
 	_, violations, err := planArtifactExtraction(artifactPath, roots)
 	if err != nil {
 		return violations, err

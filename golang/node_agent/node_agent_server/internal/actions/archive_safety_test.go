@@ -487,3 +487,104 @@ func TestValidateArtifactArchiveSeparatesMappedFromInertFindings(t *testing.T) {
 		t.Errorf("a symlink under an ignored prefix is inert, not mapped: %v", violations[1])
 	}
 }
+
+// ── audit/installer agreement ───────────────────────────────────────────────
+
+// TestValidateArtifactArchiveAdmitsBundledDebs is the regression for a real
+// finding: run against this node's package CAS, the audit rejected six
+// installed packages — scylladb, the three scylla-manager artifacts,
+// libnss-resolve and sql — reporting every bundled .deb as
+// escapes_destination_root "outside " with an empty root.
+//
+// No archive was hostile. ValidateArtifactArchive built its extractionRoots as
+// a hand-maintained struct literal that never gained the debs field when the
+// debs kind was added to classifyArchiveEntry, so containment was tested
+// against "".
+func TestValidateArtifactArchiveAdmitsBundledDebs(t *testing.T) {
+	root := installRoots(t)
+	artifact := filepath.Join(root, "bundled.tgz")
+	buildArchive(t, artifact, []archiveEntry{
+		regularEntry("bin/scylla-manager", "elf"),
+		regularEntry("debs/scylla-manager-server_3.11.1_amd64.deb", "deb"),
+		regularEntry("./debs/scylla-conf_2025.3.8_amd64.deb", "deb"),
+	})
+
+	violations, err := ValidateArtifactArchive(artifact, "scylla-manager")
+	if err != nil {
+		t.Fatalf("audit failed to read a well-formed archive: %v", err)
+	}
+	if len(violations) != 0 {
+		t.Fatalf("audit rejected a legitimate bundled-deb package: %v", violations)
+	}
+}
+
+// TestEveryMappedKindHasADestinationRoot is the ratchet. classifyArchiveEntry
+// deciding a kind is mapped and extractionRoots deciding it has a destination
+// are two separate decisions, and nothing else forces them to agree — which is
+// exactly how the debs root went missing. Any new mapped kind fails here until
+// its root is configured, rather than silently reporting real packages as
+// path-traversal attacks.
+func TestEveryMappedKindHasADestinationRoot(t *testing.T) {
+	root := installRoots(t)
+	staging := stagingRootFor("svc")
+	roots := currentExtractionRoots("svc",
+		filepath.Join(staging, "scripts"), filepath.Join(staging, "debs"))
+	_ = root
+
+	// One representative entry per prefix classifyArchiveEntry maps.
+	for _, name := range []string{
+		"bin/x", "systemd/x.service", "units/x.service", "config/x.json",
+		"scripts/x.sh", "debs/x.deb", "data/x", "policy/x.json",
+	} {
+		kind, mapped := classifyArchiveEntry(name)
+		if !mapped {
+			t.Fatalf("%q is no longer mapped — update this test with the current prefix set", name)
+		}
+		dest, dr := archiveEntryDestination(name, kind, roots)
+		if dr == "" {
+			t.Errorf("kind %q (from %q) is mapped but has no destination root; "+
+				"add it to extractionRoots — otherwise every such entry is reported "+
+				"as escaping \"\"", kind, name)
+			continue
+		}
+		if !pathContainedBy(dest, dr) {
+			t.Errorf("kind %q resolves to %q, not contained by its own root %q", kind, dest, dr)
+		}
+	}
+}
+
+// TestUnrootedMappedKindIsNotReportedAsAnEscape pins the diagnosis, not just
+// the verdict. Failing closed was already correct; naming the package as the
+// culprit was not. An operator reading escapes_destination_root goes looking
+// for a malicious artifact, and there is none to find.
+func TestUnrootedMappedKindIsNotReportedAsAnEscape(t *testing.T) {
+	root := installRoots(t)
+	artifact := filepath.Join(root, "unrooted.tgz")
+	buildArchive(t, artifact, []archiveEntry{regularEntry("debs/x.deb", "deb")})
+
+	// Roots deliberately missing the debs destination — the pre-fix shape.
+	broken := extractionRoots{
+		service: "svc",
+		bin:     ActionBinDir,
+		systemd: ActionSystemdDir,
+		config:  ActionConfigDir,
+		scripts: filepath.Join(ActionStagingRoot, "svc", "scripts"),
+		state:   ActionStateDir,
+		policy:  ActionPolicyDir,
+	}
+	_, violations, err := planArtifactExtraction(artifact, broken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(violations) != 1 {
+		t.Fatalf("want exactly one violation, got %v", violations)
+	}
+	if violations[0].Reason != ViolationUnrootedKind {
+		t.Errorf("misdiagnosis: reason = %q, want %q — a missing node-side root "+
+			"must not be reported as the archive escaping it",
+			violations[0].Reason, ViolationUnrootedKind)
+	}
+	if !violations[0].Mapped {
+		t.Error("an unrooted mapped kind must stay ranked as mapped/dangerous")
+	}
+}

@@ -602,10 +602,7 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 	if artifact == "" {
 		return "", fmt.Errorf("artifact_path is required")
 	}
-	stagingRoot := filepath.Join(ActionStateDir, "staging", service)
-	if ActionStagingRoot != "" {
-		stagingRoot = filepath.Join(ActionStagingRoot, service)
-	}
+	stagingRoot := stagingRootFor(service)
 	scriptsDir := filepath.Join(stagingRoot, "scripts")
 	debsDir := filepath.Join(stagingRoot, "debs")
 
