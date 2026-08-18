@@ -1058,23 +1058,24 @@ func promotionCandidateToPB(c *api.PromotionCandidate) *bpb.PromotionCandidate {
 		return nil
 	}
 	return &bpb.PromotionCandidate{
-		Id:                      c.ID,
-		Project:                 c.Project,
-		Domain:                  string(c.Domain),
-		Theme:                   c.Theme,
-		Status:                  apiPromotionCandidateStatusToPB(c.Status),
-		Title:                   c.Title,
-		Summary:                 c.Summary,
-		Rationale:               c.Rationale,
-		SupportingOutcomeIds:    c.SupportingOutcomeIDs,
-		SupportingEvidenceIds:   c.SupportingEvidenceIDs,
-		RepeatCount:             c.RepeatCount,
-		DraftPrinciple:          principleToPB(&c.DraftPrinciple),
-		GeneratedBy:             c.GeneratedBy,
-		CreatedAt:               c.CreatedAt,
-		UpdatedAt:               c.UpdatedAt,
-		MaterializedPrincipleId: c.MaterializedPrincipleID,
-		Metadata:                c.Metadata,
+		Id:                       c.ID,
+		Project:                  c.Project,
+		Domain:                   string(c.Domain),
+		Theme:                    c.Theme,
+		Status:                   apiPromotionCandidateStatusToPB(c.Status),
+		Title:                    c.Title,
+		Summary:                  c.Summary,
+		Rationale:                c.Rationale,
+		SupportingOutcomeIds:     c.SupportingOutcomeIDs,
+		SupportingEvidenceIds:    c.SupportingEvidenceIDs,
+		SupportingActionCheckIds: c.SupportingActionCheckIDs,
+		RepeatCount:              c.RepeatCount,
+		DraftPrinciple:           principleToPB(&c.DraftPrinciple),
+		GeneratedBy:              c.GeneratedBy,
+		CreatedAt:                c.CreatedAt,
+		UpdatedAt:                c.UpdatedAt,
+		MaterializedPrincipleId:  c.MaterializedPrincipleID,
+		Metadata:                 c.Metadata,
 	}
 }
 
@@ -1158,6 +1159,7 @@ func actionCheckToPB(a *api.ActionCheck) *bpb.ActionCheck {
 		CheckedAgainstPrinciples: a.CheckedAgainstPrinciples,
 		Metadata:                 a.Metadata,
 		Governed:                 a.Governed,
+		Theme:                    a.Theme,
 	}
 }
 
