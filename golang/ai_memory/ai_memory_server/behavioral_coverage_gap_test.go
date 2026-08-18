@@ -22,8 +22,6 @@ import (
 //
 // A coverage gap becomes a QUESTION for a human. It never becomes a rule.
 
-const gapTheme = "coverage.scylla.data.wipe"
-
 // wipeCheck issues one ungoverned check of a fixed shape. Targets differ on
 // purpose: the same action against different hosts is one gap.
 func wipeCheck(t *testing.T, h *behavioralHandler, target string) *bpb.ActionCheck {
