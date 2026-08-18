@@ -858,3 +858,38 @@ func TestDuplicateProofRecordsForOneObligationAreRefused(t *testing.T) {
 		t.Fatal("two proof records for one obligation were accepted")
 	}
 }
+
+// The CLI's exit decision must be judged against the frozen obligation, not
+// against the record being judged. Building the expectation out of the proof
+// itself always agrees, so a foreign checkout whose contradiction with the plan
+// already stopped it certifying would still exit zero.
+func TestCLIExitJudgesAgainstTheFrozenRequirement(t *testing.T) {
+	foreign := ProofRecord{
+		Scenario: "chaos", Result: "PASS", ProofEligible: true,
+		CandidateRepository: "globulario/services",
+		Repository:          "someone-else/globular-quickstart",
+		SimulationRevision:  "sim-sha", InvocationID: "inv-1",
+		ProofRef: "p.json", EvidenceRef: "e.json", Digest: "sha256:x",
+	}
+
+	// Requirement omits the repository, so the canonical simulator is expected.
+	contradicting := QuickstartRunResult{
+		Requirement: ScenarioRequirement{Name: "chaos", Path: "tests/scenarios/chaos.yaml", Required: true},
+		Proof:       foreign,
+	}
+	if err := contradicting.CertifiesRequirement("chaos"); err == nil {
+		t.Fatal("a run contradicting the frozen plan reported success to automation")
+	}
+
+	// Same record, judged against a plan that actually froze that repository.
+	agreeing := QuickstartRunResult{
+		Requirement: ScenarioRequirement{
+			Name: "chaos", Path: "tests/scenarios/chaos.yaml",
+			Repository: "someone-else/globular-quickstart", Required: true,
+		},
+		Proof: foreign,
+	}
+	if err := agreeing.CertifiesRequirement("chaos"); err != nil {
+		t.Fatalf("a run consistent with its frozen plan was rejected: %v", err)
+	}
+}

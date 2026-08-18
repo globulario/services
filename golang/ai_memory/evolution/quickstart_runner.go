@@ -50,6 +50,10 @@ type QuickstartRunOptions struct {
 
 type QuickstartRunResult struct {
 	ExitCode int
+	// Requirement is the frozen obligation this run answered. The CLI needs it
+	// to ask certification's question rather than its own — comparing the proof
+	// against itself always agrees.
+	Requirement ScenarioRequirement
 	// ChangeID is carried so a caller ingesting the learning artifact can bind
 	// it to this exact proof occurrence without reopening the envelope.
 	ChangeID     string
@@ -222,6 +226,7 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 	learningPath := filepath.Join(runDir, "learning.json")
 	partial := QuickstartRunResult{
 		ExitCode:     exitCode,
+		Requirement:  requirement,
 		ChangeID:     envelope.ID,
 		InvocationID: invocationID,
 		ProofPath:    proofPath,
@@ -300,6 +305,7 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 
 	return QuickstartRunResult{
 		ExitCode:     exitCode,
+		Requirement:  requirement,
 		ChangeID:     envelope.ID,
 		InvocationID: invocationID,
 		ProofPath:    proofPath,
@@ -394,11 +400,21 @@ func loadQuickstartProof(path string) (QuickstartProofArtifact, error) {
 // CertifiesRequirement reports whether this run produced a record that could
 // stand as evidence for its obligation, using the same predicate validation
 // uses. Callers deciding an exit status must not re-derive that answer.
+//
+// It compares against the *frozen* requirement. Building the expectation out of
+// the record being judged — Repository taken from the proof itself — makes the
+// comparison vacuous: a foreign checkout's claim agrees with itself, so the
+// command exited zero for a run whose contradiction with the plan had already
+// stopped it certifying and left the envelope at CANDIDATE.
 func (r QuickstartRunResult) CertifiesRequirement(name string) error {
-	if strings.TrimSpace(name) == "" {
-		name = r.Proof.Scenario
+	requirement := r.Requirement
+	if strings.TrimSpace(requirement.Name) == "" {
+		requirement.Name = name
 	}
-	return r.Proof.certifies(ScenarioRequirement{Name: name, Repository: r.Proof.Repository})
+	if strings.TrimSpace(requirement.Name) == "" {
+		requirement.Name = r.Proof.Scenario
+	}
+	return r.Proof.certifies(requirement)
 }
 
 func resolveHeadRevision(ctx context.Context, dir string) (string, error) {
