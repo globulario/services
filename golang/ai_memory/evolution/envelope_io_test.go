@@ -7,7 +7,7 @@ import (
 
 func TestEnvelopeRoundTripYAML(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "change.yaml")
-	e := NewChangeEnvelope("chg-roundtrip", ChangeFeature, "exercise lifecycle", "source-sha", RiskHigh)
+	e := NewChangeEnvelope("chg-roundtrip", ChangeFeature, "exercise lifecycle", "source-sha", RiskLow)
 	e.RequiredScenarios = []ScenarioRequirement{{Name: "scenario-a", Required: true}}
 	if err := e.BindCandidate("globulario/services", "candidate-sha"); err != nil {
 		t.Fatal(err)
@@ -73,7 +73,7 @@ func TestMarkProvenOnlyAfterRequiredTestAndScenarioClosure(t *testing.T) {
 }
 
 func TestRequiredTestRejectsSubstitutedCommand(t *testing.T) {
-	e := NewChangeEnvelope("chg-command", ChangeFeature, "feature", "source-sha", RiskHigh)
+	e := NewChangeEnvelope("chg-command", ChangeFeature, "feature", "source-sha", RiskLow)
 	e.RequiredTests = []TestRequirement{{
 		Name:     "real-test",
 		Command:  []string{"go", "test", "./..."},

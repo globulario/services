@@ -211,10 +211,14 @@ func TestScenarioProofFromCurrentInvocationIsAccepted(t *testing.T) {
 		t.Fatalf("proof artifact was written inside the simulator checkout: %s", result.ProofPath)
 	}
 	// All prior bindings survive.
-	if result.Proof.CandidateRevision != "candidate-sha" ||
-		result.Proof.Repository != "globulario/globular-quickstart" ||
-		result.Proof.Digest == "" {
+	if result.Proof.CandidateRevision != "candidate-sha" || result.Proof.Digest == "" {
 		t.Fatalf("proof lost a required binding: %+v", result.Proof)
+	}
+	// This fixture has no origin remote, so the simulator identity is genuinely
+	// unobservable. Recording it as empty is the honest answer; the previous
+	// behaviour stamped the canonical name on regardless of what ran.
+	if result.Proof.Repository != "" {
+		t.Fatalf("simulator identity was asserted rather than observed: %q", result.Proof.Repository)
 	}
 	// The simulation revision is now the exact committed simulator the run
 	// executed from, not a value the artifact was free to assert.

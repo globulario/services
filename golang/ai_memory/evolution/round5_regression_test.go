@@ -460,7 +460,6 @@ func TestIncompleteOccurrenceIdentityIsNotEvidence(t *testing.T) {
 		expect string
 	}{
 		{"candidate repository", func(p *ProofRecord) { p.CandidateRepository = "" }, "candidate repository"},
-		{"simulation repository", func(p *ProofRecord) { p.Repository = "" }, "simulation repository"},
 		{"simulation revision", func(p *ProofRecord) { p.SimulationRevision = "" }, "simulation revision"},
 		{"invocation id", func(p *ProofRecord) { p.InvocationID = "" }, "invocation id"},
 	} {
@@ -540,20 +539,31 @@ func TestProofRepositoryMustMatchTheFrozenScenario(t *testing.T) {
 			t.Fatalf("expected the claimed repository to be named, got %v", err)
 		}
 	})
-	t.Run("requirement omits the repository", func(t *testing.T) {
-		// An omitted requirement repository means the canonical simulator, not
-		// "any simulator".
+	t.Run("unobserved identity is surfaced, not failed", func(t *testing.T) {
+		// The simulator repository is observed, not asserted, so it can be
+		// genuinely unknowable — a mirror or airgapped clone has no remote. That
+		// is an unproven identity for admission to weigh, not a validation error.
 		e := provenFixture(t)
-		e.Proofs[0].Repository = "globulario/somewhere-else"
-		if err := e.Validate(); err == nil {
-			t.Fatal("an implicit requirement accepted a foreign simulator repository")
+		e.Proofs[0].Repository = ""
+		if err := e.Validate(); err != nil {
+			t.Fatalf("an unobservable simulator identity was treated as invalid: %v", err)
+		}
+		unproven := e.SimulatorIdentityUnproven()
+		if len(unproven) != 1 || unproven[0] != "chaos" {
+			t.Fatalf("unproven simulator identity was not surfaced: %v", unproven)
+		}
+		if len(e.ProofStatus().SimulatorIdentityUnproven) != 1 {
+			t.Fatal("ProofStatus does not surface the unproven identity to admission")
 		}
 	})
-	t.Run("canonical repository still validates", func(t *testing.T) {
+	t.Run("matching observed repository validates", func(t *testing.T) {
 		e := provenFixture(t)
 		e.Proofs[0].Repository = CanonicalSimulationRepository
 		if err := e.Validate(); err != nil {
 			t.Fatalf("the canonical simulator was rejected: %v", err)
+		}
+		if len(e.SimulatorIdentityUnproven()) != 0 {
+			t.Fatal("an observed identity was reported as unproven")
 		}
 	})
 }
@@ -672,4 +682,103 @@ func mustEvalSymlinks(t *testing.T, p string) string {
 		return p
 	}
 	return resolved
+}
+
+// The simulator identity recorded on a proof is the one the checkout actually
+// declares — not a constant the runner supplies on its behalf.
+func TestSimulatorIdentityIsObservedFromTheCheckout(t *testing.T) {
+	quickstart := t.TempDir()
+	writeQuickstartHarness(t, quickstart, fakeHarness{mode: "pass"})
+	runGit(t, quickstart, "remote", "add", "origin", "git@github.com:globulario/globular-quickstart.git")
+
+	envelopePath := scenarioEnvelope(t, "chg-observed-identity")
+	result, err := runScenario(t, quickstart, envelopePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Proof.Repository != "globulario/globular-quickstart" {
+		t.Fatalf("simulator identity was not observed from the checkout: %q", result.Proof.Repository)
+	}
+
+	// A fork carrying the same harness must be recorded as the fork it is.
+	other := t.TempDir()
+	writeQuickstartHarness(t, other, fakeHarness{mode: "pass"})
+	runGit(t, other, "remote", "add", "origin", "https://github.com/someone-else/globular-quickstart.git")
+	forkEnvelope := scenarioEnvelope(t, "chg-fork-identity")
+	forkResult, err := runScenario(t, other, forkEnvelope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if forkResult.Proof.Repository != "someone-else/globular-quickstart" {
+		t.Fatalf("a fork was recorded as something else: %q", forkResult.Proof.Repository)
+	}
+}
+
+func TestRepositoryURLNormalisation(t *testing.T) {
+	// One repository must not read as several identities because git accepts
+	// several spellings of it.
+	for _, raw := range []string{
+		"git@github.com:globulario/globular-quickstart.git",
+		"https://github.com/globulario/globular-quickstart.git",
+		"https://user@github.com/globulario/globular-quickstart",
+		"ssh://git@github.com/globulario/globular-quickstart.git",
+	} {
+		if got := normalizeRepositoryURL(raw); got != "globulario/globular-quickstart" {
+			t.Fatalf("%s normalised to %q", raw, got)
+		}
+	}
+	for _, raw := range []string{"", "not-a-url"} {
+		if got := normalizeRepositoryURL(raw); got != "" {
+			t.Fatalf("%q should be unobservable, got %q", raw, got)
+		}
+	}
+}
+
+// Risk-scoped plan adequacy: the obligation binds where the central law bites.
+func TestSimulationObligationIsRiskScoped(t *testing.T) {
+	bind := func(t *testing.T, kind ChangeKind, risk RiskClass, withScenario bool) error {
+		t.Helper()
+		e := NewChangeEnvelope("chg-adequacy", kind, "intent", "source-sha", risk)
+		e.RequiredTests = []TestRequirement{{
+			Name: "unit", Command: []string{"go", "test"}, Required: true,
+		}}
+		if withScenario {
+			e.RequiredScenarios = []ScenarioRequirement{{
+				Name: "chaos", Path: "tests/scenarios/chaos.yaml", Required: true,
+			}}
+		}
+		return e.BindCandidate("globulario/services", "candidate-sha")
+	}
+
+	t.Run("must declare a scenario", func(t *testing.T) {
+		for _, tc := range []struct {
+			name string
+			kind ChangeKind
+			risk RiskClass
+		}{
+			{"simulation repair", ChangeSimulationRepair, RiskLow},
+			{"architecture evolution", ChangeArchitectureEvolution, RiskLow},
+			{"high risk feature", ChangeFeature, RiskHigh},
+			{"critical incident repair", ChangeIncidentRepair, RiskCritical},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				if err := bind(t, tc.kind, tc.risk, false); err == nil {
+					t.Fatal("a plan with no simulation obligation was frozen")
+				}
+				if err := bind(t, tc.kind, tc.risk, true); err != nil {
+					t.Fatalf("declaring a scenario should satisfy the rule: %v", err)
+				}
+			})
+		}
+	})
+
+	t.Run("may prove locally", func(t *testing.T) {
+		// A low-risk feature whose whole proof is a unit test should not have to
+		// stand up a cluster to say so.
+		for _, risk := range []RiskClass{RiskLow, RiskMedium} {
+			if err := bind(t, ChangeFeature, risk, false); err != nil {
+				t.Fatalf("a %s feature was forced to declare a scenario: %v", risk, err)
+			}
+		}
+	})
 }

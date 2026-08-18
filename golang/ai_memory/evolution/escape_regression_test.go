@@ -35,7 +35,7 @@ func TestSymlinkedWorkDirCannotEscapeCandidateTree(t *testing.T) {
 	revision := headRevision(t, workspace)
 
 	envelopePath := filepath.Join(t.TempDir(), "change.yaml")
-	e := NewChangeEnvelope("chg-symlink-escape", ChangeFeature, "feature", revision, RiskCritical)
+	e := NewChangeEnvelope("chg-symlink-escape", ChangeFeature, "feature", revision, RiskLow)
 	e.RequiredTests = []TestRequirement{{
 		Name:     "escaping-test",
 		WorkDir:  "escape",

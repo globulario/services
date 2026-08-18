@@ -12,7 +12,7 @@ import (
 func TestRunDeclaredTestRecordsEvidenceForExactRevision(t *testing.T) {
 	workspace, revision := initTestRepo(t)
 	envelopePath := filepath.Join(t.TempDir(), "change.yaml")
-	e := NewChangeEnvelope("chg-test-run", ChangeFeature, "feature", revision, RiskHigh)
+	e := NewChangeEnvelope("chg-test-run", ChangeFeature, "feature", revision, RiskLow)
 	e.RequiredTests = []TestRequirement{{
 		Name:       "declared-test",
 		Repository: "globulario/services",
@@ -52,7 +52,7 @@ func TestRunDeclaredTestRecordsEvidenceForExactRevision(t *testing.T) {
 func TestRunDeclaredTestRejectsWrongCheckoutRevision(t *testing.T) {
 	workspace, _ := initTestRepo(t)
 	envelopePath := filepath.Join(t.TempDir(), "change.yaml")
-	e := NewChangeEnvelope("chg-wrong-rev", ChangeFeature, "feature", "different-sha", RiskHigh)
+	e := NewChangeEnvelope("chg-wrong-rev", ChangeFeature, "feature", "different-sha", RiskLow)
 	e.RequiredTests = []TestRequirement{{
 		Name:     "declared-test",
 		Command:  []string{"sh", "-c", "true"},
@@ -81,7 +81,7 @@ func TestFailedRerunDowngradesProvenCandidate(t *testing.T) {
 	// now a refusal.
 	flag := filepath.Join(t.TempDir(), "force-test-failure")
 	envelopePath := filepath.Join(t.TempDir(), "change.yaml")
-	e := NewChangeEnvelope("chg-rerun", ChangeSimulationRepair, "repair", revision, RiskCritical)
+	e := NewChangeEnvelope("chg-rerun", ChangeFeature, "feature", revision, RiskLow)
 	e.RequiredTests = []TestRequirement{{
 		Name:     "flippable",
 		Command:  []string{"sh", "-c", "test ! -f " + flag},

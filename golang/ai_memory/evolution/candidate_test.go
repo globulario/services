@@ -3,7 +3,7 @@ package evolution
 import "testing"
 
 func TestBindCandidateClearsEvidenceWhenRevisionChanges(t *testing.T) {
-	e := NewChangeEnvelope("chg-bind", ChangeFeature, "feature", "source", RiskHigh)
+	e := NewChangeEnvelope("chg-bind", ChangeFeature, "feature", "source", RiskLow)
 	if err := e.BindCandidate("globulario/services", "sha-a"); err != nil {
 		t.Fatal(err)
 	}
@@ -18,7 +18,7 @@ func TestBindCandidateClearsEvidenceWhenRevisionChanges(t *testing.T) {
 }
 
 func TestBindCandidateRefusesAfterAdmission(t *testing.T) {
-	e := NewChangeEnvelope("chg-admitted", ChangeFeature, "feature", "source", RiskHigh)
+	e := NewChangeEnvelope("chg-admitted", ChangeFeature, "feature", "source", RiskLow)
 	if err := e.BindCandidate("globulario/services", "sha-a"); err != nil {
 		t.Fatal(err)
 	}

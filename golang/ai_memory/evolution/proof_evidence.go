@@ -105,7 +105,6 @@ func (p ProofRecord) certifies(requirement ScenarioRequirement) error {
 	}
 	for _, field := range []struct{ name, value string }{
 		{"candidate repository", p.CandidateRepository},
-		{"simulation repository", p.Repository},
 		{"simulation revision", p.SimulationRevision},
 		{"invocation id", p.InvocationID},
 		{"proof_ref", p.ProofRef},
@@ -116,17 +115,45 @@ func (p ProofRecord) certifies(requirement ScenarioRequirement) error {
 			return fmt.Errorf("required scenario %q names no %s", requirement.Name, field.name)
 		}
 	}
+	// The simulator repository is observed, not asserted, so it may legitimately
+	// be unknown — a mirror or an airgapped clone has no remote to speak of.
+	// Absence is therefore not a validation failure; it is an unproven identity
+	// that admission weighs, surfaced through ProofStatus rather than silently
+	// tolerated. What is never allowed is a *contradiction*: if the checkout said
+	// what it was, it must be what the plan froze.
+	observed := strings.TrimSpace(p.Repository)
 	expected := strings.TrimSpace(requirement.Repository)
-	if expected == "" {
-		expected = CanonicalSimulationRepository
-	}
-	if p.Repository != expected {
+	if observed != "" && expected != "" && observed != expected {
 		return fmt.Errorf(
-			"required scenario %q is frozen against simulator repository %q but its proof claims %q",
-			requirement.Name, expected, p.Repository,
+			"required scenario %q is frozen against simulator repository %q but was proven against %q",
+			requirement.Name, expected, observed,
 		)
 	}
 	return nil
+}
+
+// SimulatorIdentityUnproven names the required scenarios whose proof could not
+// establish which simulator repository produced it. These are not validation
+// failures — the value is observed and may be genuinely unknowable — but they
+// are the cases an admission authority must decide about explicitly rather than
+// inherit.
+func (e ChangeEnvelope) SimulatorIdentityUnproven() []string {
+	var unproven []string
+	for _, requirement := range e.RequiredScenarios {
+		if !requirement.Required {
+			continue
+		}
+		for _, proof := range e.Proofs {
+			if proof.Scenario != requirement.Name || proof.CandidateRevision != e.CandidateRevision {
+				continue
+			}
+			if strings.TrimSpace(proof.Repository) == "" {
+				unproven = append(unproven, requirement.Name)
+			}
+			break
+		}
+	}
+	return unproven
 }
 
 func nonEmpty(values ...string) []string {

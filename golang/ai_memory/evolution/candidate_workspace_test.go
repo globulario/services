@@ -16,7 +16,7 @@ func candidateUnderTest(t *testing.T, name string) (workspace, revision, envelop
 	t.Helper()
 	workspace, revision = initTestRepo(t)
 	envelopePath = filepath.Join(t.TempDir(), "change.yaml")
-	e := NewChangeEnvelope(name, ChangeFeature, "feature", revision, RiskHigh)
+	e := NewChangeEnvelope(name, ChangeFeature, "feature", revision, RiskLow)
 	e.RequiredTests = []TestRequirement{{
 		Name:     "echo-contents",
 		Command:  []string{"sh", "-c", "cat README.md"},

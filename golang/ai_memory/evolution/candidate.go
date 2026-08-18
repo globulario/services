@@ -62,16 +62,20 @@ func (e *ChangeEnvelope) BindCandidate(repository, revision string) error {
 }
 
 type ProofStatus struct {
-	Stage                 ChangeStage `json:"stage"`
-	CandidateRepository   string      `json:"candidate_repository,omitempty"`
-	CandidateRevision     string      `json:"candidate_revision,omitempty"`
-	PlanDigest            string      `json:"plan_digest,omitempty"`
-	MissingRequiredTests  []string    `json:"missing_required_tests,omitempty"`
-	FailedRequiredTests   []string    `json:"failed_required_tests,omitempty"`
-	MissingScenarios      []string    `json:"missing_required_scenarios,omitempty"`
-	FailedScenarios       []string    `json:"failed_required_scenarios,omitempty"`
-	ProofComplete         bool        `json:"proof_complete"`
-	NextAuthorityBoundary string      `json:"next_authority_boundary"`
+	Stage                ChangeStage `json:"stage"`
+	CandidateRepository  string      `json:"candidate_repository,omitempty"`
+	CandidateRevision    string      `json:"candidate_revision,omitempty"`
+	PlanDigest           string      `json:"plan_digest,omitempty"`
+	MissingRequiredTests []string    `json:"missing_required_tests,omitempty"`
+	FailedRequiredTests  []string    `json:"failed_required_tests,omitempty"`
+	MissingScenarios     []string    `json:"missing_required_scenarios,omitempty"`
+	FailedScenarios      []string    `json:"failed_required_scenarios,omitempty"`
+	// SimulatorIdentityUnproven lists required scenarios whose proof could not
+	// say which simulator repository produced it. Not a failure — an explicit
+	// decision for the admission authority.
+	SimulatorIdentityUnproven []string `json:"simulator_identity_unproven,omitempty"`
+	ProofComplete             bool     `json:"proof_complete"`
+	NextAuthorityBoundary     string   `json:"next_authority_boundary"`
 }
 
 func (e ChangeEnvelope) ProofStatus() ProofStatus {
@@ -124,6 +128,7 @@ func (e ChangeEnvelope) ProofStatus() ProofStatus {
 			status.FailedScenarios = append(status.FailedScenarios, requirement.Name)
 		}
 	}
+	status.SimulatorIdentityUnproven = e.SimulatorIdentityUnproven()
 	candidate := e
 	candidate.Stage = StageProven
 	status.ProofComplete = candidate.Validate() == nil

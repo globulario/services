@@ -229,6 +229,9 @@ func (e ChangeEnvelope) Validate() error {
 		if err != nil {
 			return fmt.Errorf("calculate plan digest: %w", err)
 		}
+		if err := e.validatePlanAdequacy(); err != nil {
+			return err
+		}
 		if e.PlanDigest != expected {
 			return fmt.Errorf(
 				"proof plan changed after candidate binding: stored %s, current %s; create a new governed plan before proof",
@@ -321,6 +324,49 @@ func (e ChangeEnvelope) Validate() error {
 		return fmt.Errorf("blocked change requires blocked_reason")
 	}
 	return nil
+}
+
+// validatePlanAdequacy decides whether a plan is allowed to declare no
+// simulation obligation at all.
+//
+// Closure treats an empty scenario list as vacuously satisfied, so without this
+// a plan could reach PROVEN on local tests alone and never touch the clustered
+// model. Requiring a scenario of every change would be the wrong correction —
+// a low-risk feature whose whole proof is a unit test should not be forced to
+// stand up a cluster to say so, and a rule that expensive gets worked around.
+//
+// So the obligation is scoped to where the central law actually bites: changes
+// that repair or evolve the system's own behaviour, and changes whose blast
+// radius makes being wrong expensive. Those must declare a scenario when the
+// plan is frozen, before anything runs — not be caught at closure, by which
+// point the plan has already promised something it cannot deliver.
+func (e ChangeEnvelope) validatePlanAdequacy() error {
+	if !e.requiresSimulationObligation() {
+		return nil
+	}
+	for _, scenario := range e.RequiredScenarios {
+		if scenario.Required {
+			return nil
+		}
+	}
+	return fmt.Errorf(
+		"a %s change at risk %s must declare at least one required scenario; "+
+			"novel repair and evolution are proven against the reproducible model before they may alter the authoritative system",
+		e.Kind,
+		e.RiskClass,
+	)
+}
+
+func (e ChangeEnvelope) requiresSimulationObligation() bool {
+	switch e.Kind {
+	case ChangeSimulationRepair, ChangeArchitectureEvolution:
+		return true
+	}
+	switch e.RiskClass {
+	case RiskHigh, RiskCritical:
+		return true
+	}
+	return false
 }
 
 func (e ChangeEnvelope) validateProofClosure() error {

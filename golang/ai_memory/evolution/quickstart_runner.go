@@ -149,6 +149,14 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 	if err != nil {
 		return fail(QuickstartRunResult{ChangeID: envelope.ID}, err)
 	}
+	// Observed, never asserted. The runner used to stamp the canonical simulator
+	// name onto every record regardless of what it actually executed, which made
+	// the later "does the proof repository match the frozen requirement" check
+	// vacuous — a fabricated constant compared against a constant. What is
+	// recorded now is what this checkout says it is, and empty when that cannot
+	// be established, so admission can see an unproven simulator identity rather
+	// than inheriting a claim nobody checked.
+	simulationRepository := observeRepositoryIdentity(ctx, opts.QuickstartDir)
 	simTree, releaseSimTree, err := materializeCandidateTree(ctx, opts.QuickstartDir, simulationRevision)
 	if err != nil {
 		return fail(QuickstartRunResult{ChangeID: envelope.ID}, fmt.Errorf("materialize simulator revision: %w", err))
@@ -236,7 +244,7 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 		if obsErr == nil {
 			partial.Proof = ProofRecord{
 				Scenario:            observed.Scenario,
-				Repository:          "globulario/globular-quickstart",
+				Repository:          simulationRepository,
 				SimulationRevision:  observed.SourceRevision,
 				CandidateRepository: observed.Change.CandidateRepository,
 				CandidateRevision:   observed.Change.CandidateRevision,
@@ -261,7 +269,7 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 	}
 	proof := ProofRecord{
 		Scenario:            artifact.Scenario,
-		Repository:          "globulario/globular-quickstart",
+		Repository:          simulationRepository,
 		SimulationRevision:  artifact.SourceRevision,
 		CandidateRepository: artifact.Change.CandidateRepository,
 		CandidateRevision:   artifact.Change.CandidateRevision,
@@ -561,4 +569,43 @@ func (a QuickstartProofArtifact) requireDescribesOccurrence(
 		)
 	}
 	return nil
+}
+
+// observeRepositoryIdentity reports the repository a checkout says it is, as
+// "owner/name", or empty when that cannot be established.
+//
+// It never guesses. A mirror, an airgapped clone, or a bare test fixture has no
+// remote to speak of, and inventing a name for those would recreate exactly the
+// fabrication this replaced. Empty is a truthful answer that admission can weigh;
+// a confident wrong answer is not.
+func observeRepositoryIdentity(ctx context.Context, dir string) string {
+	out, err := exec.CommandContext(ctx, "git", "-C", dir, "remote", "get-url", "origin").Output()
+	if err != nil {
+		return ""
+	}
+	return normalizeRepositoryURL(strings.TrimSpace(string(out)))
+}
+
+// normalizeRepositoryURL reduces the shapes git accepts for one repository —
+// ssh, https, with or without .git — to the single "owner/name" form records are
+// compared on. Two spellings of one repository must not read as two identities.
+func normalizeRepositoryURL(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	value := strings.TrimSuffix(raw, ".git")
+	if idx := strings.Index(value, "://"); idx >= 0 {
+		value = value[idx+3:]
+		if at := strings.Index(value, "@"); at >= 0 {
+			value = value[at+1:]
+		}
+	} else if at := strings.Index(value, "@"); at >= 0 {
+		value = value[at+1:]
+	}
+	value = strings.ReplaceAll(value, ":", "/")
+	parts := strings.Split(strings.Trim(value, "/"), "/")
+	if len(parts) < 2 {
+		return ""
+	}
+	return parts[len(parts)-2] + "/" + parts[len(parts)-1]
 }

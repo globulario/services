@@ -40,7 +40,7 @@ func TestProofPlanCanReachProvenWithDeclaredLocalTestsOnly(t *testing.T) {
 func TestProofPlanStopsBeforeSimulationOnLocalTestFailure(t *testing.T) {
 	workspace, revision := initTestRepo(t)
 	envelopePath := filepath.Join(t.TempDir(), "change.yaml")
-	e := NewChangeEnvelope("chg-plan-fail", ChangeFeature, "feature", revision, RiskHigh)
+	e := NewChangeEnvelope("chg-plan-fail", ChangeFeature, "feature", revision, RiskLow)
 	e.RequiredTests = []TestRequirement{{
 		Name:       "must-pass",
 		Repository: "globulario/services",
