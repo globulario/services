@@ -18,6 +18,10 @@ on:
         description: 'Reason for forced rebuild'
         type: string
         default: ''
+      audit_only:
+        description: 'Build and audit release artifacts without publishing'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -1065,6 +1069,57 @@ jobs:
               sys.exit(1)
           PYEOF
 
+      # ── Package archive admission audit (hard gate) ──────────────────────
+      #
+      # Every artifact this release will put on a node is scanned with the
+      # node-agent's own admission gate (actions.ValidateArtifactArchive, the
+      # same planner serviceInstallPayloadAction extracts through) before the
+      # release is published. Extraction is fail-closed: an artifact that trips
+      # the gate will fail to install on every node, so it must be caught here
+      # rather than during a rollout.
+      #
+      # BOTH corpora are scanned. dist/packages holds freshly built and repaired
+      # packages; dist/unchanged holds carry-forward artifacts from earlier
+      # releases — which is precisely where historical packaging debris would
+      # live, so exempting it would audit only the packages least likely to be
+      # a problem.
+      #
+      # The JSON report is retained as release evidence. A zero-finding result
+      # is meaningful because every rejection class has a negative-control test
+      # proving the validator detects and reports it (see archive_safety_test.go);
+      # a scanner whose rules cannot fire reports zero exactly like a clean
+      # corpus.
+      - name: Audit package archives against the node-agent admission gate (hard gate)
+        run: |
+          set -euo pipefail
+          ( cd services/golang && go build -o "${RUNNER_TEMP}/audit-package-archives" \
+              ./node_agent/node_agent_server/cmd/audit-package-archives )
+
+          targets=()
+          for dir in dist/packages dist/unchanged; do
+            if compgen -G "${dir}/*.tgz" > /dev/null 2>&1; then
+              targets+=("${dir}")
+            fi
+          done
+          if [[ ${#targets[@]} -eq 0 ]]; then
+            echo "FAIL: no package artifacts found to audit in dist/packages or dist/unchanged" >&2
+            echo "A release that ships no auditable package artifact is not a release we can prove." >&2
+            exit 1
+          fi
+          echo "auditing: ${targets[*]}"
+
+          "${RUNNER_TEMP}/audit-package-archives" --json "${targets[@]}" \
+            > dist/package-archive-audit.json
+          "${RUNNER_TEMP}/audit-package-archives" --fail-on-findings "${targets[@]}"
+
+      - name: Upload package archive audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-archive-audit
+          path: dist/package-archive-audit.json
+          if-no-files-found: warn
+
       # ── Clean intermediate build artifacts to reclaim disk space ─────────
       - name: Clean build artifacts
         run: |
@@ -1094,6 +1149,7 @@ jobs:
       # subsequent platform release until its content actually changes.
       # ═══════════════════════════════════════════════════════════════════════
       - name: Generate release index (v2 BOM)
+        if: ${{ !inputs.audit_only }}
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
@@ -1255,6 +1311,7 @@ jobs:
       # platform release, regardless of whether they changed. Unchanged
       # packages keep their original filenames (no renaming to current ver).
       - name: Assemble release tarball
+        if: ${{ !inputs.audit_only }}
         env:
           VERSION: ${{ steps.version.outputs.version }}
           GIT_TAG: ${{ steps.version.outputs.tag }}
@@ -1454,6 +1511,7 @@ jobs:
           echo "Release tarball: $(du -sh "${RELEASE_NAME}.tar.gz" | cut -f1)"
 
       - name: Validate extracted release tarball
+        if: ${{ !inputs.audit_only }}
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
@@ -1516,6 +1574,7 @@ jobs:
       # Fail the release if unchanged packages are being uploaded.
       # ═══════════════════════════════════════════════════════════════════════
       - name: Verify BOM delta integrity
+        if: ${{ !inputs.audit_only }}
         run: |
           set -euo pipefail
 
@@ -1568,6 +1627,7 @@ jobs:
       # any repaired carry-forward artifacts that had to be re-authored for this
       # release. All other unchanged packages remain referenced from origin releases.
       - name: Create GitHub Release
+        if: ${{ !inputs.audit_only }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
@@ -1631,3 +1691,21 @@ jobs:
             - [Installation Guide](https://globular.io/docs/operators/installation)
             - [Architecture Overview](https://globular.io/docs/operators/architecture-overview)
             - [Adding Nodes](https://globular.io/docs/operators/adding-nodes)
+
+      # ── Audit-only terminus ─────────────────────────────────────────────
+      # Reached only when audit_only=true. Every step above this point is build,
+      # download or read-only inspection; every authoritative publication step
+      # (release-index generation, tarball assembly, BOM verification, GitHub
+      # Release creation and asset upload) is guarded off. This exists so the
+      # archive admission gate can be proven inside its real workflow without
+      # minting a platform release from an unmerged branch — release-index.json
+      # is platform truth, and a throwaway release would become the previous-BOM
+      # authority for the next real one.
+      - name: Audit-only terminus
+        if: ${{ inputs.audit_only }}
+        run: |
+          {
+            echo "AUDIT_ONLY_COMPLETE"
+            echo "publication_attempted: false"
+            echo "version_identity: ${{ steps.version.outputs.version }} (provisional, not minted)"
+          } | tee -a "$GITHUB_STEP_SUMMARY"

@@ -7823,3 +7823,17 @@ failure_modes:
         - minio_nonmember_test.go:TestNonMemberIsNotJudgedAgainstPoolTopology
       evidence:
         - '2026-08-11: migrating the quickstart cluster standalone -> distributed (3 storage nodes x 2 drives, generation 1, converged and HEALTHY) immediately produced 4 CRITICAL doctor findings on the two COMPUTE nodes (35ac3821, 6400b443): minio.topology_matches_desired x2 (''desired topology is distributed (3 nodes) but the rendered MINIO_VOLUMES is standalone'') and minio.not_stalled x2. Neither node is a storage-profile node, neither is in ObjectStoreDesiredState.Nodes, and both have globular-minio held stopped by the node-agent topology gate.'
+    - id: failure.package_archive_entry_escaped_its_destination_root_and_was_w
+      title: Package archive entry escaped its destination root and was written as root
+      severity: critical
+      description: 'serviceInstallPayloadAction mapped config/, data/, policy/ and scripts/ entries onto their host roots with a bare strings.TrimPrefix and no containment check, so an entry named data/../../etc/cron.d/x resolved through filepath.Join to /etc/cron.d/x and was written there by the root-owned node agent. Name normalization made it worse: strings.TrimLeft(hdr.Name, "./") uses a CUTSET, so it consumed the dots of a leading ../ and laundered an obvious traversal into an innocent relative path. Extraction was also streaming, so an unsafe entry was only discovered after earlier entries had already landed on disk.'
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/internal/actions/artifact.go
+      related_invariants:
+        - invariant.package_archive_extraction_must_stay_within_node_owned_desti
+      required_tests:
+        - archive_safety_test.go:TestInstallPayloadRejectsTraversalOutsideEveryDestinationRoot
+      evidence:
+        - 'Confirmed by executing the real serviceInstallPayloadAction against an archive whose sole entry was data/../../../escaped.txt: the file was written outside the state root with contents PWNED.'
+        - 'Predates the OCI work: artifact.go is unchanged across 07941781..998451c6.'
