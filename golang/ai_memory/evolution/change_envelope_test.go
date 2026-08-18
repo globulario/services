@@ -4,10 +4,11 @@ import "testing"
 
 func TestProvenRequiresProofForExactCandidate(t *testing.T) {
 	e := NewChangeEnvelope("chg-1", ChangeSimulationRepair, "repair stale authority", "source-sha", RiskHigh)
-	e.Stage = StageProven
-	e.CandidateRepository = "globulario/services"
-	e.CandidateRevision = "candidate-sha"
 	e.RequiredScenarios = []ScenarioRequirement{{Name: "controller-zombie-after-lease-loss", Required: true}}
+	if err := e.BindCandidate("globulario/services", "candidate-sha"); err != nil {
+		t.Fatal(err)
+	}
+	e.Stage = StageProven
 	e.Proofs = []ProofRecord{{Scenario: "controller-zombie-after-lease-loss", CandidateRepository: "globulario/services", CandidateRevision: "other-sha", Result: "PASS", ProofEligible: true}}
 	if err := e.Validate(); err == nil {
 		t.Fatal("expected candidate revision mismatch")
@@ -20,9 +21,10 @@ func TestProvenRequiresProofForExactCandidate(t *testing.T) {
 
 func TestAdmissionMustBindCandidate(t *testing.T) {
 	e := NewChangeEnvelope("chg-2", ChangeFeature, "new feature", "source-sha", RiskMedium)
+	if err := e.BindCandidate("globulario/services", "candidate-sha"); err != nil {
+		t.Fatal(err)
+	}
 	e.Stage = StageAdmitted
-	e.CandidateRepository = "globulario/services"
-	e.CandidateRevision = "candidate-sha"
 	e.Admission = AdmissionRecord{Status: "ACCEPT", Revision: "wrong-sha"}
 	if err := e.Validate(); err == nil {
 		t.Fatal("expected admission revision mismatch")
@@ -44,5 +46,21 @@ func TestIdentityDigestIgnoresListOrdering(t *testing.T) {
 	}
 	if da != db {
 		t.Fatalf("identity digest changed with set ordering: %s != %s", da, db)
+	}
+}
+
+func TestCandidatePlanDigestRejectsShrinkingProofObligations(t *testing.T) {
+	e := NewChangeEnvelope("chg-plan-freeze", ChangeSimulationRepair, "repair", "source", RiskCritical)
+	e.RequiredScenarios = []ScenarioRequirement{{Name: "scenario-a", Required: true}}
+	if err := e.BindCandidate("globulario/services", "candidate-sha"); err != nil {
+		t.Fatal(err)
+	}
+	frozen := e.PlanDigest
+	e.RequiredScenarios = nil
+	if err := e.Validate(); err == nil {
+		t.Fatal("expected proof-plan mutation to invalidate candidate")
+	}
+	if e.PlanDigest != frozen {
+		t.Fatal("proof-plan mutation must not silently rewrite frozen plan digest")
 	}
 }
