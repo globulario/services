@@ -14,9 +14,8 @@ import (
 // can be produced without a queue or a connection.
 type statsRecorder struct{ stats observation.Stats }
 
-func (f *statsRecorder) Enqueue(observation.Bundle) bool          { return true }
-func (f *statsRecorder) Stats() observation.Stats                 { return f.stats }
-func (f *statsRecorder) enqueueFinding(*cluster_doctorpb.Finding) {}
+func (f *statsRecorder) Enqueue(observation.Bundle) bool { return true }
+func (f *statsRecorder) Stats() observation.Stats        { return f.stats }
 
 type healthEvent struct {
 	prev, cur observation.RecorderHealth
