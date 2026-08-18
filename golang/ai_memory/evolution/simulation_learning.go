@@ -126,6 +126,16 @@ func (l SimulationLearning) Validate() error {
 	if l.Result == "PASS" && strings.TrimSpace(l.SourceRevision) == "" {
 		return fmt.Errorf("PASS learning requires source_revision")
 	}
+	// An observation with no readable time is not an observation with a default
+	// time. Stamping "now" onto an artifact whose age is unknown persists a stale
+	// result as a fresh one, and freshness is what later contradiction and
+	// promotion decisions weigh.
+	if _, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(l.CreatedAt)); err != nil {
+		return fmt.Errorf(
+			"learning artifact has no readable created_at (%q): an observation of unknown age cannot be recorded as a fresh one",
+			l.CreatedAt,
+		)
+	}
 	if l.Authority.ProductionAuthoritative {
 		return fmt.Errorf("simulation learning cannot be production authoritative")
 	}
@@ -429,11 +439,15 @@ func (i SimulationIngestor) Ingest(ctx context.Context, l SimulationLearning) (S
 	return result, nil
 }
 
+// parseRFC3339Unix is only reached for artifacts that already passed Validate,
+// which requires a readable created_at. The zero fallback exists so a caller
+// bypassing validation cannot silently acquire the current time as an
+// observation timestamp.
 func parseRFC3339Unix(v string) int64 {
-	if t, err := time.Parse(time.RFC3339Nano, v); err == nil {
+	if t, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(v)); err == nil {
 		return t.Unix()
 	}
-	return time.Now().UTC().Unix()
+	return 0
 }
 func simulationSeverity(result string) string {
 	if result == "FAIL" || result == "PARTIAL" {

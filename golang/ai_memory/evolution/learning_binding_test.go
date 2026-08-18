@@ -205,3 +205,31 @@ func TestIdentitiesAreDistinctWithinOneOccurrence(t *testing.T) {
 		t.Fatalf("expected signal + evidence + outcome identities, got %d", len(all))
 	}
 }
+
+// An observation with no readable time is not an observation with a default
+// time — stamping "now" onto an artifact of unknown age persists a stale result
+// as a fresh one, and freshness is what contradiction and promotion weigh.
+func TestLearningWithoutReadableCreatedAtIsRefused(t *testing.T) {
+	for _, tc := range []struct{ name, createdAt string }{
+		{"empty", ""},
+		{"whitespace", "   "},
+		{"malformed", "yesterday"},
+		{"date only", "2026-08-18"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			l := validLearning()
+			l.CreatedAt = tc.createdAt
+			if err := l.Validate(); err == nil {
+				t.Fatal("an artifact of unknown age was accepted as an observation")
+			}
+		})
+	}
+	valid := validLearning()
+	if err := valid.Validate(); err != nil {
+		t.Fatalf("a readable timestamp was rejected: %v", err)
+	}
+	// And the parser never manufactures a time for an unreadable value.
+	if got := parseRFC3339Unix("not a time"); got != 0 {
+		t.Fatalf("an unreadable timestamp produced %d rather than refusing", got)
+	}
+}
