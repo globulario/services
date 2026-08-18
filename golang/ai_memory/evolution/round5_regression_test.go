@@ -893,3 +893,102 @@ func TestCLIExitJudgesAgainstTheFrozenRequirement(t *testing.T) {
 		t.Fatalf("a run consistent with its frozen plan was rejected: %v", err)
 	}
 }
+
+// An envelope may not assert its own admission. Status, revision and plan digest
+// are all values its author supplies, so alone they say only that someone wrote
+// ACCEPT into the artifact being accepted.
+func TestAdmissionMustReferenceADecisionTakenElsewhere(t *testing.T) {
+	base := func(t *testing.T) ChangeEnvelope {
+		t.Helper()
+		e := provenFixture(t)
+		e.Stage = StageAdmitted
+		e.Admission = AdmissionRecord{
+			Status: "ACCEPT", Revision: e.CandidateRevision, PlanDigest: e.PlanDigest,
+			Ref: "sensei://admission/chg-evidence", Actor: "sensei", At: "2026-08-18T00:00:00Z",
+		}
+		return e
+	}
+	if err := base(t).Validate(); err != nil {
+		t.Fatalf("an attested admission was rejected: %v", err)
+	}
+	for _, field := range []struct {
+		name  string
+		strip func(*AdmissionRecord)
+	}{
+		{"ref", func(a *AdmissionRecord) { a.Ref = "" }},
+		{"actor", func(a *AdmissionRecord) { a.Actor = "" }},
+		{"at", func(a *AdmissionRecord) { a.At = "" }},
+	} {
+		t.Run("without "+field.name, func(t *testing.T) {
+			e := base(t)
+			field.strip(&e.Admission)
+			if err := e.Validate(); err == nil {
+				t.Fatal("an envelope admitted itself with no reference to any decision")
+			}
+		})
+	}
+	// And the claim is reported as unverified, because this process cannot check it.
+	if !base(t).ProofStatus().AdmissionUnverified {
+		t.Fatal("admission was presented as verified by a process that cannot verify it")
+	}
+}
+
+// The submitted list must not decide which layers count.
+func TestProductionVerificationRequiresEveryLayer(t *testing.T) {
+	admitted := func(t *testing.T) ChangeEnvelope {
+		t.Helper()
+		e := provenFixture(t)
+		e.Stage = StageVerified
+		e.Admission = AdmissionRecord{
+			Status: "ACCEPT", Revision: e.CandidateRevision, PlanDigest: e.PlanDigest,
+			Ref: "sensei://admission/x", Actor: "sensei", At: "2026-08-18T00:00:00Z",
+		}
+		e.Release = ReleaseRecord{
+			Status: "RELEASED", CandidateRevision: e.CandidateRevision,
+			PlanDigest: e.PlanDigest, ReleaseRevision: "rel-1",
+			Artifacts: []ArtifactRef{{Kind: "package", URI: "oci://x"}},
+		}
+		return e
+	}
+
+	t.Run("one layer is not verification", func(t *testing.T) {
+		e := admitted(t)
+		e.ProductionVerification = []VerificationRecord{
+			{Layer: "runtime", Status: "PASS", ReleaseRevision: "rel-1"},
+		}
+		if err := e.Validate(); err == nil {
+			t.Fatal("a single observed layer claimed production verification")
+		}
+	})
+	t.Run("an unnamed layer is refused", func(t *testing.T) {
+		e := admitted(t)
+		e.ProductionVerification = []VerificationRecord{
+			{Layer: "", Status: "PASS", ReleaseRevision: "rel-1"},
+		}
+		if err := e.Validate(); err == nil {
+			t.Fatal("a record naming no layer was counted as one")
+		}
+	})
+	t.Run("all four layers verify", func(t *testing.T) {
+		e := admitted(t)
+		for _, layer := range RequiredProductionLayers {
+			e.ProductionVerification = append(e.ProductionVerification, VerificationRecord{
+				Layer: layer, Status: "PASS", ReleaseRevision: "rel-1",
+			})
+		}
+		if err := e.Validate(); err != nil {
+			t.Fatalf("the complete four-layer model was rejected: %v", err)
+		}
+	})
+}
+
+// One obligation, one record — on the test leg as well as the scenario leg.
+func TestDuplicateTestRecordsForOneObligationAreRefused(t *testing.T) {
+	e := provenFixture(t)
+	stale := e.Tests[0]
+	stale.Result = "FAIL"
+	e.Tests = append([]TestRecord{stale}, e.Tests...)
+	if err := e.Validate(); err == nil {
+		t.Fatal("two records for one test obligation were accepted")
+	}
+}

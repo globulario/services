@@ -239,6 +239,9 @@ func TestAdmittedEnvelopeIsNeverDemotedOnLoad(t *testing.T) {
 		Status:     "ACCEPT",
 		Revision:   e.CandidateRevision,
 		PlanDigest: e.PlanDigest,
+		Ref:        "sensei://admission/chg-evidence",
+		Actor:      "sensei",
+		At:         "2026-08-18T00:00:00Z",
 	}
 	if err := SaveChangeEnvelope(path, e); err != nil {
 		t.Fatal(err)

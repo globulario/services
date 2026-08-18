@@ -74,8 +74,11 @@ type ProofStatus struct {
 	// say which simulator repository produced it. Not a failure — an explicit
 	// decision for the admission authority.
 	SimulatorIdentityUnproven []string `json:"simulator_identity_unproven,omitempty"`
-	ProofComplete             bool     `json:"proof_complete"`
-	NextAuthorityBoundary     string   `json:"next_authority_boundary"`
+	// AdmissionUnverified reports that the admission recorded here is a claim
+	// referencing a decision taken elsewhere, which this process cannot check.
+	AdmissionUnverified   bool   `json:"admission_unverified,omitempty"`
+	ProofComplete         bool   `json:"proof_complete"`
+	NextAuthorityBoundary string `json:"next_authority_boundary"`
 }
 
 func (e ChangeEnvelope) ProofStatus() ProofStatus {
@@ -129,6 +132,7 @@ func (e ChangeEnvelope) ProofStatus() ProofStatus {
 		}
 	}
 	status.SimulatorIdentityUnproven = e.SimulatorIdentityUnproven()
+	status.AdmissionUnverified = stageAtLeast(e.Stage, StageAdmitted)
 	candidate := e
 	candidate.Stage = StageProven
 	status.ProofComplete = candidate.Validate() == nil

@@ -99,6 +99,11 @@ type TestRecord struct {
 	Digest              string   `json:"digest,omitempty" yaml:"digest,omitempty"`
 }
 
+// RequiredProductionLayers is the fixed set a VERIFIED change must evidence.
+// Each layer has a different owner and answers a different question, so a
+// subset is not a weaker version of the same claim — it is a different claim.
+var RequiredProductionLayers = []string{"repository", "desired", "installed", "runtime"}
+
 type AdmissionRecord struct {
 	Status     string `json:"status,omitempty" yaml:"status,omitempty"`
 	Revision   string `json:"revision,omitempty" yaml:"revision,omitempty"`
@@ -252,6 +257,25 @@ func (e ChangeEnvelope) Validate() error {
 		}
 	}
 	if stageAtLeast(e.Stage, StageAdmitted) {
+		// An envelope cannot admit itself. Status, revision and plan digest are
+		// all values its author supplies, so on their own they say only that
+		// someone wrote ACCEPT into the artifact being accepted. Admission is a
+		// decision taken elsewhere, so the envelope must at minimum carry a
+		// reference to that decision and who took it — and even then this
+		// process cannot check it, which ProofStatus reports rather than hides.
+		for _, field := range []struct{ name, value string }{
+			{"admission.ref", e.Admission.Ref},
+			{"admission.actor", e.Admission.Actor},
+			{"admission.at", e.Admission.At},
+		} {
+			if strings.TrimSpace(field.value) == "" {
+				return fmt.Errorf(
+					"stage %s requires %s naming the decision this envelope is claiming; "+
+						"an envelope may not assert its own admission",
+					e.Stage, field.name,
+				)
+			}
+		}
 		if e.Admission.Status != "ACCEPT" {
 			return fmt.Errorf("stage %s requires admission status ACCEPT", e.Stage)
 		}
@@ -298,6 +322,31 @@ func (e ChangeEnvelope) Validate() error {
 	if stageAtLeast(e.Stage, StageVerified) {
 		if len(e.ProductionVerification) == 0 {
 			return fmt.Errorf("verified change requires production verification evidence")
+		}
+		// The submitted list must not decide which layers count. Otherwise a
+		// caller supplying one Runtime row — or a row with no layer named at all
+		// — claims production verification while Repository, Desired and
+		// Installed went unobserved, which is the four-layer model collapsed by
+		// the party being verified.
+		observed := map[string]bool{}
+		for _, verification := range e.ProductionVerification {
+			layer := strings.ToLower(strings.TrimSpace(verification.Layer))
+			if layer == "" {
+				return fmt.Errorf("production verification record names no layer")
+			}
+			if observed[layer] {
+				return fmt.Errorf("production verification names layer %q more than once", layer)
+			}
+			observed[layer] = true
+		}
+		for _, required := range RequiredProductionLayers {
+			if !observed[required] {
+				return fmt.Errorf(
+					"verified change requires production verification for layer %q; "+
+						"the four-layer model is not satisfied by whichever layers were submitted",
+					required,
+				)
+			}
 		}
 		for _, verification := range e.ProductionVerification {
 			if verification.Status != "PASS" {
@@ -443,6 +492,19 @@ func (e ChangeEnvelope) validateProofClosure() error {
 			requiredTests[requirement.Name] = requirement
 		}
 	}
+	seenTest := map[string]struct{}{}
+	for _, test := range e.Tests {
+		key := test.Name + "\x00" + test.CandidateRevision
+		if _, ok := seenTest[key]; ok {
+			return fmt.Errorf(
+				"test %q has more than one record for candidate revision %s; "+
+					"one obligation has one occurrence",
+				test.Name, test.CandidateRevision,
+			)
+		}
+		seenTest[key] = struct{}{}
+	}
+
 	satisfiedTests := map[string]bool{}
 	for _, test := range e.Tests {
 		if test.CandidateRepository != "" && test.CandidateRepository != e.CandidateRepository {

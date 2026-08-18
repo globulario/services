@@ -112,10 +112,22 @@ func RunProofPlan(ctx context.Context, opts ProofPlanOptions) (ProofPlanResult, 
 				runErr,
 			)
 		}
-		if scenarioResult.ExitCode != 0 || !scenarioResult.Proof.ProofEligible || scenarioResult.Proof.Result != "PASS" {
+		if scenarioResult.ExitCode != 0 {
 			return withProofStatus(opts.EnvelopePath, result), fmt.Errorf(
-				"required scenario %q did not produce eligible PASS proof",
-				requirement.Name,
+				"required scenario %q exited %d",
+				requirement.Name, scenarioResult.ExitCode,
+			)
+		}
+		// Ask the same question certification asks, not the record's own account
+		// of itself. A scenario run from a checkout that contradicts the frozen
+		// plan reports an eligible PASS and is correctly refused certification —
+		// but reading only its self-report would let orchestration carry on
+		// launching later, potentially destructive lab scenarios and discover the
+		// contradiction at final closure.
+		if err := scenarioResult.CertifiesRequirement(requirement.Name); err != nil {
+			return withProofStatus(opts.EnvelopePath, result), fmt.Errorf(
+				"required scenario %q did not produce certifying proof: %w",
+				requirement.Name, err,
 			)
 		}
 	}
