@@ -31,6 +31,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/globulario/services/golang/ai_memory/behavioral/domain"
 	observation "github.com/globulario/services/golang/ai_memory/domains/cluster_operator/observation"
 )
 
@@ -48,43 +49,30 @@ const candidateMinRepeats = 2
 // reading its content.
 const candidateActor = "cluster_doctor.learning_loop"
 
-// draftForInvariant is the governance draft proposed when an invariant's
-// remediations keep producing outcomes.
+// The governance drafts that used to live here — a draftForInvariant table
+// mapping two invariant ids to fully-authored titles, authorities, evidence,
+// risk levels and revocation rules — now come from the domain pack
+// (#249 gap 2). The doctor no longer authors governance for a domain it does
+// not own.
 //
-// An explicit table, for the same reason conditionForInvariant is one: every ref
-// here must resolve in the authority/condition/evidence catalogs, and a derived
-// id would silently stop resolving the moment either naming convention shifted.
-// The failure would be invisible — candidates would simply stop being generated,
-// and an empty review queue reads identically to a healthy cluster.
+// Two things were wrong with owning them here, and both were live:
 //
-// An invariant absent from this table produces no candidate. That is the safe
-// direction: no hint is honest, whereas a hint drafted from guessed refs would
-// ask a human to approve a rule whose scope nobody established.
-var draftForInvariant = map[string]observation.CandidateDraft{
-	"node.systemd.units_running": {
-		Title:             "Restart a drifted Globular unit only on an observed finding",
-		AppliesWhen:       []string{"condition.cluster.node.systemd_unit_not_running"},
-		Authorities:       []string{"authority.cluster.node_agent.runtime_state"},
-		RequiredEvidence:  []string{"evidence.doctor.finding_observed"},
-		RecommendedAction: "Restart the drifted globular-* unit through the node agent's supervisor path, and only after the finding that names it has been observed.",
-		RiskLevel:         "low",
-		PromotionReason:   "remediation of this invariant repeated across runs; the action is deterministic, idempotent, and already constrained by the executor's globular-* unit allowlist",
-		RevocationRule:    "revoke if restarting a drifted unit stops resolving the finding, or if the executor's unit allowlist is widened beyond globular-*",
-	},
-	"cluster.desired_state.absent": {
-		Title:             "Do not converge a service whose desired state is absent",
-		AppliesWhen:       []string{"condition.cluster.service.desired_observed_mismatch"},
-		Authorities:       []string{"authority.cluster.cluster_controller.runtime_state"},
-		RequiredEvidence:  []string{"evidence.cluster.owner_service.desired_state"},
-		RecommendedAction: "Resolve desired state from the controller before acting; absent desired state is a question for the owner, not a licence to converge toward whatever is currently observed.",
-		RiskLevel:         "high",
-		PromotionReason:   "repeated findings in which observed state was treated as authoritative because desired state could not be resolved",
-		RevocationRule:    "revoke if the controller gains an authoritative absent-desired-state representation that makes the distinction unnecessary",
-	},
-}
+//  1. An invariant absent from the table produced no candidate, so anything
+//     the doctor had not been taught about could repeat forever without
+//     becoming reviewable. The table was the ceiling on what could be learned.
+//  2. It drifted. For the same rule, the table cited
+//     authority.cluster.node_agent.runtime_state while the pack's
+//     principle.cluster.restart_drifted_unit_with_observed_finding cites
+//     authority.cluster.owner_service.runtime_state — two hand-maintained
+//     copies of one governance claim, disagreeing, with nothing able to notice.
+//
+// What stays here is what the doctor legitimately knows: which of ITS
+// invariants a finding belongs to, and the theme its outcomes accumulate under.
+// What that pattern MEANS is the domain's to say.
 
-// synthesizePromotionCandidates offers every drafted invariant to the review
-// queue and reports how many were accepted.
+// synthesizePromotionCandidates offers every mapped invariant to the review
+// queue and reports how many were accepted. The draft for each comes from the
+// domain pack, so a rule the domain never authored is never proposed.
 //
 // Errors are per-theme and never abort the sweep: one unreachable or malformed
 // theme must not stop the others from being offered, because the loop's whole
@@ -94,8 +82,19 @@ func (s *ClusterDoctorServer) synthesizePromotionCandidates(ctx context.Context)
 		return 0
 	}
 	queued := 0
-	for invariantID, draft := range draftForInvariant {
+	for invariantID, condition := range conditionForInvariant {
 		theme := behavioralThemeForInvariant(invariantID)
+		draft, ok := observation.CandidateDraftFor(domain.LearningObservation{
+			Theme:      theme,
+			Conditions: []string{condition},
+		})
+		if !ok {
+			// The domain has no template for this pattern. Queue nothing: a
+			// generic draft would ask a human to approve a scope no domain
+			// author ever wrote, and would be indistinguishable from one who
+			// did.
+			continue
+		}
 		res, err := s.behavioralGovernor.GeneratePromotionCandidate(ctx, observation.CandidateRequest{
 			Project:    behavioralProject,
 			Domain:     behavioralDomain,
