@@ -24,11 +24,25 @@ func (f *fakeRecorder) RecordOutcome(_ context.Context, _ *behavioral.RecordOutc
 
 func validLearning() SimulationLearning {
 	return SimulationLearning{
-		LearningSchemaVersion: 1, CreatedAt: "2026-08-17T20:00:00Z", Source: "globular-quickstart-simulation", Scenario: "x", Suite: "resilience", Result: "FAIL", SourceRevision: "sim-sha",
-		Change:          ChangeBinding{ID: "chg-1", CandidateRepository: "globulario/services", CandidateRevision: "cand-sha", SimulationRevision: "sim-sha"},
+		LearningSchemaVersion: 1,
+		CreatedAt:             "2026-08-17T20:00:00Z",
+		Source:                "globular-quickstart-simulation",
+		Scenario:              "x",
+		Suite:                 "resilience",
+		Result:                "FAIL",
+		SourceRevision:        "sim-sha",
+		Change: ChangeBinding{
+			ID:                  "chg-1",
+			CandidateRepository: "globulario/services",
+			CandidateRevision:   "cand-sha",
+			PlanDigest:          "sha256:plan",
+			SimulationRevision:  "sim-sha",
+		},
 		Proof:           SimulationProof{Claim: "stale authority is fenced", Determinism: Determinism{Replayable: true, Seed: "seed-1"}},
 		CandidatePolicy: CandidatePolicy{LearningEnabled: true, CandidateTypes: []string{"failure_mode", "scenario"}, MayCreateCandidates: true, MayPromote: false},
-		Authority:       SimulationAuthority{ProductionAuthoritative: false, PromotionRequired: true}, EvidenceRef: "evidence.json", ProofRef: "scenario-proof.json",
+		Authority:       SimulationAuthority{ProductionAuthoritative: false, PromotionRequired: true},
+		EvidenceRef:     "evidence.json",
+		ProofRef:        "scenario-proof.json",
 	}
 }
 
@@ -44,6 +58,7 @@ func TestSimulationLearningRejectsAuthorityEscalation(t *testing.T) {
 		t.Fatal("expected promotion rejection")
 	}
 }
+
 func TestSimulationLearningBindsChangeRevision(t *testing.T) {
 	l := validLearning()
 	l.Change.SimulationRevision = "other"
@@ -51,6 +66,15 @@ func TestSimulationLearningBindsChangeRevision(t *testing.T) {
 		t.Fatal("expected simulation revision mismatch")
 	}
 }
+
+func TestSimulationLearningRequiresFrozenPlan(t *testing.T) {
+	l := validLearning()
+	l.Change.PlanDigest = ""
+	if err := l.Validate(); err == nil {
+		t.Fatal("expected missing plan digest rejection")
+	}
+}
+
 func TestIngestRecordsButDoesNotPromote(t *testing.T) {
 	f := &fakeRecorder{}
 	r, err := (SimulationIngestor{Recorder: f}).Ingest(context.Background(), validLearning())
