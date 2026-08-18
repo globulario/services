@@ -34,6 +34,9 @@ func TestProvenRequiresProofForExactCandidate(t *testing.T) {
 
 func TestAdmissionMustBindCandidateAndPlan(t *testing.T) {
 	e := NewChangeEnvelope("chg-2", ChangeFeature, "new feature", "source-sha", RiskMedium)
+	e.RequiredTests = []TestRequirement{{
+		Name: "unit", Command: []string{"go", "test"}, Required: true,
+	}}
 	if err := e.BindCandidate("globulario/services", "candidate-sha"); err != nil {
 		t.Fatal(err)
 	}

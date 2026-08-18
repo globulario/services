@@ -166,6 +166,39 @@ func (l SimulationLearning) Validate() error {
 	return nil
 }
 
+// RequireOccurrenceBinding refuses an artifact that asserts a result without
+// naming the occurrence that produced it.
+//
+// A standalone file with result PASS, a plausible source revision and timestamp,
+// and empty proof/evidence refs previously validated — and was then recorded as
+// a confidence-1 runtime fact with no evidence IDs. A self-authored JSON file
+// could become durable Behavioral Memory that later contradiction and promotion
+// decisions weigh.
+//
+// Ingestion is a live mutation of the behavioral store, so the artifact must at
+// minimum say which proof occurrence it describes. Verifying that occurrence
+// against the executed proof is stronger still and is what RequireBoundTo does
+// on the proof path; this is the floor beneath it for the standalone tool.
+func (l SimulationLearning) RequireOccurrenceBinding() error {
+	for _, field := range []struct{ name, value string }{
+		{"proof_ref", l.ProofRef},
+		{"evidence_ref", l.EvidenceRef},
+		{"change.id", l.Change.ID},
+		{"change.candidate_revision", l.Change.CandidateRevision},
+		{"change.plan_digest", l.Change.PlanDigest},
+		{"invocation.id", l.Invocation.ID},
+	} {
+		if strings.TrimSpace(field.value) == "" {
+			return fmt.Errorf(
+				"learning artifact names no %s; an observation that cannot say which run produced it "+
+					"must not become durable behavioral memory",
+				field.name,
+			)
+		}
+	}
+	return nil
+}
+
 // RequireBoundTo refuses any learning artifact that is not this exact proof
 // occurrence. It compares only; it never copies a missing value across from the
 // proof, because filling a gap here would launder an unidentified artifact into

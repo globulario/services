@@ -38,6 +38,15 @@ func main() {
 		fmt.Fprintf(os.Stderr, "simulation-learning-ingest: rejected learning artifact: %v\n", err)
 		os.Exit(2)
 	}
+	// Live ingestion mutates the behavioral store, so an artifact that cannot
+	// name its proof occurrence is refused here. Dry-run stays inspectable so an
+	// operator can still see what an unbound artifact contains.
+	if !*dryRun {
+		if err := learning.RequireOccurrenceBinding(); err != nil {
+			fmt.Fprintf(os.Stderr, "simulation-learning-ingest: refusing unevidenced artifact: %v\n", err)
+			os.Exit(2)
+		}
+	}
 	if *dryRun {
 		if err := json.NewEncoder(os.Stdout).Encode(learning); err != nil {
 			fmt.Fprintf(os.Stderr, "simulation-learning-ingest: encode dry-run: %v\n", err)

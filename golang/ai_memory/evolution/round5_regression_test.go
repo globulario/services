@@ -1024,3 +1024,58 @@ func TestDuplicateTestRecordsForOneObligationAreRefused(t *testing.T) {
 		t.Fatal("two records for one test obligation were accepted")
 	}
 }
+
+// A plan with no obligations proves nothing by construction: both closure loops
+// are vacuously satisfied, so PROVEN is reachable without a test or scenario
+// ever running.
+func TestPlanWithNoObligationsIsRefused(t *testing.T) {
+	e := NewChangeEnvelope("chg-empty-plan", ChangeFeature, "feature", "source-sha", RiskLow)
+	if err := e.BindCandidate("globulario/services", "candidate-sha"); err == nil {
+		t.Fatal("a plan declaring no required test and no required scenario was frozen")
+	}
+
+	// One local obligation is enough for a low-risk feature; the risk-scoped rule
+	// decides separately when one of them must be a clustered simulation.
+	e = NewChangeEnvelope("chg-one-obligation", ChangeFeature, "feature", "source-sha", RiskLow)
+	e.RequiredTests = []TestRequirement{{
+		Name: "unit", Command: []string{"go", "test"}, Required: true,
+	}}
+	if err := e.BindCandidate("globulario/services", "candidate-sha"); err != nil {
+		t.Fatalf("a single declared obligation should be a valid low-risk plan: %v", err)
+	}
+	// And it is not PROVEN until that obligation is actually satisfied.
+	if e.MarkProvenIfComplete() {
+		t.Fatal("a declared but unsatisfied obligation reached PROVEN")
+	}
+}
+
+// Live ingestion mutates the behavioral store, so an artifact that cannot name
+// its proof occurrence must not become durable memory.
+func TestUnevidencedLearningIsRefusedForLiveIngestion(t *testing.T) {
+	bound := boundLearning()
+	bound.ProofRef = "runs/inv-1/scenario-proof.json"
+	bound.EvidenceRef = "runs/inv-1/evidence.json"
+	if err := bound.RequireOccurrenceBinding(); err != nil {
+		t.Fatalf("a fully bound artifact was refused: %v", err)
+	}
+
+	for _, tc := range []struct {
+		name  string
+		strip func(*SimulationLearning)
+	}{
+		{"no proof_ref", func(l *SimulationLearning) { l.ProofRef = "" }},
+		{"no evidence_ref", func(l *SimulationLearning) { l.EvidenceRef = "" }},
+		{"no change id", func(l *SimulationLearning) { l.Change.ID = "" }},
+		{"no candidate revision", func(l *SimulationLearning) { l.Change.CandidateRevision = "" }},
+		{"no plan digest", func(l *SimulationLearning) { l.Change.PlanDigest = "" }},
+		{"no invocation", func(l *SimulationLearning) { l.Invocation = ProofInvocation{} }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			l := bound
+			tc.strip(&l)
+			if err := l.RequireOccurrenceBinding(); err == nil {
+				t.Fatal("a self-authored artifact could become durable behavioral memory")
+			}
+		})
+	}
+}

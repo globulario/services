@@ -4,6 +4,9 @@ import "testing"
 
 func TestBindCandidateClearsEvidenceWhenRevisionChanges(t *testing.T) {
 	e := NewChangeEnvelope("chg-bind", ChangeFeature, "feature", "source", RiskLow)
+	e.RequiredTests = []TestRequirement{{
+		Name: "unit", Command: []string{"go", "test"}, Required: true,
+	}}
 	if err := e.BindCandidate("globulario/services", "sha-a"); err != nil {
 		t.Fatal(err)
 	}
@@ -19,6 +22,9 @@ func TestBindCandidateClearsEvidenceWhenRevisionChanges(t *testing.T) {
 
 func TestBindCandidateRefusesAfterAdmission(t *testing.T) {
 	e := NewChangeEnvelope("chg-admitted", ChangeFeature, "feature", "source", RiskLow)
+	e.RequiredTests = []TestRequirement{{
+		Name: "unit", Command: []string{"go", "test"}, Required: true,
+	}}
 	if err := e.BindCandidate("globulario/services", "sha-a"); err != nil {
 		t.Fatal(err)
 	}

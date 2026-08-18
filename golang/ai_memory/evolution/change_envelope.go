@@ -430,6 +430,29 @@ func (e ChangeEnvelope) validateCarriedClaims() error {
 // plan is frozen, before anything runs — not be caught at closure, by which
 // point the plan has already promised something it cannot deliver.
 func (e ChangeEnvelope) validatePlanAdequacy() error {
+	// A plan with no obligations at all proves nothing by construction: both
+	// closure loops are vacuously satisfied, so PROVEN is reachable without a
+	// single test or scenario ever running. The risk-scoped rule below decides
+	// when one of them must be a clustered simulation; this decides that there
+	// must be something to satisfy in the first place.
+	obligations := 0
+	for _, requirement := range e.RequiredTests {
+		if requirement.Required {
+			obligations++
+		}
+	}
+	for _, scenario := range e.RequiredScenarios {
+		if scenario.Required {
+			obligations++
+		}
+	}
+	if obligations == 0 {
+		return fmt.Errorf(
+			"a candidate plan must declare at least one required test or scenario; " +
+				"a plan with no obligations is satisfied by producing no evidence",
+		)
+	}
+
 	if !e.requiresSimulationObligation() {
 		return nil
 	}
