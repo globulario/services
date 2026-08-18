@@ -83,11 +83,15 @@ func (srv *server) RequestJoin(ctx context.Context, req *cluster_controllerpb.Re
 		srv.unlock()
 		return nil, status.Error(codes.PermissionDenied, "token expired")
 	}
-	if jt.Uses >= jt.MaxUses {
+	// A use is one node admission, not one attempt — see priorJoinAdmissionLocked.
+	// A node already admitted under this token is retrying, so it is not charged
+	// again and is not blocked by an exhausted budget it is already inside.
+	identity := protoToStoredIdentity(req.GetIdentity())
+	priorAdmission := srv.priorJoinAdmissionLocked(token, identity)
+	if priorAdmission == nil && jt.Uses >= jt.MaxUses {
 		srv.unlock()
 		return nil, status.Error(codes.PermissionDenied, "token uses exhausted")
 	}
-	jt.Uses++
 	reqID := uuid.NewString()
 	caps := req.GetCapabilities()
 
@@ -112,7 +116,7 @@ func (srv *server) RequestJoin(ctx context.Context, req *cluster_controllerpb.Re
 	jr := &joinRequestRecord{
 		RequestID:         reqID,
 		Token:             token,
-		Identity:          protoToStoredIdentity(req.GetIdentity()),
+		Identity:          identity,
 		Labels:            copyLabels(req.GetLabels()),
 		RequestedAt:       time.Now(),
 		Status:            "pending",
@@ -132,6 +136,12 @@ func (srv *server) RequestJoin(ctx context.Context, req *cluster_controllerpb.Re
 		// control-plane,core,gateway,storage. Empty stays nil, so a node that
 		// declares nothing still gets the deduced/default chain unchanged.
 		srv.approveJoinRecordLocked(jr, requestedProfiles)
+		// Charge the token only now, and only for a node this token has not
+		// already admitted. A blocked preflight costs nothing: it admitted
+		// nobody.
+		if priorAdmission == nil {
+			jt.Uses++
+		}
 	} else {
 		jr.Status = "blocked"
 		jr.LifecyclePhase = JoinPhaseBlocked
@@ -157,6 +167,119 @@ func (srv *server) RequestJoin(ctx context.Context, req *cluster_controllerpb.Re
 		Status:    jr.Status,
 		Message:   jr.statusMessage(),
 	}, nil
+}
+
+// joinAdmissionKey is the canonical identity of a node ATTEMPTING to join:
+// hostname plus its advertised IPs. It is deliberately the same shape the join
+// preflight uses to detect conflicts, so "is this the same node coming back"
+// and "does this node collide with an existing one" cannot drift apart.
+//
+// Returns "" when there is nothing stable to key on. An unkeyable request is
+// treated as a brand-new admission — never as a retry — so an identity-less
+// caller can never ride in on someone else's token use.
+func joinAdmissionKey(id storedIdentity) string {
+	host := strings.ToLower(strings.TrimSpace(id.Hostname))
+	ips := make([]string, 0, len(id.Ips))
+	seen := make(map[string]bool, len(id.Ips))
+	for _, raw := range id.Ips {
+		ip := strings.TrimSpace(raw)
+		if ip == "" || seen[ip] {
+			continue
+		}
+		seen[ip] = true
+		ips = append(ips, ip)
+	}
+	sort.Strings(ips)
+	if host == "" && len(ips) == 0 {
+		return ""
+	}
+	return host + "|" + strings.Join(ips, ",")
+}
+
+// sameMachineIdentity reports whether two identities describe the same physical
+// node: same hostname, and at least one routable IP in common.
+//
+// Requiring a shared IP is what keeps this from being a rename loophole — a
+// second machine that merely claims an existing hostname shares no address with
+// it and is still rejected.
+func sameMachineIdentity(a, b storedIdentity) bool {
+	ha := strings.ToLower(strings.TrimSpace(a.Hostname))
+	hb := strings.ToLower(strings.TrimSpace(b.Hostname))
+	if ha == "" || ha != hb {
+		return false
+	}
+	for _, rawA := range a.Ips {
+		ipA := strings.TrimSpace(rawA)
+		if ipA == "" {
+			continue
+		}
+		parsed := net.ParseIP(ipA)
+		if parsed == nil || parsed.IsLoopback() {
+			continue
+		}
+		for _, rawB := range b.Ips {
+			if strings.TrimSpace(rawB) == ipA {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// joinAdmissionStillLive reports whether a join request record still represents
+// an admission the node may be retrying. Terminal outcomes (rejected, removed,
+// or a node that already made it to active) do not.
+func joinAdmissionStillLive(jr *joinRequestRecord) bool {
+	phase := effectiveLifecyclePhase(jr)
+	if phase.Terminal() {
+		return false
+	}
+	// Removing is not terminal — the removal is still in flight — but a node on
+	// its way out is not retrying a join, so it holds no admission open.
+	return phase != JoinPhaseRemoving
+}
+
+// priorJoinAdmissionLocked finds an in-flight admission this token already
+// granted to this same node, or nil.
+//
+// WHY THIS EXISTS — a token use is one NODE ADMISSION, not one HTTP request.
+//
+// Both join handlers used to charge a use the moment a token validated, before
+// preflight and long before the node finished bootstrapping. A join that died
+// partway — and phase [2.3] "Generating service certificate" dies whenever
+// sign_ca_certificate answers non-2xx — had already spent it. The installer
+// then retried, spent another, and a MaxUses=1 token was gone after the first
+// failed attempt. cleanupJoinStateLocked then DELETED the exhausted token, so
+// the next attempt did not even get "uses exhausted", it got "join token not
+// found", and the node was permanently unjoinable — a full state wipe did not
+// help, because the exhaustion lived on the controller.
+//
+// Charging on retry also breaks the security property it looks like it is
+// protecting: MaxUses is meant to bound how many DISTINCT nodes a token admits.
+// Counting attempts instead of nodes makes the bound depend on how flaky the
+// network was, which is not a security boundary at all.
+//
+// So: the same node retrying continues the admission it already paid for, and a
+// DIFFERENT node still cannot get in once the budget is spent.
+//
+// Must be called with the server lock held.
+func (srv *server) priorJoinAdmissionLocked(token string, identity storedIdentity) *joinRequestRecord {
+	key := joinAdmissionKey(identity)
+	if key == "" {
+		return nil
+	}
+	for _, jr := range srv.state.JoinRequests {
+		if jr == nil || jr.Token != token {
+			continue
+		}
+		if !joinAdmissionStillLive(jr) {
+			continue
+		}
+		if joinAdmissionKey(jr.Identity) == key {
+			return jr
+		}
+	}
+	return nil
 }
 
 func (srv *server) evaluateJoinPreflightLocked(jr *joinRequestRecord) (bool, string) {
@@ -187,6 +310,31 @@ func (srv *server) evaluateJoinPreflightLocked(jr *joinRequestRecord) (bool, str
 
 	for _, n := range srv.state.Nodes {
 		if n == nil {
+			continue
+		}
+		// A node mid-join is not in conflict with ITSELF.
+		//
+		// This scan asks "does a DIFFERENT machine already hold this identity",
+		// but it used to ask "does this hostname exist anywhere" — and once the
+		// first authorization registers the node, the answer for that node's own
+		// retry is yes. A join that died partway (the certificate phase, a
+		// dropped connection, a reboot) could then never be retried: every
+		// attempt was refused as a conflict with the record its own previous
+		// attempt had just created.
+		//
+		// The exemption is deliberately narrow — it covers ONLY a node still
+		// bootstrapping. An already-active member re-requesting a join is still
+		// refused, because approveJoinRecordLocked would otherwise overwrite its
+		// nodeState with a fresh converging/BootstrapAdmitted record and throw
+		// away the placement generation and runtime progress it has earned. That
+		// refusal is now harmless: a blocked preflight no longer charges a token
+		// use, so a node looping against this costs nothing.
+		//
+		// Same hostname AND a shared routable IP is the same machine coming
+		// back. Same hostname with NO shared IP is a genuine collision — two
+		// machines claiming one name — and still fails, as does a shared IP
+		// under a different hostname.
+		if n.JoinLifecyclePhase == JoinPhaseBootstrapping && sameMachineIdentity(n.Identity, jr.Identity) {
 			continue
 		}
 		if strings.EqualFold(strings.TrimSpace(n.Identity.Hostname), hostname) {
@@ -437,10 +585,30 @@ func (srv *server) RejectJoin(ctx context.Context, req *cluster_controllerpb.Rej
 	}, nil
 }
 
+// tokenHasLiveAdmissionLocked reports whether any node is still mid-join under
+// this token. Must be called with the server lock held.
+func (srv *server) tokenHasLiveAdmissionLocked(token string) bool {
+	for _, jr := range srv.state.JoinRequests {
+		if jr != nil && jr.Token == token && joinAdmissionStillLive(jr) {
+			return true
+		}
+	}
+	return false
+}
+
 func (srv *server) cleanupJoinStateLocked(now time.Time) bool {
 	dirty := false
 	for token, jt := range srv.state.JoinTokens {
 		if jt.MaxUses > 0 && jt.Uses >= jt.MaxUses {
+			// An exhausted token is dropped only once nothing is still joining
+			// under it. Deleting it while a node is mid-join turns every retry
+			// into "join token not found", which is worse than "uses
+			// exhausted": it reads as operator error and hides that the node
+			// already holds an admission. The token still expires on its own
+			// clock below, so this delays reclamation, never prevents it.
+			if srv.tokenHasLiveAdmissionLocked(token) {
+				continue
+			}
 			delete(srv.state.JoinTokens, token)
 			dirty = true
 			continue

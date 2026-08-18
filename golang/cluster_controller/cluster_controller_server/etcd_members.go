@@ -284,18 +284,20 @@ func (m *etcdMemberManager) snapshotEtcdMembers(ctx context.Context) (*etcdMembe
 	state := &etcdMemberState{
 		Bootstrapped:   len(resp.Members) > 0,
 		MemberPeerURLs: make(map[string]string, len(resp.Members)),
+		RingPeerURLs:   make([]string, 0, len(resp.Members)),
 	}
 	for _, member := range resp.Members {
-		name := member.Name
-		if name == "" {
-			// Unstarted member (added but not yet started) — use first peer URL.
-			if len(member.PeerURLs) > 0 {
-				name = member.PeerURLs[0]
-			}
+		if len(member.PeerURLs) == 0 {
 			continue
 		}
-		if len(member.PeerURLs) > 0 {
-			state.MemberPeerURLs[name] = member.PeerURLs[0]
+		// Every member counts toward the ring, named or not. An unstarted
+		// member (MemberAdd ran, the process never booted) reports an empty
+		// Name, but etcd's own membership validation still counts it — so it
+		// must survive into RingPeerURLs or every initial-cluster rendered
+		// from this snapshot will be one short.
+		state.RingPeerURLs = append(state.RingPeerURLs, member.PeerURLs[0])
+		if member.Name != "" {
+			state.MemberPeerURLs[member.Name] = member.PeerURLs[0]
 		}
 	}
 	return state, nil

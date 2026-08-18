@@ -7898,3 +7898,47 @@ failure_modes:
         - reconcile.terminal_success_requires_observed_convergence
       evidence:
         - '5-node sim 2026-08-17: exactly one item FAILED type=infra_unhealthy in a 12-minute window covering a rejoin, at 16:51, roughly 7 minutes after node restart; reconcile clean before and after'
+    - id: failure.etcd_initial_cluster_rendered_from_the_node_registry_instead
+      title: etcd initial-cluster rendered from the node registry instead of the live ring
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/service_config.go
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
+      required_tests:
+        - golang/cluster_controller/cluster_controller_server/service_config_etcd_ring_test.go:TestRenderEtcdConfig_InitialClusterCountMatchesRingNotRegistry
+      evidence:
+        - 'node-4 restart-looped 174 times on ''error validating peerURLs: member count is unequal''; ring held 4 members, its etcd.yaml listed 3; node-5 was registered but never MemberAdd''ed so the controller rendered 5. Ring ran 3-of-4 with zero fault tolerance; control-plane-majority-loss and full-cluster-blackout could not recover.'
+    - id: failure.join_token_use_charged_per_attempt_and_a_retrying_node_confl
+      title: Join token use charged per attempt, and a retrying node conflicts with itself
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/handlers_join.go
+      related_invariants:
+        - meta.half_done_must_not_look_done
+      required_tests:
+        - golang/cluster_controller/cluster_controller_server/join_token_admission_test.go:TestRequestJoinAuthorization_RetryDoesNotConsumeASecondUse
+      evidence:
+        - 'Join died at phase [2.3] Generating service certificate when sign_ca_certificate answered non-2xx. The use had already been charged at authorization time, so the retry found the budget spent; cleanupJoinStateLocked then deleted the exhausted token, so the next attempt got ''join token not found''. Preflight independently refused the retry with ''node identity conflict: hostname already present'' — the node colliding with the record its own first attempt created. Nodes 2, 3 and 5 were left permanently unjoinable; wiping node state did not help because the exhaustion lived on the controller.'
+    - id: failure.join_phase_2_3_signed_certificates_with_one_unretried_reques
+      title: Join phase 2.3 signed certificates with one unretried request and accepted any non-empty body
+      protects:
+        files:
+          - internal/gateway/handlers/cluster/join_script.go
+      related_invariants:
+        - meta.half_done_must_not_look_done
+      required_tests:
+        - internal/gateway/handlers/cluster/join_script_test.go:TestJoinScript_CertSigningRetriesOnTransientFailure
+      evidence:
+        - The gateway issuance gate proves join_id by calling the controller with a 5s fail-closed timeout, while that controller was measured at 12-28s on etcd-dependent paths. A single hiccup returned 403, the single-shot 'curl -sfL' exited 22, and the join died leaving a service.key with no service.crt — after which node-agent restart-looped on 'cert not ready'. The only success check was that the output file was non-empty, so a redirect body or a mis-issued certificate would also have been written to disk and failed later as an unexplained TLS error. Phase 5.5 had already been given a retry budget for this same failure class; 2.3 had not.
+    - id: failure.founding_node_auto_join_loops_on_a_preflight_refusal_and_dra
+      title: Founding node auto-join-loops on a preflight refusal and drains the join token
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/join_auto.go
+      related_invariants:
+        - meta.half_done_must_not_look_done
+      required_tests:
+        - golang/node_agent/node_agent_server/join_auto_retry_test.go:TestJoinErrorIsPreflightRefusal
+      evidence:
+        - 'Controller state 2026-08-18 held 100 join requests: 96 from node-1 (the founder), all blocked, spanning 09:10-11:40 UTC, plus the 4 genuine joins. Token was 100/100 exhausted. The founder holds a join token and has no JoinID, so autoInitiateJoin takes the v1 legacy path and tries to join the cluster it already leads; preflight refuses it with FailedPrecondition, which the retry switch did not list as non-retriable, so it retried at the 60s ceiling forever. Every retry consumed a token use, which is what locked node-5 and the cold-boot nodes out.'

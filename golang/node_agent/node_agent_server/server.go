@@ -292,7 +292,34 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState, cfg NodeAgentCo
 		state.NodeID = nodeID
 	}
 
-	// If no node ID is stored, derive one from hardware (MAC-based stable ID).
+	// A pre-authorized JoinPlan already CARRIES this node's assigned id, and it
+	// outranks anything we could derive locally.
+	//
+	// On the v2 join path the installer calls /join/authorize before the
+	// node-agent ever starts, and the controller mints AssignedNodeID then. If
+	// we ignore it and self-derive, the node runs for the whole join window
+	// under a provisional id and writes node-scoped keys — the metrics port,
+	// installed state — under an identity the cluster never agreed to. Observed
+	// 2026-08-18 on node-3: "no node ID stored; using stable ID 12944a1b" at
+	// 01:49:01, then "node identity set: principal=node_a166b992" 35 seconds
+	// later, leaving a heartbeat key filed under the id nobody else used.
+	//
+	// The plan is on local disk at this point, so the assigned id is knowable
+	// BEFORE anything is written. Reading it is not identity recovery from a
+	// secondary source — it is reading the canonical value from the authority
+	// that minted it, which is exactly what the invariant asks for.
+	if nodeID == "" && len(state.JoinPlanJSON) > 0 {
+		if plan, err := validateNodeJoinPlan(state.JoinPlanJSON, NodeJoinPlanParams{
+			SkipSignatureVerification: !joinPlanKeystoreReady(),
+		}); err == nil && strings.TrimSpace(plan.AssignedNodeID) != "" {
+			nodeID = strings.TrimSpace(plan.AssignedNodeID)
+			state.NodeID = nodeID
+			log.Printf("node-agent: adopting assigned node ID %s from pre-authorized JoinPlan", nodeID)
+		}
+	}
+
+	// Only with no stored id AND no assigned id in a plan do we derive one from
+	// hardware (MAC-based stable ID). This is provisional by nature.
 	// Do NOT override a controller-assigned ID — even if it differs from the
 	// stable ID. The controller may have derived the ID from hostname+IPs
 	// when the MAC wasn't available in the join request.
@@ -1508,7 +1535,20 @@ func (srv *NodeAgentServer) joinRequestLabels() map[string]string {
 	for k, v := range srv.cfg.Labels {
 		labels[k] = v
 	}
-	if mac, err := identity.SelectBestMAC(); err == nil && mac != "" {
+	// Advertise the MAC ONLY when this node's own id actually derives from it.
+	//
+	// The controller mints AssignedNodeID with deterministicNodeID, which uses
+	// nodeid.FromMAC when labels["node.mac"] is set and nodeid.FromHostAndIPs
+	// otherwise. Calling SelectBestMAC() directly here asked the question a
+	// second time, at a different moment from the StableNodeID call that fixed
+	// this node's own id — and SelectBestMAC is not time-invariant, so the two
+	// answers could disagree and mint two ids for one machine.
+	//
+	// Reading the process-wide basis keeps both parties on one computation: a
+	// MAC-derived node advertises its MAC and the controller derives the same
+	// id; a node with no usable MAC advertises none and holds the controller to
+	// the identical hostname+IPs fallback.
+	if mac := identity.IdentityBasisMAC(); mac != "" {
 		labels["node.mac"] = mac
 	}
 	if len(labels) == 0 {

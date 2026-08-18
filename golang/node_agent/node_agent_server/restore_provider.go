@@ -19,7 +19,6 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/installed_state"
-	"github.com/globulario/services/golang/node_agent/node_agent_server/identity"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/security"
@@ -309,11 +308,23 @@ func (s *NodeAgentServer) restoreEtcdProvider(ctx context.Context, req *node_age
 
 	// Stage 7: clean up installed-state keys for stale node IDs.
 	// The restored etcd snapshot may contain /globular/nodes/{old_node_id}/packages/...
-	// entries from a previous node ID. Remove any that don't match this node's stable ID.
+	// entries from a previous node ID. Remove any that don't match this node's id.
+	//
+	// The id used here is s.nodeID and ONLY s.nodeID — the canonical, assigned
+	// identity. This previously preferred a freshly recomputed StableNodeID(),
+	// which is the shape forbidden_fix:recompute_identity_from_secondary_source
+	// names: treating a secondary observation (the hardware MAC, read again,
+	// now) as authoritative over the canonical value. It also contradicted the
+	// rule stated where nodeID is established — "Do NOT override a
+	// controller-assigned ID — even if it differs from the stable ID. The
+	// controller may have derived the ID from hostname+IPs when the MAC wasn't
+	// available in the join request."
+	//
+	// The consequence was not cosmetic. On a node whose assigned id came from
+	// hostname+IPs, recomputing to the MAC-derived id made every correctly-filed
+	// record look stale, so this loop would delete the node's REAL installed
+	// state and keep the orphan — the precise inverse of its purpose.
 	currentID := s.nodeID
-	if stableID, err := identity.StableNodeID(); err == nil {
-		currentID = stableID
-	}
 	if currentID != "" {
 		if nodeIDs, err := installed_state.ListNodeIDs(ctx); err == nil {
 			for _, nid := range nodeIDs {
