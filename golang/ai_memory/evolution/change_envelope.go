@@ -256,7 +256,56 @@ func (e ChangeEnvelope) Validate() error {
 			return err
 		}
 	}
+	if e.Stage == StageBlocked && strings.TrimSpace(e.BlockedReason) == "" {
+		return fmt.Errorf("blocked change requires blocked_reason")
+	}
+
+	// The authority ceiling.
+	//
+	// This framework owns enough truth to establish CANDIDATE and PROVEN: it can
+	// execute a declared test against an exact revision, run a scenario against
+	// an exact simulator, and content-address what came back. It owns none of the
+	// truth the later stages assert. Sensei decides admission, the release
+	// authority publishes immutable artifacts, and the four layer owners observe
+	// production — and this process can reach none of them.
+	//
+	// So the fields describing those states may be carried, because an envelope
+	// must stay portable and auditable, and their internal consistency is still
+	// checked below. What a carried claim may not do is advance the stage. A
+	// caller writing "Sensei accepted" is not admission; writing "released" is
+	// not a release; writing "PASS" for four layers is not verification. Letting
+	// any of them move the stage would make the envelope the registrar of its own
+	// authority, which is the one thing this whole design exists to prevent.
 	if stageAtLeast(e.Stage, StageAdmitted) {
+		return fmt.Errorf(
+			"stage %s requires external verification this framework cannot perform: "+
+				"admission is Sensei's, release is the release authority's, and production "+
+				"verification belongs to the four layer owners; %s is the highest stage an "+
+				"envelope can establish on its own evidence",
+			e.Stage, StageProven,
+		)
+	}
+	if e.Stage == StageLearned {
+		return fmt.Errorf(
+			"stage %s follows production verification, which requires external authority; "+
+				"%s is the highest stage an envelope can establish on its own evidence",
+			e.Stage, StageProven,
+		)
+	}
+
+	// Carried claims are still checked for internal consistency, so a
+	// contradictory record is caught even though it can never advance the stage.
+	if err := e.validateCarriedClaims(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateCarriedClaims checks records describing stages beyond this framework's
+// authority. They are descriptive, not authoritative: an envelope may carry them
+// for audit and portability, and they must still be self-consistent.
+func (e ChangeEnvelope) validateCarriedClaims() error {
+	if e.Admission != (AdmissionRecord{}) {
 		// An envelope cannot admit itself. Status, revision and plan digest are
 		// all values its author supplies, so on their own they say only that
 		// someone wrote ACCEPT into the artifact being accepted. Admission is a
@@ -277,7 +326,7 @@ func (e ChangeEnvelope) Validate() error {
 			}
 		}
 		if e.Admission.Status != "ACCEPT" {
-			return fmt.Errorf("stage %s requires admission status ACCEPT", e.Stage)
+			return fmt.Errorf("carried admission record has status %q, expected ACCEPT", e.Admission.Status)
 		}
 		if e.Admission.Revision != e.CandidateRevision {
 			return fmt.Errorf(
@@ -294,9 +343,9 @@ func (e ChangeEnvelope) Validate() error {
 			)
 		}
 	}
-	if stageAtLeast(e.Stage, StageReleased) {
+	if e.Release.Status != "" {
 		if e.Release.Status != "RELEASED" {
-			return fmt.Errorf("stage %s requires release status RELEASED", e.Stage)
+			return fmt.Errorf("carried release record has status %q, expected RELEASED", e.Release.Status)
 		}
 		if e.Release.CandidateRevision != e.CandidateRevision {
 			return fmt.Errorf(
@@ -319,10 +368,7 @@ func (e ChangeEnvelope) Validate() error {
 			return fmt.Errorf("released change requires at least one immutable artifact reference")
 		}
 	}
-	if stageAtLeast(e.Stage, StageVerified) {
-		if len(e.ProductionVerification) == 0 {
-			return fmt.Errorf("verified change requires production verification evidence")
-		}
+	if len(e.ProductionVerification) > 0 {
 		// The submitted list must not decide which layers count. Otherwise a
 		// caller supplying one Runtime row — or a row with no layer named at all
 		// — claims production verification while Repository, Desired and
@@ -365,12 +411,6 @@ func (e ChangeEnvelope) Validate() error {
 				)
 			}
 		}
-	}
-	if e.Stage == StageLearned && len(e.Learning) == 0 {
-		return fmt.Errorf("learned change requires at least one learning artifact")
-	}
-	if e.Stage == StageBlocked && strings.TrimSpace(e.BlockedReason) == "" {
-		return fmt.Errorf("blocked change requires blocked_reason")
 	}
 	return nil
 }

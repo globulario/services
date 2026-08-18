@@ -900,8 +900,7 @@ func TestCLIExitJudgesAgainstTheFrozenRequirement(t *testing.T) {
 func TestAdmissionMustReferenceADecisionTakenElsewhere(t *testing.T) {
 	base := func(t *testing.T) ChangeEnvelope {
 		t.Helper()
-		e := provenFixture(t)
-		e.Stage = StageAdmitted
+		e := provenFixture(t) // stays PROVEN: a carried claim never advances the stage
 		e.Admission = AdmissionRecord{
 			Status: "ACCEPT", Revision: e.CandidateRevision, PlanDigest: e.PlanDigest,
 			Ref: "sensei://admission/chg-evidence", Actor: "sensei", At: "2026-08-18T00:00:00Z",
@@ -927,9 +926,39 @@ func TestAdmissionMustReferenceADecisionTakenElsewhere(t *testing.T) {
 			}
 		})
 	}
-	// And the claim is reported as unverified, because this process cannot check it.
+	// The claim is reported as unverified, because this process cannot check it.
 	if !base(t).ProofStatus().AdmissionUnverified {
 		t.Fatal("admission was presented as verified by a process that cannot verify it")
+	}
+	// And carrying it does not move the stage or the authority pointer.
+	carried := base(t)
+	if carried.Stage != StageProven {
+		t.Fatalf("carrying an admission record advanced the stage to %s", carried.Stage)
+	}
+	if got := carried.ProofStatus().NextAuthorityBoundary; got != "sensei_admission" {
+		t.Fatalf("authority pointer moved past the ceiling to %q", got)
+	}
+}
+
+// The stages beyond PROVEN assert truths this framework cannot reach, so a
+// caller may describe them but never claim them.
+func TestStagesAboveProvenAreRefused(t *testing.T) {
+	for _, stage := range []ChangeStage{StageAdmitted, StageReleased, StageVerified, StageLearned} {
+		t.Run(string(stage), func(t *testing.T) {
+			e := provenFixture(t)
+			e.Stage = stage
+			err := e.Validate()
+			if err == nil {
+				t.Fatalf("stage %s was established on the envelope's own evidence", stage)
+			}
+			if !strings.Contains(err.Error(), "external verification") {
+				t.Fatalf("refusal did not name the missing authority: %v", err)
+			}
+		})
+	}
+	// PROVEN itself remains reachable — the ceiling is a ceiling, not a wall.
+	if err := provenFixture(t).Validate(); err != nil {
+		t.Fatalf("PROVEN was refused: %v", err)
 	}
 }
 
@@ -937,8 +966,7 @@ func TestAdmissionMustReferenceADecisionTakenElsewhere(t *testing.T) {
 func TestProductionVerificationRequiresEveryLayer(t *testing.T) {
 	admitted := func(t *testing.T) ChangeEnvelope {
 		t.Helper()
-		e := provenFixture(t)
-		e.Stage = StageVerified
+		e := provenFixture(t) // stays PROVEN; the records below are carried claims
 		e.Admission = AdmissionRecord{
 			Status: "ACCEPT", Revision: e.CandidateRevision, PlanDigest: e.PlanDigest,
 			Ref: "sensei://admission/x", Actor: "sensei", At: "2026-08-18T00:00:00Z",
@@ -969,7 +997,7 @@ func TestProductionVerificationRequiresEveryLayer(t *testing.T) {
 			t.Fatal("a record naming no layer was counted as one")
 		}
 	})
-	t.Run("all four layers verify", func(t *testing.T) {
+	t.Run("a complete four-layer claim is consistent but still not authoritative", func(t *testing.T) {
 		e := admitted(t)
 		for _, layer := range RequiredProductionLayers {
 			e.ProductionVerification = append(e.ProductionVerification, VerificationRecord{
@@ -977,7 +1005,11 @@ func TestProductionVerificationRequiresEveryLayer(t *testing.T) {
 			})
 		}
 		if err := e.Validate(); err != nil {
-			t.Fatalf("the complete four-layer model was rejected: %v", err)
+			t.Fatalf("a self-consistent carried claim was rejected: %v", err)
+		}
+		// Carrying it changes nothing about what has been established.
+		if e.Stage != StageProven {
+			t.Fatalf("carrying production verification advanced the stage to %s", e.Stage)
 		}
 	})
 }

@@ -234,20 +234,18 @@ func TestAdmittedEnvelopeIsNeverDemotedOnLoad(t *testing.T) {
 	// instead of forcing a new candidate.
 	path := filepath.Join(t.TempDir(), "change.yaml")
 	e := provenFixture(t)
-	e.Stage = StageAdmitted
-	e.Admission = AdmissionRecord{
-		Status:     "ACCEPT",
-		Revision:   e.CandidateRevision,
-		PlanDigest: e.PlanDigest,
-		Ref:        "sensei://admission/chg-evidence",
-		Actor:      "sensei",
-		At:         "2026-08-18T00:00:00Z",
-	}
+	// Persisted at PROVEN, then edited on disk to claim ADMITTED — the shape an
+	// envelope arriving from elsewhere would have. SaveChangeEnvelope cannot
+	// produce it, which is itself the point.
 	if err := SaveChangeEnvelope(path, e); err != nil {
 		t.Fatal(err)
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
+		t.Fatal(err)
+	}
+	raw = []byte(strings.Replace(string(raw), "stage: PROVEN", "stage: ADMITTED", 1))
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	tampered := strings.Replace(string(raw), "digest: sha256:unit-evidence", `digest: ""`, 1)
@@ -259,6 +257,6 @@ func TestAdmittedEnvelopeIsNeverDemotedOnLoad(t *testing.T) {
 	}
 	loaded, err := LoadChangeEnvelope(path)
 	if err == nil {
-		t.Fatalf("admitted history was silently rewritten to %s", loaded.Stage)
+		t.Fatalf("an unreachable stage was silently rewritten to %s rather than refused", loaded.Stage)
 	}
 }

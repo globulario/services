@@ -132,21 +132,15 @@ func (e ChangeEnvelope) ProofStatus() ProofStatus {
 		}
 	}
 	status.SimulatorIdentityUnproven = e.SimulatorIdentityUnproven()
-	status.AdmissionUnverified = stageAtLeast(e.Stage, StageAdmitted)
+	status.AdmissionUnverified = e.Admission != (AdmissionRecord{})
 	candidate := e
 	candidate.Stage = StageProven
 	status.ProofComplete = candidate.Validate() == nil
 	if status.ProofComplete {
 		status.NextAuthorityBoundary = "sensei_admission"
 	}
-	if stageAtLeast(e.Stage, StageAdmitted) {
-		status.NextAuthorityBoundary = "immutable_release"
-	}
-	if stageAtLeast(e.Stage, StageReleased) {
-		status.NextAuthorityBoundary = "production_verification"
-	}
-	if stageAtLeast(e.Stage, StageVerified) {
-		status.NextAuthorityBoundary = "behavioral_learning"
-	}
+	// The pointer stops here. Everything past sensei_admission is owned by an
+	// authority this framework cannot reach, so naming a later boundary would
+	// imply this process had established the earlier one.
 	return status
 }
