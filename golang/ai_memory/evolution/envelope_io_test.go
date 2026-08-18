@@ -30,7 +30,12 @@ func TestMarkProvenOnlyAfterRequiredTestAndScenarioClosure(t *testing.T) {
 	e.CandidateRepository = "globulario/services"
 	e.CandidateRevision = "candidate-sha"
 	e.RequiredScenarios = []ScenarioRequirement{{Name: "scenario-a", Required: true}}
-	e.RequiredTests = []string{"go-test-evolution"}
+	e.RequiredTests = []TestRequirement{{
+		Name:       "go-test-evolution",
+		Repository: "globulario/services",
+		Command:    []string{"go", "test", "./ai_memory/evolution"},
+		Required:   true,
+	}}
 	if e.MarkProvenIfComplete() {
 		t.Fatal("marked proven without proof")
 	}
@@ -48,10 +53,32 @@ func TestMarkProvenOnlyAfterRequiredTestAndScenarioClosure(t *testing.T) {
 		Name:                "go-test-evolution",
 		CandidateRepository: "globulario/services",
 		CandidateRevision:   "candidate-sha",
+		Command:             []string{"go", "test", "./ai_memory/evolution"},
 		Result:              "PASS",
 	})
 	if !e.MarkProvenIfComplete() || e.Stage != StageProven {
 		t.Fatalf("expected PROVEN after test + scenario closure, got %s", e.Stage)
+	}
+}
+
+func TestRequiredTestRejectsSubstitutedCommand(t *testing.T) {
+	e := NewChangeEnvelope("chg-command", ChangeFeature, "feature", "source-sha", RiskHigh)
+	e.Stage = StageProven
+	e.CandidateRepository = "globulario/services"
+	e.CandidateRevision = "candidate-sha"
+	e.RequiredTests = []TestRequirement{{
+		Name:     "real-test",
+		Command:  []string{"go", "test", "./..."},
+		Required: true,
+	}}
+	e.Tests = []TestRecord{{
+		Name:              "real-test",
+		CandidateRevision: "candidate-sha",
+		Command:           []string{"true"},
+		Result:            "PASS",
+	}}
+	if err := e.Validate(); err == nil {
+		t.Fatal("expected substituted command to be rejected")
 	}
 }
 
