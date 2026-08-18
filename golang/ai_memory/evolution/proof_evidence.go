@@ -58,28 +58,8 @@ func (e ChangeEnvelope) ValidateEvidenceIdentity() error {
 				continue
 			}
 			matched = true
-			// The runner populates the whole occurrence identity. Validation has
-			// to require it too, or an envelope arriving for independent review
-			// or admission can present a PASS that cannot be tied back to the
-			// repository, the simulator revision, or the run that produced it.
-			for _, field := range []struct{ name, value string }{
-				{"candidate repository", proof.CandidateRepository},
-				{"simulation repository", proof.Repository},
-				{"simulation revision", proof.SimulationRevision},
-				{"invocation id", proof.InvocationID},
-			} {
-				if strings.TrimSpace(field.value) == "" {
-					return fmt.Errorf("required scenario %q names no %s", requirement.Name, field.name)
-				}
-			}
-			if strings.TrimSpace(proof.ProofRef) == "" {
-				return fmt.Errorf("required scenario %q has no proof_ref", requirement.Name)
-			}
-			if strings.TrimSpace(proof.EvidenceRef) == "" {
-				return fmt.Errorf("required scenario %q has no evidence_ref", requirement.Name)
-			}
-			if strings.TrimSpace(proof.Digest) == "" {
-				return fmt.Errorf("required scenario %q has no proof/evidence digest", requirement.Name)
+			if err := proof.certifies(requirement); err != nil {
+				return err
 			}
 			break
 		}
@@ -99,6 +79,51 @@ func (r TestRecord) evidenceArtifacts() []string {
 
 func (p ProofRecord) evidenceArtifacts() []string {
 	return nonEmpty(p.ProofRef, p.EvidenceRef)
+}
+
+// CanonicalSimulationRepository is the one simulator this framework proves
+// against. A requirement may name it explicitly or leave it implicit, but a
+// proof record may never claim a different one.
+const CanonicalSimulationRepository = "globulario/globular-quickstart"
+
+// certifies is the single answer to "may this record stand as evidence for this
+// obligation". Validation asks it, and so does the runner CLI when deciding its
+// exit status — a second, looser predicate written beside it is how a record
+// that can never certify still reported success.
+//
+// Requiring a field to be present is not the same as requiring it to be right:
+// the occurrence identity must also match the obligation it claims to discharge.
+func (p ProofRecord) certifies(requirement ScenarioRequirement) error {
+	if p.Result != "PASS" || !p.ProofEligible {
+		return fmt.Errorf(
+			"required scenario %q has no eligible PASS proof (result=%q eligible=%t)",
+			requirement.Name, p.Result, p.ProofEligible,
+		)
+	}
+	for _, field := range []struct{ name, value string }{
+		{"candidate repository", p.CandidateRepository},
+		{"simulation repository", p.Repository},
+		{"simulation revision", p.SimulationRevision},
+		{"invocation id", p.InvocationID},
+		{"proof_ref", p.ProofRef},
+		{"evidence_ref", p.EvidenceRef},
+		{"proof/evidence digest", p.Digest},
+	} {
+		if strings.TrimSpace(field.value) == "" {
+			return fmt.Errorf("required scenario %q names no %s", requirement.Name, field.name)
+		}
+	}
+	expected := strings.TrimSpace(requirement.Repository)
+	if expected == "" {
+		expected = CanonicalSimulationRepository
+	}
+	if p.Repository != expected {
+		return fmt.Errorf(
+			"required scenario %q is frozen against simulator repository %q but its proof claims %q",
+			requirement.Name, expected, p.Repository,
+		)
+	}
+	return nil
 }
 
 func nonEmpty(values ...string) []string {

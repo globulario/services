@@ -518,3 +518,71 @@ func TestCreatePublishesNothingPartial(t *testing.T) {
 		t.Fatalf("published envelope is not the one written: %+v", loaded)
 	}
 }
+
+// Requiring a field to be present is not the same as requiring it to be right.
+// A proof labelled with an unrelated simulator repository must not discharge an
+// obligation frozen against the canonical one.
+func TestProofRepositoryMustMatchTheFrozenScenario(t *testing.T) {
+	t.Run("explicit requirement", func(t *testing.T) {
+		e := provenFixture(t, func(e *ChangeEnvelope) {
+			e.RequiredScenarios[0].Repository = CanonicalSimulationRepository
+		})
+		e.Proofs[0].Repository = "globulario/somewhere-else"
+		err := e.Validate()
+		if err == nil {
+			t.Fatal("a proof from an unrelated simulator repository was accepted")
+		}
+		if !strings.Contains(err.Error(), "somewhere-else") {
+			t.Fatalf("expected the claimed repository to be named, got %v", err)
+		}
+	})
+	t.Run("requirement omits the repository", func(t *testing.T) {
+		// An omitted requirement repository means the canonical simulator, not
+		// "any simulator".
+		e := provenFixture(t)
+		e.Proofs[0].Repository = "globulario/somewhere-else"
+		if err := e.Validate(); err == nil {
+			t.Fatal("an implicit requirement accepted a foreign simulator repository")
+		}
+	})
+	t.Run("canonical repository still validates", func(t *testing.T) {
+		e := provenFixture(t)
+		e.Proofs[0].Repository = CanonicalSimulationRepository
+		if err := e.Validate(); err != nil {
+			t.Fatalf("the canonical simulator was rejected: %v", err)
+		}
+	})
+}
+
+// A PASS that is missing its mandatory evidence artifact can never certify, so
+// the standalone CLI must not report success for it.
+func TestRunResultWithoutEvidenceDoesNotCertify(t *testing.T) {
+	complete := QuickstartRunResult{Proof: ProofRecord{
+		Scenario: "chaos", Result: "PASS", ProofEligible: true,
+		CandidateRepository: "globulario/services",
+		Repository:          CanonicalSimulationRepository,
+		SimulationRevision:  "sim-sha", InvocationID: "inv-1",
+		ProofRef: "p.json", EvidenceRef: "e.json", Digest: "sha256:x",
+	}}
+	if err := complete.CertifiesRequirement("chaos"); err != nil {
+		t.Fatalf("a complete record was rejected: %v", err)
+	}
+	for _, tc := range []struct {
+		name  string
+		strip func(*ProofRecord)
+	}{
+		{"no evidence_ref", func(p *ProofRecord) { p.EvidenceRef = "" }},
+		{"no proof_ref", func(p *ProofRecord) { p.ProofRef = "" }},
+		{"no digest", func(p *ProofRecord) { p.Digest = "" }},
+		{"not eligible", func(p *ProofRecord) { p.ProofEligible = false }},
+		{"not PASS", func(p *ProofRecord) { p.Result = "UNSUPPORTED" }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := complete
+			tc.strip(&r.Proof)
+			if err := r.CertifiesRequirement("chaos"); err == nil {
+				t.Fatal("a record that can never certify reported success")
+			}
+		})
+	}
+}

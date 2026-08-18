@@ -383,6 +383,16 @@ func loadQuickstartProof(path string) (QuickstartProofArtifact, error) {
 	return proof, nil
 }
 
+// CertifiesRequirement reports whether this run produced a record that could
+// stand as evidence for its obligation, using the same predicate validation
+// uses. Callers deciding an exit status must not re-derive that answer.
+func (r QuickstartRunResult) CertifiesRequirement(name string) error {
+	if strings.TrimSpace(name) == "" {
+		name = r.Proof.Scenario
+	}
+	return r.Proof.certifies(ScenarioRequirement{Name: name, Repository: r.Proof.Repository})
+}
+
 func resolveHeadRevision(ctx context.Context, dir string) (string, error) {
 	out, err := exec.CommandContext(ctx, "git", "-C", dir, "rev-parse", "HEAD").Output()
 	if err != nil {

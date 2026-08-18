@@ -96,13 +96,12 @@ func main() {
 	if result.ExitCode != 0 {
 		os.Exit(result.ExitCode)
 	}
-	// A harness can exit zero and still emit FAIL, UNSUPPORTED, or an ineligible
-	// result. The experiment did not produce proof, so automation calling this
-	// command must not read success from the exit status.
-	if result.Proof.Result != "PASS" || !result.Proof.ProofEligible {
-		fmt.Fprintf(os.Stderr,
-			"evolution-run-scenario: scenario produced no eligible PASS proof (result=%q eligible=%t)\n",
-			result.Proof.Result, result.Proof.ProofEligible)
+	// A harness can exit zero and still produce a record that can never certify —
+	// FAIL, UNSUPPORTED, ineligible, or missing its mandatory evidence artifact.
+	// Ask the same predicate validation asks, so automation cannot read success
+	// from the exit status for a run that proved nothing.
+	if err := result.CertifiesRequirement(*scenarioName); err != nil {
+		fmt.Fprintf(os.Stderr, "evolution-run-scenario: %v\n", err)
 		os.Exit(1)
 	}
 	if learningDegraded {

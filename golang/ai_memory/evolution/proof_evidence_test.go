@@ -10,7 +10,10 @@ import (
 // provenFixture is a candidate whose required test and required scenario both
 // carry a PASS record with complete evidence identity. Every test below starts
 // from a genuinely PROVEN envelope and removes exactly one thing.
-func provenFixture(t *testing.T) ChangeEnvelope {
+// provenFixture builds a PROVEN candidate. planMutators run before the candidate
+// is bound, because changing an obligation afterwards invalidates the frozen
+// plan digest and the envelope would then fail for that reason instead.
+func provenFixture(t *testing.T, planMutators ...func(*ChangeEnvelope)) ChangeEnvelope {
 	t.Helper()
 	e := NewChangeEnvelope("chg-evidence", ChangeSimulationRepair, "repair", "source-sha", RiskCritical)
 	e.RequiredTests = []TestRequirement{{
@@ -19,6 +22,9 @@ func provenFixture(t *testing.T) ChangeEnvelope {
 		Required: true,
 	}}
 	e.RequiredScenarios = []ScenarioRequirement{{Name: "chaos", Required: true}}
+	for _, mutate := range planMutators {
+		mutate(&e)
+	}
 	if err := e.BindCandidate("globulario/services", "candidate-sha"); err != nil {
 		t.Fatal(err)
 	}
