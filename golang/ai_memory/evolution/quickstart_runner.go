@@ -2,6 +2,8 @@ package evolution
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,14 +11,25 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
+// ProofInvocation is the identity of exactly one scenario execution. The runner
+// mints it, hands it to the harness, and refuses any artifact that does not
+// carry it back. It is what makes "this proof came from this run" checkable
+// rather than assumed.
+type ProofInvocation struct {
+	ID     string `json:"id"`
+	RunDir string `json:"run_dir,omitempty"`
+}
+
 type QuickstartProofArtifact struct {
-	Scenario       string        `json:"scenario"`
-	Suite          string        `json:"suite"`
-	SourceRevision string        `json:"source_revision"`
-	Status         string        `json:"status"`
-	Change         ChangeBinding `json:"change"`
+	Scenario       string          `json:"scenario"`
+	Suite          string          `json:"suite"`
+	SourceRevision string          `json:"source_revision"`
+	Status         string          `json:"status"`
+	Change         ChangeBinding   `json:"change"`
+	Invocation     ProofInvocation `json:"invocation"`
 	Execution      struct {
 		Result        string `json:"result"`
 		ProofEligible bool   `json:"proof_eligible"`
@@ -26,6 +39,10 @@ type QuickstartProofArtifact struct {
 type QuickstartRunOptions struct {
 	QuickstartDir string
 	Scenario      string
+	// ScenarioName is the required-scenario name this run answers for. It is
+	// what a stale proof would otherwise be credited against, so the runner
+	// needs it to invalidate that claim when this invocation proves nothing.
+	ScenarioName  string
 	EnvelopePath  string
 	KeepArtifacts bool
 	Verbose       bool
@@ -33,6 +50,7 @@ type QuickstartRunOptions struct {
 
 type QuickstartRunResult struct {
 	ExitCode     int
+	InvocationID string
 	ProofPath    string
 	LearningPath string
 	Proof        ProofRecord
@@ -42,6 +60,12 @@ type QuickstartRunResult struct {
 // RunQuickstartScenario executes one proof-boundary scenario against an exact
 // candidate revision and frozen proof plan, then persists the resulting proof
 // into its ChangeEnvelope. Required local/static tests must already be green.
+//
+// The proof it consumes is the one this invocation produced, in a directory this
+// invocation created, stamped with an identity this invocation minted. It never
+// reads the shared `tests/reports/latest` pointer: that pointer names whichever
+// run rotated it last, so a failing rerun that exits before rotating it, or a
+// concurrent run for the same change, could otherwise hand back an earlier PASS.
 func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (QuickstartRunResult, error) {
 	if strings.TrimSpace(opts.QuickstartDir) == "" ||
 		strings.TrimSpace(opts.Scenario) == "" ||
@@ -65,9 +89,33 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 		return QuickstartRunResult{}, fmt.Errorf("local proof gate: %w", err)
 	}
 
+	scenarioName := strings.TrimSpace(opts.ScenarioName)
+	if scenarioName == "" {
+		scenarioName = strings.TrimSuffix(filepath.Base(opts.Scenario), filepath.Ext(opts.Scenario))
+	}
+
 	testBin := filepath.Join(opts.QuickstartDir, "tests", "harness", "bin", "globular-test")
 	if _, err := os.Stat(testBin); err != nil {
 		return QuickstartRunResult{}, fmt.Errorf("quickstart proof runner unavailable: %w", err)
+	}
+
+	invocationID, err := newInvocationID()
+	if err != nil {
+		return QuickstartRunResult{}, err
+	}
+	runDir, err := createInvocationRunDir(opts.QuickstartDir, invocationID)
+	if err != nil {
+		return QuickstartRunResult{}, err
+	}
+
+	// From here on the invocation owns a proof slot. Any path that fails to fill
+	// it with a valid current proof must drop whatever older claim stood for this
+	// scenario, or a failed rerun would leave the durable envelope at PROVEN.
+	fail := func(runResult QuickstartRunResult, cause error) (QuickstartRunResult, error) {
+		if invalidateErr := invalidateScenarioProof(opts.EnvelopePath, scenarioName); invalidateErr != nil {
+			return runResult, fmt.Errorf("%w (and could not withdraw the prior proof claim: %v)", cause, invalidateErr)
+		}
+		return runResult, cause
 	}
 
 	args := []string{"scenario", opts.Scenario}
@@ -89,6 +137,8 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 		"GLOBULAR_CANDIDATE_REVISION="+envelope.CandidateRevision,
 		"GLOBULAR_CHANGE_PLAN_DIGEST="+envelope.PlanDigest,
 		"GLOBULAR_REQUIRE_CHANGE_BINDING=1",
+		"GLOBULAR_PROOF_RUN_DIR="+runDir,
+		"GLOBULAR_PROOF_INVOCATION_ID="+invocationID,
 	)
 
 	runErr := cmd.Run()
@@ -98,68 +148,63 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 		if errors.As(runErr, &exitErr) {
 			exitCode = exitErr.ExitCode()
 		} else {
-			return QuickstartRunResult{}, fmt.Errorf("run quickstart scenario: %w", runErr)
-		}
-	}
-
-	latest := filepath.Join(opts.QuickstartDir, "tests", "reports", "latest")
-	concreteRunDir, err := filepath.EvalSymlinks(latest)
-	if err != nil {
-		return QuickstartRunResult{ExitCode: exitCode}, fmt.Errorf(
-			"resolve quickstart concrete report run from %q: %w",
-			latest,
-			err,
-		)
-	}
-	if !filepath.IsAbs(concreteRunDir) {
-		concreteRunDir, err = filepath.Abs(concreteRunDir)
-		if err != nil {
-			return QuickstartRunResult{ExitCode: exitCode}, fmt.Errorf(
-				"resolve quickstart report run path: %w",
-				err,
+			return fail(
+				QuickstartRunResult{InvocationID: invocationID},
+				fmt.Errorf("run quickstart scenario: %w", runErr),
 			)
 		}
 	}
-	proofPath := filepath.Join(concreteRunDir, "scenario-proof.json")
-	learningPath := filepath.Join(concreteRunDir, "learning.json")
+
+	proofPath := filepath.Join(runDir, "scenario-proof.json")
+	learningPath := filepath.Join(runDir, "learning.json")
+	partial := QuickstartRunResult{
+		ExitCode:     exitCode,
+		InvocationID: invocationID,
+		ProofPath:    proofPath,
+		LearningPath: learningPath,
+	}
+
 	artifact, err := loadQuickstartProof(proofPath)
 	if err != nil {
-		return QuickstartRunResult{
-			ExitCode:     exitCode,
-			ProofPath:    proofPath,
-			LearningPath: learningPath,
-		}, err
+		return fail(partial, err)
+	}
+	if artifact.Invocation.ID != invocationID {
+		return fail(partial, fmt.Errorf(
+			"proof invocation %q does not belong to this run %q; refusing a proof this invocation did not produce",
+			artifact.Invocation.ID,
+			invocationID,
+		))
 	}
 	if artifact.Change.ID != envelope.ID {
-		return QuickstartRunResult{}, fmt.Errorf(
+		return fail(partial, fmt.Errorf(
 			"proof change id %q does not match envelope %q",
 			artifact.Change.ID,
 			envelope.ID,
-		)
+		))
 	}
 	if artifact.Change.CandidateRepository != envelope.CandidateRepository ||
 		artifact.Change.CandidateRevision != envelope.CandidateRevision {
-		return QuickstartRunResult{}, fmt.Errorf(
+		return fail(partial, fmt.Errorf(
 			"proof candidate %s@%s does not match envelope %s@%s",
 			artifact.Change.CandidateRepository,
 			artifact.Change.CandidateRevision,
 			envelope.CandidateRepository,
 			envelope.CandidateRevision,
-		)
+		))
 	}
 	if artifact.Change.PlanDigest != envelope.PlanDigest {
-		return QuickstartRunResult{}, fmt.Errorf(
+		return fail(partial, fmt.Errorf(
 			"proof plan digest %q does not match envelope %q",
 			artifact.Change.PlanDigest,
 			envelope.PlanDigest,
-		)
+		))
 	}
 	if artifact.Change.SimulationRevision != artifact.SourceRevision {
-		return QuickstartRunResult{}, fmt.Errorf(
+		return fail(partial, fmt.Errorf(
 			"proof simulation revision %q does not match proof source revision %q",
 			artifact.Change.SimulationRevision,
 			artifact.SourceRevision,
-		)
+		))
 	}
 
 	proof := ProofRecord{
@@ -169,24 +214,96 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 		CandidateRepository: artifact.Change.CandidateRepository,
 		CandidateRevision:   artifact.Change.CandidateRevision,
 		PlanDigest:          artifact.Change.PlanDigest,
+		InvocationID:        invocationID,
 		Result:              artifact.Execution.Result,
 		ProofEligible:       artifact.Execution.ProofEligible && artifact.Status == "SUPPORTED",
 		ProofRef:            proofPath,
-		EvidenceRef:         filepath.Join(concreteRunDir, "evidence.json"),
 	}
+	evidencePath := filepath.Join(runDir, "evidence.json")
+	if _, statErr := os.Stat(evidencePath); statErr == nil {
+		proof.EvidenceRef = evidencePath
+	}
+	// The digest is taken over exactly the artifacts the record names, in the
+	// order VerifyEvidenceArtifacts recomputes them.
+	digest, err := DigestFiles(proof.evidenceArtifacts()...)
+	if err != nil {
+		return fail(partial, fmt.Errorf("digest scenario proof artifacts: %w", err))
+	}
+	proof.Digest = digest
+
 	envelope.AddOrReplaceProof(proof)
 	marked := envelope.ReconcileProofStage()
 	if err := SaveChangeEnvelope(opts.EnvelopePath, envelope); err != nil {
-		return QuickstartRunResult{}, err
+		return partial, err
 	}
 
 	return QuickstartRunResult{
 		ExitCode:     exitCode,
+		InvocationID: invocationID,
 		ProofPath:    proofPath,
 		LearningPath: learningPath,
 		Proof:        proof,
 		MarkedProven: marked,
 	}, nil
+}
+
+func newInvocationID() (string, error) {
+	var entropy [8]byte
+	if _, err := rand.Read(entropy[:]); err != nil {
+		return "", fmt.Errorf("generate proof invocation id: %w", err)
+	}
+	return fmt.Sprintf(
+		"inv-%s-%s",
+		time.Now().UTC().Format("20060102T150405Z"),
+		hex.EncodeToString(entropy[:]),
+	), nil
+}
+
+// createInvocationRunDir creates the directory this invocation owns. It must not
+// already exist: an existing directory could hold a sibling run's artifacts, and
+// consuming those is the ambiguity this whole mechanism removes.
+func createInvocationRunDir(quickstartDir, invocationID string) (string, error) {
+	reports := filepath.Join(quickstartDir, "tests", "reports")
+	if err := os.MkdirAll(reports, 0o755); err != nil {
+		return "", fmt.Errorf("create quickstart reports dir: %w", err)
+	}
+	runDir := filepath.Join(reports, invocationID)
+	if err := os.Mkdir(runDir, 0o755); err != nil {
+		return "", fmt.Errorf("create proof invocation run dir: %w", err)
+	}
+	abs, err := filepath.Abs(runDir)
+	if err != nil {
+		return "", fmt.Errorf("resolve proof invocation run dir: %w", err)
+	}
+	return abs, nil
+}
+
+// invalidateScenarioProof withdraws any standing proof claim for one required
+// scenario at the current candidate revision and reconciles the stage. It only
+// ever removes a claim; it never asserts a result this invocation cannot show.
+func invalidateScenarioProof(envelopePath, scenario string) error {
+	envelope, err := LoadChangeEnvelope(envelopePath)
+	if err != nil {
+		return err
+	}
+	if envelope.Stage != StageCandidate && envelope.Stage != StageProven {
+		return nil
+	}
+	kept := envelope.Proofs[:0]
+	removed := false
+	for _, proof := range envelope.Proofs {
+		if proof.Scenario == scenario && proof.CandidateRevision == envelope.CandidateRevision {
+			removed = true
+			continue
+		}
+		kept = append(kept, proof)
+	}
+	if !removed && envelope.Stage == StageCandidate {
+		return nil
+	}
+	envelope.Proofs = kept
+	envelope.ReconcileProofStage()
+	return SaveChangeEnvelope(envelopePath, envelope)
 }
 
 func loadQuickstartProof(path string) (QuickstartProofArtifact, error) {
@@ -201,6 +318,11 @@ func loadQuickstartProof(path string) (QuickstartProofArtifact, error) {
 	if proof.Scenario == "" || proof.SourceRevision == "" || proof.Execution.Result == "" {
 		return QuickstartProofArtifact{}, fmt.Errorf(
 			"quickstart proof missing scenario/source_revision/execution.result",
+		)
+	}
+	if strings.TrimSpace(proof.Invocation.ID) == "" {
+		return QuickstartProofArtifact{}, fmt.Errorf(
+			"quickstart proof carries no invocation identity; the harness must stamp the invocation that produced it",
 		)
 	}
 	return proof, nil

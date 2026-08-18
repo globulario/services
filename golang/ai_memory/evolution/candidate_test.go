@@ -40,8 +40,17 @@ func TestProofStatusNamesMissingEvidenceAndAdmissionBoundary(t *testing.T) {
 	if len(status.MissingRequiredTests) != 1 || len(status.MissingScenarios) != 1 || status.ProofComplete {
 		t.Fatalf("unexpected incomplete status: %+v", status)
 	}
-	e.Tests = []TestRecord{{Name: "unit", CandidateRevision: "sha", PlanDigest: e.PlanDigest, Command: []string{"go", "test"}, Result: "PASS"}}
-	e.Proofs = []ProofRecord{{Scenario: "chaos", CandidateRevision: "sha", PlanDigest: e.PlanDigest, Result: "PASS", ProofEligible: true}}
+	e.Tests = []TestRecord{{
+		Name: "unit", CandidateRevision: "sha", PlanDigest: e.PlanDigest,
+		Command: []string{"go", "test"}, Result: "PASS",
+		EvidenceRef: "tests/unit.log", Digest: "sha256:unit",
+	}}
+	e.Proofs = []ProofRecord{{
+		Scenario: "chaos", CandidateRevision: "sha", PlanDigest: e.PlanDigest,
+		Result: "PASS", ProofEligible: true,
+		ProofRef: "runs/inv-1/scenario-proof.json", EvidenceRef: "runs/inv-1/evidence.json",
+		Digest: "sha256:chaos",
+	}}
 	e.Stage = StageProven
 	status = e.ProofStatus()
 	if !status.ProofComplete || status.NextAuthorityBoundary != "sensei_admission" {

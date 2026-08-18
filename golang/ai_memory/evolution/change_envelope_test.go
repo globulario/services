@@ -16,6 +16,9 @@ func TestProvenRequiresProofForExactCandidate(t *testing.T) {
 		PlanDigest:          e.PlanDigest,
 		Result:              "PASS",
 		ProofEligible:       true,
+		ProofRef:            "runs/inv-1/scenario-proof.json",
+		EvidenceRef:         "runs/inv-1/evidence.json",
+		Digest:              "sha256:proof",
 	}}
 	if err := e.Validate(); err == nil {
 		t.Fatal("expected candidate revision mismatch")

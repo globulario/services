@@ -15,7 +15,6 @@ import (
 func main() {
 	var (
 		file      = flag.String("file", "", "quickstart learning.json to ingest")
-		addr      = flag.String("addr", "", "Behavioral Memory address override; empty uses Globular service discovery")
 		project   = flag.String("project", "globular", "behavioral project")
 		domain    = flag.String("domain", "cluster_operator", "behavioral domain")
 		agentID   = flag.String("agent-id", "simulation_learning_ingestor", "audit actor id")
@@ -47,16 +46,16 @@ func main() {
 		return
 	}
 
-	recorder := evolution.NewRemoteRecorder(*addr, *timeout)
+	recorder := evolution.NewRemoteRecorder(*timeout)
 	defer func() { _ = recorder.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 4**timeout)
 	defer cancel()
 	result, err := (evolution.SimulationIngestor{
-		Recorder: recorder,
-		Project:  *project,
-		Domain:   behavioral.DomainRef(*domain),
-		AgentID:  *agentID,
+		Recorder:  recorder,
+		Project:   *project,
+		Domain:    behavioral.DomainRef(*domain),
+		AgentID:   *agentID,
 		ClusterID: *clusterID,
 	}).Ingest(ctx, learning)
 	if err != nil {

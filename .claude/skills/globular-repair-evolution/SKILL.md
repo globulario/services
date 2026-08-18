@@ -119,15 +119,23 @@ evolution-prove \
 The runner is intentionally ordered:
 
 1. rerun every required local/static test;
-2. verify candidate checkout `git HEAD` equals the envelope candidate revision;
-3. execute each exact command frozen in `TestRequirement`;
+2. refuse a candidate checkout that is not exactly the candidate revision — `git HEAD`
+   equality is not enough, so tracked, staged, and untracked contamination is
+   reported rather than silently proved;
+3. execute each exact command frozen in `TestRequirement`, in a throwaway detached
+   worktree of the candidate revision, so nothing outside that commit can reach the
+   test and the operator's checkout is never modified;
 4. capture/hash stdout+stderr evidence and stamp the frozen plan digest;
 5. stop immediately on local failure;
 6. only after local closure, run required quickstart scenarios;
-7. bind quickstart proof to change id + exact candidate revision + frozen plan digest + simulation revision;
-8. resolve and retain the concrete immutable quickstart run directory, never the moving `reports/latest` symlink;
-9. stop on first non-proof cluster result;
-10. reconcile `CANDIDATE <-> PROVEN` from current evidence.
+7. bind quickstart proof to change id + exact candidate revision + frozen plan digest
+   + simulation revision + the identity of this one invocation;
+8. consume the proof artifact from the run directory this invocation created and
+   stamped — never `reports/latest`, which names whichever run rotated it last;
+9. stop on first non-proof cluster result, withdrawing any standing proof claim the
+   run could not reproduce;
+10. reconcile `CANDIDATE <-> PROVEN` from current evidence, where PROVEN additionally
+    requires named, content-addressed evidence for every required proof.
 
 Individual tools also exist:
 

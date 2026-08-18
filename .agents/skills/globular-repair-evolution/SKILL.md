@@ -73,7 +73,9 @@ GLOBULAR_CHANGE_PLAN_DIGEST
 GLOBULAR_REQUIRE_CHANGE_BINDING=1
 ```
 
-Quickstart proof is bound to the change id, candidate repository/revision, frozen plan digest, and quickstart simulation revision. Unsupported required actions/probes are not PASS. Services stores the concrete quickstart run path rather than the mutable `reports/latest` symlink.
+Quickstart proof is bound to the change id, candidate repository/revision, frozen plan digest, quickstart simulation revision, and the identity of the single invocation that produced it. Unsupported required actions/probes are not PASS.
+
+Services mints that invocation identity, creates the run directory for it, passes both to the harness as `GLOBULAR_PROOF_INVOCATION_ID`/`GLOBULAR_PROOF_RUN_DIR`, and reads the proof back only from there. The `reports/latest` symlink is never a proof source: it names whichever run rotated it last, so a rerun that dies early, or a concurrent run for the same change, could otherwise hand back an earlier PASS. A run that produces no valid proof of its own withdraws the standing claim instead of leaving it at PROVEN.
 
 Current semantic chaos includes `chaos.pause_service`/`chaos.resume_service` using SIGSTOP/SIGCONT. Do not claim the zombie-controller invariant proven until a real owner-path generation/fencing mutation attempt can independently prove the stale controller was rejected.
 

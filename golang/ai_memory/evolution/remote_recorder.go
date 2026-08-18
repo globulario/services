@@ -17,19 +17,25 @@ import (
 // normal authenticated BehavioralMemoryService connection. It intentionally has
 // no PromotePrinciple method: simulation ingestion cannot acquire promotion
 // authority merely because it can reach the service.
+//
+// It also has no address field. Behavioral Memory has exactly one owner and
+// exactly one way to find it — Globular service discovery. A caller-supplied
+// endpoint would be a second routing authority, letting an operator or agent
+// point production ingestion at a stale or unintended instance. Tests inject a
+// fake through the BehavioralRecorder interface on SimulationIngestor instead;
+// that seam carries no production routing.
 type RemoteRecorder struct {
-	Addr    string
 	Timeout time.Duration
 
 	mu sync.Mutex
 	cc *grpc.ClientConn
 }
 
-func NewRemoteRecorder(addr string, timeout time.Duration) *RemoteRecorder {
+func NewRemoteRecorder(timeout time.Duration) *RemoteRecorder {
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
-	return &RemoteRecorder{Addr: addr, Timeout: timeout}
+	return &RemoteRecorder{Timeout: timeout}
 }
 
 func (r *RemoteRecorder) conn() (*grpc.ClientConn, error) {
@@ -38,12 +44,12 @@ func (r *RemoteRecorder) conn() (*grpc.ClientConn, error) {
 	if r.cc != nil {
 		return r.cc, nil
 	}
-	addr := r.Addr
+	addr := config.ResolveServiceAddr("ai_memory.AiMemoryService", "")
 	if addr == "" {
-		addr = config.ResolveServiceAddr("ai_memory.AiMemoryService", "")
-	}
-	if addr == "" {
-		return nil, fmt.Errorf("behavioral-memory endpoint not resolvable")
+		return nil, fmt.Errorf(
+			"behavioral-memory endpoint not resolvable through service discovery; " +
+				"refusing to ingest without the discovered owner",
+		)
 	}
 	opts, err := globular.InternalDialOptions()
 	if err != nil {

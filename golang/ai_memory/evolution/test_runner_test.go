@@ -76,11 +76,15 @@ func TestRunDeclaredTestRejectsWrongCheckoutRevision(t *testing.T) {
 
 func TestFailedRerunDowngradesProvenCandidate(t *testing.T) {
 	workspace, revision := initTestRepo(t)
+	// The flag lives outside the candidate workspace on purpose: flipping the
+	// test result must not require contaminating the checkout, which is itself
+	// now a refusal.
+	flag := filepath.Join(t.TempDir(), "force-test-failure")
 	envelopePath := filepath.Join(t.TempDir(), "change.yaml")
 	e := NewChangeEnvelope("chg-rerun", ChangeSimulationRepair, "repair", revision, RiskCritical)
 	e.RequiredTests = []TestRequirement{{
 		Name:     "flippable",
-		Command:  []string{"sh", "-c", "test ! -f .force-test-failure"},
+		Command:  []string{"sh", "-c", "test ! -f " + flag},
 		Required: true,
 	}}
 	if err := e.BindCandidate("globulario/services", revision); err != nil {
@@ -97,7 +101,7 @@ func TestFailedRerunDowngradesProvenCandidate(t *testing.T) {
 	if err != nil || !first.MarkedProven {
 		t.Fatalf("first run should prove candidate: result=%+v err=%v", first, err)
 	}
-	if err := os.WriteFile(filepath.Join(workspace, ".force-test-failure"), []byte("1"), 0o644); err != nil {
+	if err := os.WriteFile(flag, []byte("1"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	second, err := RunDeclaredTest(context.Background(), TestRunOptions{

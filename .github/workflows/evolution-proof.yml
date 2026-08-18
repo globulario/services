@@ -22,6 +22,13 @@ permissions:
 jobs:
   proof-framework:
     runs-on: ubuntu-latest
+    # The repository go.work expects sibling checkouts (../Globular,
+    # ../globular-installer) that a single-repo Actions checkout does not have.
+    # This job proves the committed golang module on its own terms, so every
+    # step resolves through golang/go.mod instead of the workspace file.
+    # Quoted: YAML 1.1 reads a bare `off` as the boolean false.
+    env:
+      GOWORK: "off"
     defaults:
       run:
         working-directory: golang

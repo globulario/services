@@ -77,6 +77,7 @@ type ProofRecord struct {
 	CandidateRepository string `json:"candidate_repository,omitempty" yaml:"candidate_repository,omitempty"`
 	CandidateRevision   string `json:"candidate_revision,omitempty" yaml:"candidate_revision,omitempty"`
 	PlanDigest          string `json:"plan_digest,omitempty" yaml:"plan_digest,omitempty"`
+	InvocationID        string `json:"invocation_id,omitempty" yaml:"invocation_id,omitempty"`
 	Result              string `json:"result" yaml:"result"`
 	ProofEligible       bool   `json:"proof_eligible" yaml:"proof_eligible"`
 	ProofRef            string `json:"proof_ref,omitempty" yaml:"proof_ref,omitempty"`
@@ -234,6 +235,12 @@ func (e ChangeEnvelope) Validate() error {
 	}
 	if stageAtLeast(e.Stage, StageProven) {
 		if err := e.validateProofClosure(); err != nil {
+			return err
+		}
+		// PROVEN is not a flag an agent may set; it is a claim that must be
+		// backed by named, content-addressed evidence for every required proof.
+		// Closure alone only proves a PASS marker exists.
+		if err := e.ValidateEvidenceIdentity(); err != nil {
 			return err
 		}
 	}

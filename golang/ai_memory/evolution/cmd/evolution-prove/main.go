@@ -13,21 +13,20 @@ import (
 )
 
 type output struct {
-	ProofPlan      evolution.ProofPlanResult             `json:"proof_plan"`
-	Learning       []evolution.SimulationIngestResult    `json:"learning,omitempty"`
-	LearningErrors []string                              `json:"learning_errors,omitempty"`
+	ProofPlan      evolution.ProofPlanResult          `json:"proof_plan"`
+	Learning       []evolution.SimulationIngestResult `json:"learning,omitempty"`
+	LearningErrors []string                           `json:"learning_errors,omitempty"`
 }
 
 func main() {
 	var (
-		envelope        = flag.String("envelope", "", "ChangeEnvelope YAML/JSON path")
-		workspace       = flag.String("workspace-dir", "", "exact candidate repository checkout")
-		quickstart      = flag.String("quickstart-dir", "", "globulario/globular-quickstart checkout")
-		keepArtifacts   = flag.Bool("keep-artifacts", true, "preserve quickstart proof artifacts")
-		verbose         = flag.Bool("verbose", false, "verbose quickstart probe output")
-		ingestLearning  = flag.Bool("ingest-learning", false, "ingest learning from every scenario actually executed")
-		behaviorAddr    = flag.String("behavioral-addr", "", "Behavioral Memory address override")
-		clusterID       = flag.String("cluster-id", "", "cluster id/scope attached to behavioral observations")
+		envelope       = flag.String("envelope", "", "ChangeEnvelope YAML/JSON path")
+		workspace      = flag.String("workspace-dir", "", "exact candidate repository checkout")
+		quickstart     = flag.String("quickstart-dir", "", "globulario/globular-quickstart checkout")
+		keepArtifacts  = flag.Bool("keep-artifacts", true, "preserve quickstart proof artifacts")
+		verbose        = flag.Bool("verbose", false, "verbose quickstart probe output")
+		ingestLearning = flag.Bool("ingest-learning", false, "ingest learning from every scenario actually executed")
+		clusterID      = flag.String("cluster-id", "", "cluster id/scope attached to behavioral observations")
 	)
 	flag.Parse()
 	if *envelope == "" || *workspace == "" || *quickstart == "" {
@@ -45,7 +44,7 @@ func main() {
 	response := output{ProofPlan: proofResult}
 
 	if *ingestLearning && len(proofResult.Scenarios) > 0 {
-		recorder := evolution.NewRemoteRecorder(*behaviorAddr, 5*time.Second)
+		recorder := evolution.NewRemoteRecorder(5 * time.Second)
 		for _, scenario := range proofResult.Scenarios {
 			if scenario.LearningPath == "" {
 				continue

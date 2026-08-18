@@ -46,6 +46,9 @@ func TestMarkProvenOnlyAfterRequiredTestAndScenarioClosure(t *testing.T) {
 		PlanDigest:          e.PlanDigest,
 		Result:              "PASS",
 		ProofEligible:       true,
+		ProofRef:            "runs/inv-1/scenario-proof.json",
+		EvidenceRef:         "runs/inv-1/evidence.json",
+		Digest:              "sha256:scenario-a",
 	})
 	if e.MarkProvenIfComplete() {
 		t.Fatal("marked proven while required test was missing")
@@ -57,6 +60,8 @@ func TestMarkProvenOnlyAfterRequiredTestAndScenarioClosure(t *testing.T) {
 		PlanDigest:          e.PlanDigest,
 		Command:             []string{"go", "test", "./ai_memory/evolution"},
 		Result:              "PASS",
+		EvidenceRef:         "tests/go-test-evolution.log",
+		Digest:              "sha256:go-test-evolution",
 	})
 	if !e.MarkProvenIfComplete() || e.Stage != StageProven {
 		t.Fatalf("expected PROVEN after test + scenario closure, got %s", e.Stage)

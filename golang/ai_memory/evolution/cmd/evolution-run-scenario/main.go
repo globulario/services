@@ -17,10 +17,10 @@ func main() {
 		envelopePath  = flag.String("envelope", "", "ChangeEnvelope YAML/JSON path")
 		quickstartDir = flag.String("quickstart-dir", "", "globulario/globular-quickstart checkout")
 		scenario      = flag.String("scenario", "", "scenario path relative to quickstart checkout")
+		scenarioName  = flag.String("scenario-name", "", "required-scenario name this run answers for; defaults to the scenario file name")
 		keepArtifacts = flag.Bool("keep-artifacts", true, "preserve quickstart evidence artifacts")
 		verbose       = flag.Bool("verbose", false, "verbose quickstart probe output")
 		ingest        = flag.Bool("ingest-learning", false, "ingest resulting learning.json into Behavioral Memory")
-		behaviorAddr  = flag.String("behavioral-addr", "", "Behavioral Memory address override")
 		clusterID     = flag.String("cluster-id", "", "cluster id/scope attached to behavioral observations")
 	)
 	flag.Parse()
@@ -33,10 +33,11 @@ func main() {
 	defer cancel()
 	result, err := evolution.RunQuickstartScenario(ctx, evolution.QuickstartRunOptions{
 		QuickstartDir: *quickstartDir,
-		Scenario: *scenario,
-		EnvelopePath: *envelopePath,
+		Scenario:      *scenario,
+		ScenarioName:  *scenarioName,
+		EnvelopePath:  *envelopePath,
 		KeepArtifacts: *keepArtifacts,
-		Verbose: *verbose,
+		Verbose:       *verbose,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "evolution-run-scenario: proof orchestration failed: %v\n", err)
@@ -44,11 +45,11 @@ func main() {
 	}
 
 	response := map[string]interface{}{
-		"exit_code": result.ExitCode,
-		"proof": result.Proof,
-		"proof_path": result.ProofPath,
-		"learning_path": result.LearningPath,
-		"marked_proven": result.MarkedProven,
+		"exit_code":         result.ExitCode,
+		"proof":             result.Proof,
+		"proof_path":        result.ProofPath,
+		"learning_path":     result.LearningPath,
+		"marked_proven":     result.MarkedProven,
 		"learning_ingested": false,
 	}
 
@@ -64,13 +65,13 @@ func main() {
 				fmt.Fprintf(os.Stderr, "evolution-run-scenario: learning artifact rejected: %v\n", parseErr)
 				learningDegraded = true
 			} else {
-				recorder := evolution.NewRemoteRecorder(*behaviorAddr, 5*time.Second)
+				recorder := evolution.NewRemoteRecorder(5 * time.Second)
 				ingestCtx, ingestCancel := context.WithTimeout(context.Background(), 30*time.Second)
 				ingestResult, ingestErr := (evolution.SimulationIngestor{
-					Recorder: recorder,
-					Project: "globular",
-					Domain: behavioral.DomainRef("cluster_operator"),
-					AgentID: "evolution_runner.simulation_learning",
+					Recorder:  recorder,
+					Project:   "globular",
+					Domain:    behavioral.DomainRef("cluster_operator"),
+					AgentID:   "evolution_runner.simulation_learning",
 					ClusterID: *clusterID,
 				}).Ingest(ingestCtx, learning)
 				ingestCancel()

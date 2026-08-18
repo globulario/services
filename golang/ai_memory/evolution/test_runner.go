@@ -3,8 +3,6 @@ package evolution
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -69,10 +67,21 @@ func RunDeclaredTest(ctx context.Context, opts TestRunOptions) (TestRunResult, e
 	if err != nil {
 		return TestRunResult{}, fmt.Errorf("resolve workspace: %w", err)
 	}
-	if err := requireWorkspaceRevision(ctx, workspace, envelope.CandidateRevision); err != nil {
+	// Two independent guards, because they answer different questions.
+	// The first refuses to proceed while the operator's checkout disagrees with
+	// the revision being certified, so contaminated work is reported rather than
+	// silently ignored. The second makes the executed contents exactly the
+	// candidate commit by construction, so nothing outside that commit — ignored
+	// build output, a stale generated file, a mid-run edit — can reach the test.
+	if err := requirePristineCandidateWorkspace(ctx, workspace, envelope.CandidateRevision); err != nil {
 		return TestRunResult{}, err
 	}
-	workDir, err := resolveContainedWorkDir(workspace, requirement.WorkDir)
+	candidateTree, releaseTree, err := materializeCandidateTree(ctx, workspace, envelope.CandidateRevision)
+	if err != nil {
+		return TestRunResult{}, err
+	}
+	defer releaseTree()
+	workDir, err := resolveContainedWorkDir(candidateTree, requirement.WorkDir)
 	if err != nil {
 		return TestRunResult{}, err
 	}
@@ -106,7 +115,13 @@ func RunDeclaredTest(ctx context.Context, opts TestRunOptions) (TestRunResult, e
 	if err := os.WriteFile(evidencePath, captured.Bytes(), 0o644); err != nil {
 		return TestRunResult{}, fmt.Errorf("write test evidence: %w", err)
 	}
-	sum := sha256.Sum256(captured.Bytes())
+	// Digest through the same helper the verifier uses. Two different hash
+	// framings over the same bytes are two different identities, and evidence
+	// that cannot be re-derived exactly as recorded is not evidence.
+	digest, err := DigestFiles(evidencePath)
+	if err != nil {
+		return TestRunResult{}, err
+	}
 	result := "FAIL"
 	if exitCode == 0 {
 		result = "PASS"
@@ -119,7 +134,7 @@ func RunDeclaredTest(ctx context.Context, opts TestRunOptions) (TestRunResult, e
 		Command:             append([]string(nil), requirement.Command...),
 		Result:              result,
 		EvidenceRef:         evidencePath,
-		Digest:              "sha256:" + hex.EncodeToString(sum[:]),
+		Digest:              digest,
 	}
 	envelope.AddOrReplaceTest(record)
 	marked := envelope.ReconcileProofStage()
@@ -143,9 +158,13 @@ func requiredTestByName(requirements []TestRequirement, name string) (TestRequir
 	return TestRequirement{}, fmt.Errorf("test %q is not declared in the change envelope", name)
 }
 
-func requireWorkspaceRevision(ctx context.Context, workspace, expected string) error {
-	cmd := exec.CommandContext(ctx, "git", "-C", workspace, "rev-parse", "HEAD")
-	out, err := cmd.Output()
+// requirePristineCandidateWorkspace refuses a workspace whose contents are not
+// exactly the candidate commit. `git rev-parse HEAD` alone is not sufficient:
+// HEAD can equal the candidate while tracked edits, staged edits, or untracked
+// sources change what a build or test would actually see, which would stamp a
+// PASS with a revision that never produced it.
+func requirePristineCandidateWorkspace(ctx context.Context, workspace, expected string) error {
+	out, err := exec.CommandContext(ctx, "git", "-C", workspace, "rev-parse", "HEAD").Output()
 	if err != nil {
 		return fmt.Errorf("resolve workspace revision: %w", err)
 	}
@@ -153,7 +172,93 @@ func requireWorkspaceRevision(ctx context.Context, workspace, expected string) e
 	if actual != expected {
 		return fmt.Errorf("workspace revision %q does not match candidate revision %q", actual, expected)
 	}
-	return nil
+
+	status, err := exec.CommandContext(
+		ctx, "git", "-C", workspace, "status", "--porcelain=v1", "--untracked-files=all",
+	).Output()
+	if err != nil {
+		return fmt.Errorf("inspect candidate workspace contents: %w", err)
+	}
+	var staged, tracked, untracked []string
+	for _, line := range strings.Split(strings.TrimRight(string(status), "\n"), "\n") {
+		if len(line) < 4 {
+			continue
+		}
+		path := strings.TrimSpace(line[3:])
+		switch {
+		case strings.HasPrefix(line, "??"):
+			untracked = append(untracked, path)
+		default:
+			if line[0] != ' ' && line[0] != '?' {
+				staged = append(staged, path)
+			}
+			if line[1] != ' ' && line[1] != '?' {
+				tracked = append(tracked, path)
+			}
+		}
+	}
+	if len(staged) == 0 && len(tracked) == 0 && len(untracked) == 0 {
+		return nil
+	}
+	var detail []string
+	if len(staged) > 0 {
+		detail = append(detail, fmt.Sprintf("staged: %s", strings.Join(limitPaths(staged), ", ")))
+	}
+	if len(tracked) > 0 {
+		detail = append(detail, fmt.Sprintf("modified: %s", strings.Join(limitPaths(tracked), ", ")))
+	}
+	if len(untracked) > 0 {
+		detail = append(detail, fmt.Sprintf("untracked: %s", strings.Join(limitPaths(untracked), ", ")))
+	}
+	return fmt.Errorf(
+		"candidate workspace is not exactly revision %s (%s); commit the work into a candidate revision before proving it",
+		expected,
+		strings.Join(detail, "; "),
+	)
+}
+
+func limitPaths(paths []string) []string {
+	const max = 5
+	if len(paths) <= max {
+		return paths
+	}
+	return append(append([]string(nil), paths[:max]...), fmt.Sprintf("and %d more", len(paths)-max))
+}
+
+// materializeCandidateTree checks the candidate revision out into a throwaway
+// detached worktree and returns it with its release function. The operator's
+// checkout is only read from; nothing in it is modified, cleaned, or deleted.
+func materializeCandidateTree(ctx context.Context, workspace, revision string) (string, func(), error) {
+	parent, err := os.MkdirTemp("", "evolution-candidate-")
+	if err != nil {
+		return "", nil, fmt.Errorf("create candidate worktree parent: %w", err)
+	}
+	tree := filepath.Join(parent, "candidate")
+	add := exec.CommandContext(
+		ctx, "git", "-C", workspace, "worktree", "add", "--detach", tree, revision,
+	)
+	if out, err := add.CombinedOutput(); err != nil {
+		_ = os.RemoveAll(parent)
+		return "", nil, fmt.Errorf(
+			"check candidate revision %s out into a clean worktree: %w\n%s",
+			revision,
+			err,
+			strings.TrimSpace(string(out)),
+		)
+	}
+	release := func() {
+		remove := exec.Command("git", "-C", workspace, "worktree", "remove", "--force", tree)
+		if out, err := remove.CombinedOutput(); err != nil {
+			fmt.Fprintf(
+				os.Stderr,
+				"evolution: release candidate worktree %s: %v\n%s\n",
+				tree, err, strings.TrimSpace(string(out)),
+			)
+		}
+		_ = os.RemoveAll(parent)
+		_ = exec.Command("git", "-C", workspace, "worktree", "prune").Run()
+	}
+	return tree, release, nil
 }
 
 func resolveContainedWorkDir(workspace, relative string) (string, error) {

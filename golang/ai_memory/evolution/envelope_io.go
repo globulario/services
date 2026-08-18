@@ -27,6 +27,17 @@ func LoadChangeEnvelope(path string) (ChangeEnvelope, error) {
 		return ChangeEnvelope{}, fmt.Errorf("decode change envelope: %w", err)
 	}
 	if err := envelope.Validate(); err != nil {
+		// PROVEN is a derived claim, never an independently stored fact. When the
+		// stored evidence no longer substantiates it, the honest reading of the
+		// file is CANDIDATE — the claim is dropped, never carried forward. Any
+		// other validation failure is a hard refusal: this only ever demotes.
+		if envelope.Stage == StageProven {
+			demoted := envelope
+			demoted.Stage = StageCandidate
+			if demoted.Validate() == nil {
+				return demoted, nil
+			}
+		}
 		return ChangeEnvelope{}, fmt.Errorf("validate change envelope: %w", err)
 	}
 	return envelope, nil

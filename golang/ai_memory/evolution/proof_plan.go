@@ -99,6 +99,7 @@ func RunProofPlan(ctx context.Context, opts ProofPlanOptions) (ProofPlanResult, 
 		scenarioResult, runErr := RunQuickstartScenario(ctx, QuickstartRunOptions{
 			QuickstartDir: opts.QuickstartDir,
 			Scenario:      scenarioPath,
+			ScenarioName:  requirement.Name,
 			EnvelopePath:  opts.EnvelopePath,
 			KeepArtifacts: opts.KeepArtifacts,
 			Verbose:       opts.Verbose,
@@ -122,6 +123,25 @@ func RunProofPlan(ctx context.Context, opts ProofPlanOptions) (ProofPlanResult, 
 	result = withProofStatus(opts.EnvelopePath, result)
 	if !result.Status.ProofComplete || result.Status.Stage != StageProven {
 		return result, fmt.Errorf("proof plan completed without reaching PROVEN")
+	}
+
+	// Last gate before PROVEN stands. Everything above checks evidence identity,
+	// which is portable metadata; here the artifacts themselves are still local,
+	// so the recorded digests can be re-derived from them. An artifact that was
+	// deleted or edited after it was recorded is not proof, and PROVEN must not
+	// survive it.
+	proven, err := LoadChangeEnvelope(opts.EnvelopePath)
+	if err != nil {
+		return result, err
+	}
+	if err := proven.VerifyEvidenceArtifacts(); err != nil {
+		proven.Stage = StageCandidate
+		if saveErr := SaveChangeEnvelope(opts.EnvelopePath, proven); saveErr != nil {
+			return withProofStatus(opts.EnvelopePath, result), fmt.Errorf(
+				"%w (and could not withdraw the PROVEN claim: %v)", err, saveErr,
+			)
+		}
+		return withProofStatus(opts.EnvelopePath, result), fmt.Errorf("proof evidence is not reproducible: %w", err)
 	}
 	return result, nil
 }
