@@ -7982,3 +7982,12 @@ failure_modes:
         - golang/ai_memory/domains/cluster_operator/observation/recorder_test.go:TestRecorder_StuckResolutionBecomesAVisibleFailure
       evidence:
         - 'globulario/services#238 / PR #265'
+    - id: failure.release_build_refuses_every_package_whose_version_is_not_the
+      title: Release build refuses every package whose version is not the platform version
+      description: scripts/build-local-release.sh consumes generated/<pkg>_$VERSION_linux_amd64.tgz where VERSION is the platform release version, while regenerate-release-inputs.sh emits each template at the package's own committed version. Any rebuilt package not bumped to the platform version aborts the bundle. The script's own header advertises --all as the fully automated path needing no other flags, so following the documented invocation cannot produce a bundle unless every package is bumped to the platform version — which docs/design/package-identity-single-authority.md forbids.
+      protects:
+        files:
+          - scripts/build-local-release.sh
+      evidence:
+        - '2026-08-18 building 1.2.325 with --all: ''ERROR: no generated template for Go service ai-executor at generated/ai-executor_1.2.325_linux_amd64.tgz. regenerate-release-inputs.sh must produce one; refusing to ship a bundle missing a service.'' The template existed at its committed version ai-executor_1.2.317. Scoping to --rebuild ai-memory,cluster-controller,cluster-doctor,node-agent,mcp (the five bumped to 1.2.325) produced the bundle.'
+      contract: The platform release version identifies the bundle, never its packages; every path that resolves a package artifact must read that package's committed version.

@@ -11666,3 +11666,13 @@ invariants:
   evidence:
     - 'globulario/services#238 / PR #265'
   contract: Health of a supplementary delivery path is a STATE the operator reads on a schedule, not an error returned to whoever happened to submit work. It must distinguish 'nothing attempted' from 'attempted and lost', and every stage on the path — endpoint resolution included — must be bounded, or a stalled stage reads exactly like an idle one.
+- id: invariant.a_release_build_resolves_each_package_s_artifact_by_that_pac
+  title: A release build resolves each package's artifact by that package's committed version
+  status: active
+  description: Every path that names a package artifact — template lookup, payload copy, BOM entry — must read the version from the package's own committed authority (golang/build/package-versions.txt, materialized from zz_version_generated.go), never from the platform release version being built. The platform version identifies the bundle; using it to name a package artifact silently couples the two and forces untouched packages to be bumped, which misrepresents what a release changed.
+  protects:
+    files:
+      - scripts/build-local-release.sh
+  related_failure_modes:
+    - failure.release_build_refuses_every_package_whose_version_is_not_the
+  contract: The platform release version identifies the bundle, never its packages; every path that resolves a package artifact must read that package's committed version.
