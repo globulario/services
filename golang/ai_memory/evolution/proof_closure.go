@@ -37,6 +37,14 @@ func (e ChangeEnvelope) ValidateRequiredTestClosure() error {
 				e.CandidateRevision,
 			)
 		}
+		if test.PlanDigest != e.PlanDigest {
+			return fmt.Errorf(
+				"test %q plan digest %q does not match %q",
+				test.Name,
+				test.PlanDigest,
+				e.PlanDigest,
+			)
+		}
 		if !stringSlicesEqual(test.Command, requirement.Command) {
 			return fmt.Errorf("test %q command does not match declared requirement", test.Name)
 		}
@@ -45,9 +53,10 @@ func (e ChangeEnvelope) ValidateRequiredTestClosure() error {
 	for name := range required {
 		if !satisfied[name] {
 			return fmt.Errorf(
-				"required test %q is not proven for candidate revision %s",
+				"required test %q is not proven for candidate revision %s plan %s",
 				name,
 				e.CandidateRevision,
+				e.PlanDigest,
 			)
 		}
 	}
