@@ -8,10 +8,10 @@ import (
 func TestEnvelopeRoundTripYAML(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "change.yaml")
 	e := NewChangeEnvelope("chg-roundtrip", ChangeFeature, "exercise lifecycle", "source-sha", RiskHigh)
-	e.Stage = StageCandidate
-	e.CandidateRepository = "globulario/services"
-	e.CandidateRevision = "candidate-sha"
 	e.RequiredScenarios = []ScenarioRequirement{{Name: "scenario-a", Required: true}}
+	if err := e.BindCandidate("globulario/services", "candidate-sha"); err != nil {
+		t.Fatal(err)
+	}
 	if err := SaveChangeEnvelope(path, e); err != nil {
 		t.Fatal(err)
 	}
@@ -19,16 +19,13 @@ func TestEnvelopeRoundTripYAML(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.ID != e.ID || got.CandidateRevision != e.CandidateRevision {
+	if got.ID != e.ID || got.CandidateRevision != e.CandidateRevision || got.PlanDigest != e.PlanDigest {
 		t.Fatalf("round trip mismatch: %+v", got)
 	}
 }
 
 func TestMarkProvenOnlyAfterRequiredTestAndScenarioClosure(t *testing.T) {
 	e := NewChangeEnvelope("chg-proof", ChangeSimulationRepair, "repair", "source-sha", RiskCritical)
-	e.Stage = StageCandidate
-	e.CandidateRepository = "globulario/services"
-	e.CandidateRevision = "candidate-sha"
 	e.RequiredScenarios = []ScenarioRequirement{{Name: "scenario-a", Required: true}}
 	e.RequiredTests = []TestRequirement{{
 		Name:       "go-test-evolution",
@@ -36,6 +33,9 @@ func TestMarkProvenOnlyAfterRequiredTestAndScenarioClosure(t *testing.T) {
 		Command:    []string{"go", "test", "./ai_memory/evolution"},
 		Required:   true,
 	}}
+	if err := e.BindCandidate("globulario/services", "candidate-sha"); err != nil {
+		t.Fatal(err)
+	}
 	if e.MarkProvenIfComplete() {
 		t.Fatal("marked proven without proof")
 	}
@@ -63,14 +63,15 @@ func TestMarkProvenOnlyAfterRequiredTestAndScenarioClosure(t *testing.T) {
 
 func TestRequiredTestRejectsSubstitutedCommand(t *testing.T) {
 	e := NewChangeEnvelope("chg-command", ChangeFeature, "feature", "source-sha", RiskHigh)
-	e.Stage = StageProven
-	e.CandidateRepository = "globulario/services"
-	e.CandidateRevision = "candidate-sha"
 	e.RequiredTests = []TestRequirement{{
 		Name:     "real-test",
 		Command:  []string{"go", "test", "./..."},
 		Required: true,
 	}}
+	if err := e.BindCandidate("globulario/services", "candidate-sha"); err != nil {
+		t.Fatal(err)
+	}
+	e.Stage = StageProven
 	e.Tests = []TestRecord{{
 		Name:              "real-test",
 		CandidateRevision: "candidate-sha",
