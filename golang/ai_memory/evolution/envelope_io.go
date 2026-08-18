@@ -84,17 +84,25 @@ func (e *ChangeEnvelope) AddOrReplaceTest(test TestRecord) {
 	e.Tests = append(e.Tests, test)
 }
 
-// MarkProvenIfComplete advances only the local proof stage. It does not perform
-// Sensei admission, release, production verification, or behavioral promotion.
-func (e *ChangeEnvelope) MarkProvenIfComplete() bool {
+// ReconcileProofStage keeps CANDIDATE/PROVEN aligned with current exact-revision
+// evidence. A failed rerun can downgrade PROVEN back to CANDIDATE. ADMITTED and
+// later stages are immutable history; changing their proof set requires a new
+// candidate revision instead of rewriting accepted evidence.
+func (e *ChangeEnvelope) ReconcileProofStage() bool {
 	if e.Stage != StageCandidate && e.Stage != StageProven {
 		return false
 	}
 	candidate := *e
 	candidate.Stage = StageProven
 	if err := candidate.Validate(); err != nil {
+		e.Stage = StageCandidate
 		return false
 	}
 	e.Stage = StageProven
 	return true
+}
+
+// MarkProvenIfComplete is kept as the intent-revealing caller API.
+func (e *ChangeEnvelope) MarkProvenIfComplete() bool {
+	return e.ReconcileProofStage()
 }
