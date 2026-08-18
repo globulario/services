@@ -1,0 +1,69 @@
+name: Evolution Proof Framework
+
+on:
+  pull_request:
+    paths:
+      - "golang/ai_memory/evolution/**"
+      - ".claude/skills/globular-repair-evolution/**"
+      - ".agents/skills/globular-repair-evolution/**"
+      - "docs/design/autonomous-repair-evolution-strategy.md"
+      - ".github/workflows/evolution-proof.yml"
+  push:
+    branches:
+      - master
+      - "agent/**"
+    paths:
+      - "golang/ai_memory/evolution/**"
+      - ".github/workflows/evolution-proof.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  proof-framework:
+    runs-on: ubuntu-latest
+    # The repository go.work expects sibling checkouts (../Globular,
+    # ../globular-installer) that a single-repo Actions checkout does not have.
+    # This job proves the committed golang module on its own terms, so every
+    # step resolves through golang/go.mod instead of the workspace file.
+    # Quoted: YAML 1.1 reads a bare `off` as the boolean false.
+    env:
+      GOWORK: "off"
+    defaults:
+      run:
+        working-directory: golang
+    steps:
+      - name: Checkout services
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: golang/go.mod
+          cache-dependency-path: golang/go.sum
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Format gate
+        run: |
+          changed="$(gofmt -l ai_memory/evolution)"
+          if [ -n "$changed" ]; then
+            echo "evolution framework contains unformatted Go files:"
+            echo "$changed"
+            exit 1
+          fi
+
+      - name: Vet evolution framework
+        run: go vet ./ai_memory/evolution/...
+
+      - name: Test evolution framework
+        run: go test -count=1 -race ./ai_memory/evolution/...
+
+      - name: Build evolution commands
+        run: |
+          go build ./ai_memory/evolution/cmd/evolution-change
+          go build ./ai_memory/evolution/cmd/evolution-run-test
+          go build ./ai_memory/evolution/cmd/evolution-run-scenario
+          go build ./ai_memory/evolution/cmd/evolution-prove
+          go build ./ai_memory/evolution/cmd/simulation-learning-ingest

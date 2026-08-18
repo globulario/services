@@ -1,0 +1,843 @@
+package evolution
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"sort"
+	"strings"
+	"time"
+)
+
+const ChangeEnvelopeSchemaVersion = 1
+
+type ChangeKind string
+
+const (
+	ChangeIncidentRepair        ChangeKind = "incident_repair"
+	ChangeSimulationRepair      ChangeKind = "simulation_repair"
+	ChangeFeature               ChangeKind = "feature"
+	ChangeArchitectureEvolution ChangeKind = "architecture_evolution"
+)
+
+type RiskClass string
+
+const (
+	RiskLow      RiskClass = "low"
+	RiskMedium   RiskClass = "medium"
+	RiskHigh     RiskClass = "high"
+	RiskCritical RiskClass = "critical"
+)
+
+type ChangeStage string
+
+const (
+	StageDraft     ChangeStage = "DRAFT"
+	StageCandidate ChangeStage = "CANDIDATE"
+	StageProven    ChangeStage = "PROVEN"
+	StageAdmitted  ChangeStage = "ADMITTED"
+	StageReleased  ChangeStage = "RELEASED"
+	StageVerified  ChangeStage = "VERIFIED"
+	StageLearned   ChangeStage = "LEARNED"
+	StageBlocked   ChangeStage = "BLOCKED"
+)
+
+type ArtifactRef struct {
+	Kind       string `json:"kind,omitempty" yaml:"kind,omitempty"`
+	Repository string `json:"repository,omitempty" yaml:"repository,omitempty"`
+	Revision   string `json:"revision,omitempty" yaml:"revision,omitempty"`
+	Path       string `json:"path,omitempty" yaml:"path,omitempty"`
+	Digest     string `json:"digest,omitempty" yaml:"digest,omitempty"`
+	URI        string `json:"uri,omitempty" yaml:"uri,omitempty"`
+}
+
+type ScenarioRequirement struct {
+	Name       string `json:"name" yaml:"name"`
+	Repository string `json:"repository,omitempty" yaml:"repository,omitempty"`
+	Path       string `json:"path,omitempty" yaml:"path,omitempty"`
+	Required   bool   `json:"required" yaml:"required"`
+}
+
+// TestRequirement freezes the command that constitutes a required test. The
+// trusted test runner executes this exact command; an agent cannot substitute a
+// cheaper command while keeping the same test name.
+type TestRequirement struct {
+	Name       string   `json:"name" yaml:"name"`
+	Repository string   `json:"repository,omitempty" yaml:"repository,omitempty"`
+	WorkDir    string   `json:"work_dir,omitempty" yaml:"work_dir,omitempty"`
+	Command    []string `json:"command" yaml:"command"`
+	Required   bool     `json:"required" yaml:"required"`
+}
+
+type ProofRecord struct {
+	Scenario            string `json:"scenario" yaml:"scenario"`
+	Repository          string `json:"repository,omitempty" yaml:"repository,omitempty"`
+	SimulationRevision  string `json:"simulation_revision,omitempty" yaml:"simulation_revision,omitempty"`
+	CandidateRepository string `json:"candidate_repository,omitempty" yaml:"candidate_repository,omitempty"`
+	CandidateRevision   string `json:"candidate_revision,omitempty" yaml:"candidate_revision,omitempty"`
+	PlanDigest          string `json:"plan_digest,omitempty" yaml:"plan_digest,omitempty"`
+	InvocationID        string `json:"invocation_id,omitempty" yaml:"invocation_id,omitempty"`
+	Result              string `json:"result" yaml:"result"`
+	ProofEligible       bool   `json:"proof_eligible" yaml:"proof_eligible"`
+	ProofRef            string `json:"proof_ref,omitempty" yaml:"proof_ref,omitempty"`
+	EvidenceRef         string `json:"evidence_ref,omitempty" yaml:"evidence_ref,omitempty"`
+	Digest              string `json:"digest,omitempty" yaml:"digest,omitempty"`
+	// Receipt is the runner's independent attestation that it executed this
+	// obligation and observed this result. Without it the record is an
+	// unattested observation, not proof.
+	Receipt *ProofOccurrenceReceipt `json:"receipt,omitempty" yaml:"receipt,omitempty"`
+}
+
+// TestRecord proves one required local/static/invariant test against the exact
+// candidate revision and frozen plan, and records the exact command executed.
+type TestRecord struct {
+	Name                string   `json:"name" yaml:"name"`
+	CandidateRepository string   `json:"candidate_repository,omitempty" yaml:"candidate_repository,omitempty"`
+	CandidateRevision   string   `json:"candidate_revision" yaml:"candidate_revision"`
+	PlanDigest          string   `json:"plan_digest" yaml:"plan_digest"`
+	InvocationID        string   `json:"invocation_id,omitempty" yaml:"invocation_id,omitempty"`
+	Command             []string `json:"command" yaml:"command"`
+	Result              string   `json:"result" yaml:"result"`
+	EvidenceRef         string   `json:"evidence_ref,omitempty" yaml:"evidence_ref,omitempty"`
+	Digest              string   `json:"digest,omitempty" yaml:"digest,omitempty"`
+	// Receipt is the runner's independent attestation for this occurrence.
+	Receipt *ProofOccurrenceReceipt `json:"receipt,omitempty" yaml:"receipt,omitempty"`
+}
+
+// RequiredProductionLayers is the fixed set a VERIFIED change must evidence.
+// Each layer has a different owner and answers a different question, so a
+// subset is not a weaker version of the same claim — it is a different claim.
+var RequiredProductionLayers = []string{"repository", "desired", "installed", "runtime"}
+
+type AdmissionRecord struct {
+	Status     string `json:"status,omitempty" yaml:"status,omitempty"`
+	Revision   string `json:"revision,omitempty" yaml:"revision,omitempty"`
+	PlanDigest string `json:"plan_digest,omitempty" yaml:"plan_digest,omitempty"`
+	Ref        string `json:"ref,omitempty" yaml:"ref,omitempty"`
+	Actor      string `json:"actor,omitempty" yaml:"actor,omitempty"`
+	At         string `json:"at,omitempty" yaml:"at,omitempty"`
+}
+
+type ReleaseRecord struct {
+	Status            string        `json:"status,omitempty" yaml:"status,omitempty"`
+	CandidateRevision string        `json:"candidate_revision,omitempty" yaml:"candidate_revision,omitempty"`
+	PlanDigest        string        `json:"plan_digest,omitempty" yaml:"plan_digest,omitempty"`
+	ReleaseRevision   string        `json:"release_revision,omitempty" yaml:"release_revision,omitempty"`
+	Artifacts         []ArtifactRef `json:"artifacts,omitempty" yaml:"artifacts,omitempty"`
+	Ref               string        `json:"ref,omitempty" yaml:"ref,omitempty"`
+	At                string        `json:"at,omitempty" yaml:"at,omitempty"`
+}
+
+type VerificationRecord struct {
+	Layer           string      `json:"layer" yaml:"layer"`
+	Status          string      `json:"status" yaml:"status"`
+	ReleaseRevision string      `json:"release_revision,omitempty" yaml:"release_revision,omitempty"`
+	Evidence        ArtifactRef `json:"evidence,omitempty" yaml:"evidence,omitempty"`
+	At              string      `json:"at,omitempty" yaml:"at,omitempty"`
+}
+
+type ChangeEnvelope struct {
+	SchemaVersion int         `json:"schema_version" yaml:"schema_version"`
+	ID            string      `json:"change_id" yaml:"change_id"`
+	Kind          ChangeKind  `json:"kind" yaml:"kind"`
+	Stage         ChangeStage `json:"stage" yaml:"stage"`
+	Intent        string      `json:"intent" yaml:"intent"`
+
+	SourceRevision      string    `json:"source_revision" yaml:"source_revision"`
+	ProductionRevision  string    `json:"production_revision,omitempty" yaml:"production_revision,omitempty"`
+	CandidateRepository string    `json:"candidate_repository,omitempty" yaml:"candidate_repository,omitempty"`
+	CandidateRevision   string    `json:"candidate_revision,omitempty" yaml:"candidate_revision,omitempty"`
+	PlanDigest          string    `json:"plan_digest,omitempty" yaml:"plan_digest,omitempty"`
+	RiskClass           RiskClass `json:"risk_class" yaml:"risk_class"`
+
+	AuthorityScope         []string              `json:"authority_scope,omitempty" yaml:"authority_scope,omitempty"`
+	GoverningContracts     []string              `json:"governing_contracts,omitempty" yaml:"governing_contracts,omitempty"`
+	RelevantInvariants     []string              `json:"relevant_invariants,omitempty" yaml:"relevant_invariants,omitempty"`
+	KnownFailureModes      []string              `json:"known_failure_modes,omitempty" yaml:"known_failure_modes,omitempty"`
+	ForbiddenRepairs       []string              `json:"forbidden_repairs,omitempty" yaml:"forbidden_repairs,omitempty"`
+	ProductionEvidence     []ArtifactRef         `json:"production_evidence,omitempty" yaml:"production_evidence,omitempty"`
+	RequiredScenarios      []ScenarioRequirement `json:"required_scenarios,omitempty" yaml:"required_scenarios,omitempty"`
+	RequiredTests          []TestRequirement     `json:"required_tests,omitempty" yaml:"required_tests,omitempty"`
+	Tests                  []TestRecord          `json:"tests,omitempty" yaml:"tests,omitempty"`
+	Proofs                 []ProofRecord         `json:"proofs,omitempty" yaml:"proofs,omitempty"`
+	Admission              AdmissionRecord       `json:"admission,omitempty" yaml:"admission,omitempty"`
+	Release                ReleaseRecord         `json:"release,omitempty" yaml:"release,omitempty"`
+	ProductionVerification []VerificationRecord  `json:"production_verification,omitempty" yaml:"production_verification,omitempty"`
+	Learning               []ArtifactRef         `json:"learning,omitempty" yaml:"learning,omitempty"`
+	BlockedReason          string                `json:"blocked_reason,omitempty" yaml:"blocked_reason,omitempty"`
+	CreatedAt              string                `json:"created_at,omitempty" yaml:"created_at,omitempty"`
+	UpdatedAt              string                `json:"updated_at,omitempty" yaml:"updated_at,omitempty"`
+}
+
+func NewChangeEnvelope(id string, kind ChangeKind, intent, sourceRevision string, risk RiskClass) ChangeEnvelope {
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	return ChangeEnvelope{
+		SchemaVersion:  ChangeEnvelopeSchemaVersion,
+		ID:             id,
+		Kind:           kind,
+		Stage:          StageDraft,
+		Intent:         intent,
+		SourceRevision: sourceRevision,
+		RiskClass:      risk,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+}
+
+func (e ChangeEnvelope) Validate() error {
+	if e.SchemaVersion != ChangeEnvelopeSchemaVersion {
+		return fmt.Errorf("unsupported change envelope schema version %d", e.SchemaVersion)
+	}
+	if strings.TrimSpace(e.ID) == "" {
+		return fmt.Errorf("change_id is required")
+	}
+	if !validChangeKind(e.Kind) {
+		return fmt.Errorf("invalid change kind %q", e.Kind)
+	}
+	if !validStage(e.Stage) {
+		return fmt.Errorf("invalid change stage %q", e.Stage)
+	}
+	if strings.TrimSpace(e.Intent) == "" {
+		return fmt.Errorf("intent is required")
+	}
+	if strings.TrimSpace(e.SourceRevision) == "" {
+		return fmt.Errorf("source_revision is required")
+	}
+	if !validRisk(e.RiskClass) {
+		return fmt.Errorf("invalid risk_class %q", e.RiskClass)
+	}
+	if err := validateUnique("authority_scope", e.AuthorityScope); err != nil {
+		return err
+	}
+	if err := validateUnique("governing_contracts", e.GoverningContracts); err != nil {
+		return err
+	}
+	if err := validateUnique("relevant_invariants", e.RelevantInvariants); err != nil {
+		return err
+	}
+	if err := validateUnique("known_failure_modes", e.KnownFailureModes); err != nil {
+		return err
+	}
+	if err := validateUnique("forbidden_repairs", e.ForbiddenRepairs); err != nil {
+		return err
+	}
+	if err := validateTestRequirements(e.RequiredTests); err != nil {
+		return err
+	}
+	if err := validateScenarioRequirements(e.RequiredScenarios); err != nil {
+		return err
+	}
+
+	if stageAtLeast(e.Stage, StageCandidate) {
+		if strings.TrimSpace(e.CandidateRepository) == "" || strings.TrimSpace(e.CandidateRevision) == "" {
+			return fmt.Errorf("candidate_repository and candidate_revision are required at stage %s", e.Stage)
+		}
+		if strings.TrimSpace(e.PlanDigest) == "" {
+			return fmt.Errorf("plan_digest is required at stage %s", e.Stage)
+		}
+		expected, err := e.IdentityDigest()
+		if err != nil {
+			return fmt.Errorf("calculate plan digest: %w", err)
+		}
+		if err := e.validatePlanAdequacy(); err != nil {
+			return err
+		}
+		if e.PlanDigest != expected {
+			return fmt.Errorf(
+				"proof plan changed after candidate binding: stored %s, current %s; create a new governed plan before proof",
+				e.PlanDigest,
+				expected,
+			)
+		}
+	}
+	if stageAtLeast(e.Stage, StageProven) {
+		if err := e.validateProofClosure(); err != nil {
+			return err
+		}
+		// PROVEN is not a flag an agent may set; it is a claim that must be
+		// backed by named, content-addressed evidence for every required proof.
+		// Closure alone only proves a PASS marker exists.
+		if err := e.ValidateEvidenceIdentity(); err != nil {
+			return err
+		}
+		// And content-addressed evidence is still only self-consistent. An author
+		// who writes the files, computes their digests and records matching PASS
+		// entries satisfies every check above while nothing was executed —
+		// evidence integrity is not evidence provenance. Every certifying record
+		// must therefore carry a runner's attestation, which originates outside
+		// this artifact. The signature is checked where the trusted keys are
+		// known; presence and binding are checked here, because they are portable.
+		if unproven := e.AttestationUnproven(); len(unproven) > 0 {
+			return fmt.Errorf(
+				"stage %s requires an independent runner attestation for every certifying occurrence; "+
+					"unattested: %s — a self-authored PASS record is an observation, not proof",
+				e.Stage, strings.Join(unproven, ", "),
+			)
+		}
+	}
+	if e.Stage == StageBlocked && strings.TrimSpace(e.BlockedReason) == "" {
+		return fmt.Errorf("blocked change requires blocked_reason")
+	}
+
+	// The authority ceiling.
+	//
+	// This framework owns enough truth to establish CANDIDATE and PROVEN: it can
+	// execute a declared test against an exact revision, run a scenario against
+	// an exact simulator, and content-address what came back. It owns none of the
+	// truth the later stages assert. Sensei decides admission, the release
+	// authority publishes immutable artifacts, and the four layer owners observe
+	// production — and this process can reach none of them.
+	//
+	// So the fields describing those states may be carried, because an envelope
+	// must stay portable and auditable, and their internal consistency is still
+	// checked below. What a carried claim may not do is advance the stage. A
+	// caller writing "Sensei accepted" is not admission; writing "released" is
+	// not a release; writing "PASS" for four layers is not verification. Letting
+	// any of them move the stage would make the envelope the registrar of its own
+	// authority, which is the one thing this whole design exists to prevent.
+	if stageAtLeast(e.Stage, StageAdmitted) {
+		return fmt.Errorf(
+			"stage %s requires external verification this framework cannot perform: "+
+				"admission is Sensei's, release is the release authority's, and production "+
+				"verification belongs to the four layer owners; %s is the highest stage an "+
+				"envelope can establish on its own evidence",
+			e.Stage, StageProven,
+		)
+	}
+	if e.Stage == StageLearned {
+		return fmt.Errorf(
+			"stage %s follows production verification, which requires external authority; "+
+				"%s is the highest stage an envelope can establish on its own evidence",
+			e.Stage, StageProven,
+		)
+	}
+
+	// Carried claims are still checked for internal consistency, so a
+	// contradictory record is caught even though it can never advance the stage.
+	if err := e.validateCarriedClaims(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateCarriedClaims checks records describing stages beyond this framework's
+// authority. They are descriptive, not authoritative: an envelope may carry them
+// for audit and portability, and they must still be self-consistent.
+func (e ChangeEnvelope) validateCarriedClaims() error {
+	if e.Admission != (AdmissionRecord{}) {
+		// An envelope cannot admit itself. Status, revision and plan digest are
+		// all values its author supplies, so on their own they say only that
+		// someone wrote ACCEPT into the artifact being accepted. Admission is a
+		// decision taken elsewhere, so the envelope must at minimum carry a
+		// reference to that decision and who took it — and even then this
+		// process cannot check it, which ProofStatus reports rather than hides.
+		for _, field := range []struct{ name, value string }{
+			{"admission.ref", e.Admission.Ref},
+			{"admission.actor", e.Admission.Actor},
+			{"admission.at", e.Admission.At},
+		} {
+			if strings.TrimSpace(field.value) == "" {
+				return fmt.Errorf(
+					"stage %s requires %s naming the decision this envelope is claiming; "+
+						"an envelope may not assert its own admission",
+					e.Stage, field.name,
+				)
+			}
+		}
+		if e.Admission.Status != "ACCEPT" {
+			return fmt.Errorf("carried admission record has status %q, expected ACCEPT", e.Admission.Status)
+		}
+		if e.Admission.Revision != e.CandidateRevision {
+			return fmt.Errorf(
+				"admission revision %q does not match candidate revision %q",
+				e.Admission.Revision,
+				e.CandidateRevision,
+			)
+		}
+		if e.Admission.PlanDigest != e.PlanDigest {
+			return fmt.Errorf(
+				"admission plan digest %q does not match candidate plan %q",
+				e.Admission.PlanDigest,
+				e.PlanDigest,
+			)
+		}
+	}
+	if e.Release.Status != "" {
+		if e.Release.Status != "RELEASED" {
+			return fmt.Errorf("carried release record has status %q, expected RELEASED", e.Release.Status)
+		}
+		if e.Release.CandidateRevision != e.CandidateRevision {
+			return fmt.Errorf(
+				"release candidate revision %q does not match envelope candidate revision %q",
+				e.Release.CandidateRevision,
+				e.CandidateRevision,
+			)
+		}
+		if e.Release.PlanDigest != e.PlanDigest {
+			return fmt.Errorf(
+				"release plan digest %q does not match admitted plan %q",
+				e.Release.PlanDigest,
+				e.PlanDigest,
+			)
+		}
+		if strings.TrimSpace(e.Release.ReleaseRevision) == "" {
+			return fmt.Errorf("released change requires release_revision")
+		}
+		if len(e.Release.Artifacts) == 0 {
+			return fmt.Errorf("released change requires at least one immutable artifact reference")
+		}
+	}
+	if len(e.ProductionVerification) > 0 {
+		// The submitted list must not decide which layers count. Otherwise a
+		// caller supplying one Runtime row — or a row with no layer named at all
+		// — claims production verification while Repository, Desired and
+		// Installed went unobserved, which is the four-layer model collapsed by
+		// the party being verified.
+		observed := map[string]bool{}
+		for _, verification := range e.ProductionVerification {
+			layer := strings.ToLower(strings.TrimSpace(verification.Layer))
+			if layer == "" {
+				return fmt.Errorf("production verification record names no layer")
+			}
+			if observed[layer] {
+				return fmt.Errorf("production verification names layer %q more than once", layer)
+			}
+			observed[layer] = true
+		}
+		for _, required := range RequiredProductionLayers {
+			if !observed[required] {
+				return fmt.Errorf(
+					"verified change requires production verification for layer %q; "+
+						"the four-layer model is not satisfied by whichever layers were submitted",
+					required,
+				)
+			}
+		}
+		for _, verification := range e.ProductionVerification {
+			if verification.Status != "PASS" {
+				return fmt.Errorf(
+					"production verification layer %q is %q, expected PASS",
+					verification.Layer,
+					verification.Status,
+				)
+			}
+			if verification.ReleaseRevision != e.Release.ReleaseRevision {
+				return fmt.Errorf(
+					"production verification layer %q revision %q does not match release revision %q",
+					verification.Layer,
+					verification.ReleaseRevision,
+					e.Release.ReleaseRevision,
+				)
+			}
+		}
+	}
+	return nil
+}
+
+// validatePlanAdequacy decides whether a plan is allowed to declare no
+// simulation obligation at all.
+//
+// Closure treats an empty scenario list as vacuously satisfied, so without this
+// a plan could reach PROVEN on local tests alone and never touch the clustered
+// model. Requiring a scenario of every change would be the wrong correction —
+// a low-risk feature whose whole proof is a unit test should not be forced to
+// stand up a cluster to say so, and a rule that expensive gets worked around.
+//
+// So the obligation is scoped to where the central law actually bites: changes
+// that repair or evolve the system's own behaviour, and changes whose blast
+// radius makes being wrong expensive. Those must declare a scenario when the
+// plan is frozen, before anything runs — not be caught at closure, by which
+// point the plan has already promised something it cannot deliver.
+func (e ChangeEnvelope) validatePlanAdequacy() error {
+	// A plan with no obligations at all proves nothing by construction: both
+	// closure loops are vacuously satisfied, so PROVEN is reachable without a
+	// single test or scenario ever running. The risk-scoped rule below decides
+	// when one of them must be a clustered simulation; this decides that there
+	// must be something to satisfy in the first place.
+	obligations := 0
+	for _, requirement := range e.RequiredTests {
+		if requirement.Required {
+			obligations++
+		}
+	}
+	for _, scenario := range e.RequiredScenarios {
+		if scenario.Required {
+			obligations++
+		}
+	}
+	if obligations == 0 {
+		return fmt.Errorf(
+			"a candidate plan must declare at least one required test or scenario; " +
+				"a plan with no obligations is satisfied by producing no evidence",
+		)
+	}
+
+	if !e.requiresSimulationObligation() {
+		return nil
+	}
+	for _, scenario := range e.RequiredScenarios {
+		if scenario.Required {
+			return nil
+		}
+	}
+	return fmt.Errorf(
+		"a %s change at risk %s must declare at least one required scenario; "+
+			"novel repair and evolution are proven against the reproducible model before they may alter the authoritative system",
+		e.Kind,
+		e.RiskClass,
+	)
+}
+
+func (e ChangeEnvelope) requiresSimulationObligation() bool {
+	switch e.Kind {
+	case ChangeSimulationRepair, ChangeArchitectureEvolution:
+		return true
+	}
+	switch e.RiskClass {
+	case RiskHigh, RiskCritical:
+		return true
+	}
+	return false
+}
+
+func (e ChangeEnvelope) validateProofClosure() error {
+	// One obligation, one occupied slot. An independently supplied envelope can
+	// otherwise carry several records for the same scenario and candidate, and
+	// then which one "the proof" refers to depends on which consumer looks —
+	// certification picking one while the uncertainty signal describes another.
+	seenProof := map[string]struct{}{}
+	for _, proof := range e.Proofs {
+		key := proof.Scenario + "\x00" + proof.CandidateRevision
+		if _, ok := seenProof[key]; ok {
+			return fmt.Errorf(
+				"scenario %q has more than one proof record for candidate revision %s; "+
+					"one obligation has one occurrence",
+				proof.Scenario, proof.CandidateRevision,
+			)
+		}
+		seenProof[key] = struct{}{}
+	}
+
+	requiredScenarios := map[string]bool{}
+	for _, scenario := range e.RequiredScenarios {
+		if strings.TrimSpace(scenario.Name) == "" {
+			return fmt.Errorf("required scenario name is empty")
+		}
+		if scenario.Required {
+			requiredScenarios[scenario.Name] = false
+		}
+	}
+	for _, proof := range e.Proofs {
+		if proof.CandidateRepository != "" && proof.CandidateRepository != e.CandidateRepository {
+			return fmt.Errorf(
+				"proof %q candidate repository %q does not match %q",
+				proof.Scenario,
+				proof.CandidateRepository,
+				e.CandidateRepository,
+			)
+		}
+		if proof.CandidateRevision != e.CandidateRevision {
+			return fmt.Errorf(
+				"proof %q candidate revision %q does not match %q",
+				proof.Scenario,
+				proof.CandidateRevision,
+				e.CandidateRevision,
+			)
+		}
+		if proof.PlanDigest != e.PlanDigest {
+			return fmt.Errorf(
+				"proof %q plan digest %q does not match %q",
+				proof.Scenario,
+				proof.PlanDigest,
+				e.PlanDigest,
+			)
+		}
+		if proof.Result == "PASS" && proof.ProofEligible {
+			if _, ok := requiredScenarios[proof.Scenario]; ok {
+				requiredScenarios[proof.Scenario] = true
+			}
+		}
+	}
+	for name, satisfied := range requiredScenarios {
+		if !satisfied {
+			return fmt.Errorf(
+				"required scenario %q has no PASS proof eligible record for candidate revision %s",
+				name,
+				e.CandidateRevision,
+			)
+		}
+	}
+
+	requiredTests := map[string]TestRequirement{}
+	for _, requirement := range e.RequiredTests {
+		if requirement.Required {
+			requiredTests[requirement.Name] = requirement
+		}
+	}
+	seenTest := map[string]struct{}{}
+	for _, test := range e.Tests {
+		key := test.Name + "\x00" + test.CandidateRevision
+		if _, ok := seenTest[key]; ok {
+			return fmt.Errorf(
+				"test %q has more than one record for candidate revision %s; "+
+					"one obligation has one occurrence",
+				test.Name, test.CandidateRevision,
+			)
+		}
+		seenTest[key] = struct{}{}
+	}
+
+	satisfiedTests := map[string]bool{}
+	for _, test := range e.Tests {
+		if test.CandidateRepository != "" && test.CandidateRepository != e.CandidateRepository {
+			return fmt.Errorf(
+				"test %q candidate repository %q does not match %q",
+				test.Name,
+				test.CandidateRepository,
+				e.CandidateRepository,
+			)
+		}
+		if test.CandidateRevision != e.CandidateRevision {
+			return fmt.Errorf(
+				"test %q candidate revision %q does not match %q",
+				test.Name,
+				test.CandidateRevision,
+				e.CandidateRevision,
+			)
+		}
+		if test.PlanDigest != e.PlanDigest {
+			return fmt.Errorf(
+				"test %q plan digest %q does not match %q",
+				test.Name,
+				test.PlanDigest,
+				e.PlanDigest,
+			)
+		}
+		requirement, required := requiredTests[test.Name]
+		if required && test.Result == "PASS" {
+			if !stringSlicesEqual(test.Command, requirement.Command) {
+				return fmt.Errorf("test %q command does not match declared requirement", test.Name)
+			}
+			satisfiedTests[test.Name] = true
+		}
+	}
+	for name := range requiredTests {
+		if !satisfiedTests[name] {
+			return fmt.Errorf(
+				"required test %q has no PASS record for candidate revision %s",
+				name,
+				e.CandidateRevision,
+			)
+		}
+	}
+	return nil
+}
+
+// IdentityDigest is the immutable candidate proof-plan identity. It deliberately
+// excludes mutable evidence/results but includes the exact candidate revision and
+// every contract/proof obligation that determines what PROVEN means.
+func (e ChangeEnvelope) IdentityDigest() (string, error) {
+	identity := struct {
+		SchemaVersion       int                   `json:"schema_version"`
+		ID                  string                `json:"change_id"`
+		Kind                ChangeKind            `json:"kind"`
+		Intent              string                `json:"intent"`
+		SourceRevision      string                `json:"source_revision"`
+		ProductionRevision  string                `json:"production_revision,omitempty"`
+		CandidateRepository string                `json:"candidate_repository,omitempty"`
+		CandidateRevision   string                `json:"candidate_revision,omitempty"`
+		RiskClass           RiskClass             `json:"risk_class"`
+		AuthorityScope      []string              `json:"authority_scope,omitempty"`
+		GoverningContracts  []string              `json:"governing_contracts,omitempty"`
+		RelevantInvariants  []string              `json:"relevant_invariants,omitempty"`
+		KnownFailureModes   []string              `json:"known_failure_modes,omitempty"`
+		ForbiddenRepairs    []string              `json:"forbidden_repairs,omitempty"`
+		RequiredScenarios   []ScenarioRequirement `json:"required_scenarios,omitempty"`
+		RequiredTests       []TestRequirement     `json:"required_tests,omitempty"`
+	}{
+		SchemaVersion:       e.SchemaVersion,
+		ID:                  e.ID,
+		Kind:                e.Kind,
+		Intent:              e.Intent,
+		SourceRevision:      e.SourceRevision,
+		ProductionRevision:  e.ProductionRevision,
+		CandidateRepository: e.CandidateRepository,
+		CandidateRevision:   e.CandidateRevision,
+		RiskClass:           e.RiskClass,
+		AuthorityScope:      sorted(e.AuthorityScope),
+		GoverningContracts:  sorted(e.GoverningContracts),
+		RelevantInvariants:  sorted(e.RelevantInvariants),
+		KnownFailureModes:   sorted(e.KnownFailureModes),
+		ForbiddenRepairs:    sorted(e.ForbiddenRepairs),
+		RequiredScenarios:   canonicalScenarios(e.RequiredScenarios),
+		RequiredTests:       canonicalTests(e.RequiredTests),
+	}
+	encoded, err := json.Marshal(identity)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(encoded)
+	return "sha256:" + hex.EncodeToString(sum[:]), nil
+}
+
+func validChangeKind(kind ChangeKind) bool {
+	switch kind {
+	case ChangeIncidentRepair, ChangeSimulationRepair, ChangeFeature, ChangeArchitectureEvolution:
+		return true
+	}
+	return false
+}
+
+func validRisk(risk RiskClass) bool {
+	switch risk {
+	case RiskLow, RiskMedium, RiskHigh, RiskCritical:
+		return true
+	}
+	return false
+}
+
+func validStage(stage ChangeStage) bool {
+	switch stage {
+	case StageDraft, StageCandidate, StageProven, StageAdmitted, StageReleased, StageVerified, StageLearned, StageBlocked:
+		return true
+	}
+	return false
+}
+
+var stageRank = map[ChangeStage]int{
+	StageDraft:     0,
+	StageCandidate: 1,
+	StageProven:    2,
+	StageAdmitted:  3,
+	StageReleased:  4,
+	StageVerified:  5,
+	StageLearned:   6,
+}
+
+func stageAtLeast(got, want ChangeStage) bool {
+	if got == StageBlocked {
+		return false
+	}
+	return stageRank[got] >= stageRank[want]
+}
+
+func validateUnique(name string, values []string) error {
+	seen := map[string]struct{}{}
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return fmt.Errorf("%s contains an empty value", name)
+		}
+		if _, ok := seen[value]; ok {
+			return fmt.Errorf("%s contains duplicate %q", name, value)
+		}
+		seen[value] = struct{}{}
+	}
+	return nil
+}
+
+func validateTestRequirements(requirements []TestRequirement) error {
+	seen := map[string]struct{}{}
+	for _, requirement := range requirements {
+		name := strings.TrimSpace(requirement.Name)
+		if name == "" {
+			return fmt.Errorf("required_tests contains an empty name")
+		}
+		if _, ok := seen[name]; ok {
+			return fmt.Errorf("required_tests contains duplicate %q", name)
+		}
+		seen[name] = struct{}{}
+		if requirement.Required && len(requirement.Command) == 0 {
+			return fmt.Errorf("required test %q has no command", name)
+		}
+		for _, arg := range requirement.Command {
+			if strings.TrimSpace(arg) == "" {
+				return fmt.Errorf("required test %q command contains an empty argument", name)
+			}
+		}
+	}
+	return nil
+}
+
+// validateScenarioRequirements enforces that one obligation has one name.
+//
+// Proof closure indexes required scenarios by name, so two obligations sharing
+// a name collapse into a single boolean and one PASS satisfies both. Repairing
+// that ambiguity later in closure is the wrong place: by then the plan has
+// already promised something it cannot express. The plan is where it is
+// refused, before anything runs.
+func validateScenarioRequirements(requirements []ScenarioRequirement) error {
+	seen := map[string]struct{}{}
+	for _, requirement := range requirements {
+		name := strings.TrimSpace(requirement.Name)
+		if name == "" {
+			return fmt.Errorf("required_scenarios contains an empty name")
+		}
+		if _, ok := seen[name]; ok {
+			return fmt.Errorf(
+				"required_scenarios contains duplicate %q; one required scenario name is one proof obligation",
+				name,
+			)
+		}
+		seen[name] = struct{}{}
+		// An obligation that names no file is not executable, so nothing can
+		// discharge it honestly. The CLIs already refuse one, but portable
+		// validation must too — otherwise a directly constructed envelope can
+		// attach a syntactically complete PASS and validate as PROVEN without a
+		// clustered scenario ever having been named, let alone run.
+		if requirement.Required && strings.TrimSpace(requirement.Path) == "" {
+			return fmt.Errorf(
+				"required scenario %q declares no path; a proof obligation must name the scenario it runs",
+				name,
+			)
+		}
+	}
+	return nil
+}
+
+func stringSlicesEqual(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for idx := range left {
+		if left[idx] != right[idx] {
+			return false
+		}
+	}
+	return true
+}
+
+func canonicalScenarios(in []ScenarioRequirement) []ScenarioRequirement {
+	out := append([]ScenarioRequirement(nil), in...)
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Name != out[j].Name {
+			return out[i].Name < out[j].Name
+		}
+		if out[i].Repository != out[j].Repository {
+			return out[i].Repository < out[j].Repository
+		}
+		return out[i].Path < out[j].Path
+	})
+	return out
+}
+
+func canonicalTests(in []TestRequirement) []TestRequirement {
+	out := append([]TestRequirement(nil), in...)
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Name != out[j].Name {
+			return out[i].Name < out[j].Name
+		}
+		if out[i].Repository != out[j].Repository {
+			return out[i].Repository < out[j].Repository
+		}
+		return out[i].WorkDir < out[j].WorkDir
+	})
+	return out
+}
+
+func sorted(in []string) []string {
+	out := append([]string(nil), in...)
+	sort.Strings(out)
+	return out
+}
