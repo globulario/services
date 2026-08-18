@@ -355,3 +355,36 @@ func TestRecorder_CloseIsNotBlockedByStuckResolution(t *testing.T) {
 		t.Fatalf("Close blocked behind a stuck resolution: %v", err)
 	}
 }
+
+// Stats() must stay responsive while delivery is wedged.
+//
+// The doctor polls this from its healer tick. If reading health could block on
+// the delivery path — a held connMu, a stuck resolution — then a degraded
+// learning subsystem would stall the healer loop, and remediation with it. The
+// observability fix would have become a worse outage than the thing it reports,
+// so Stats reads only its own mutex and never touches the delivery lock.
+func TestRecorder_StatsIsResponsiveWhileDeliveryIsWedged(t *testing.T) {
+	blocked := make(chan struct{})
+	r := NewRecorder(RecorderOptions{
+		QueueSize:      4,
+		Workers:        1,
+		MaxAttempts:    1,
+		ResolveTimeout: time.Hour, // the delivery path is pinned for the whole test
+	})
+	r.resolveAddrFn = func() string { <-blocked; return "" }
+	t.Cleanup(func() { close(blocked); _ = r.Close(context.Background()) })
+
+	r.Enqueue(testBundle("wedged"))
+	time.Sleep(50 * time.Millisecond) // let the worker reach the resolution stage
+
+	done := make(chan Stats, 1)
+	go func() { done <- r.Stats() }()
+	select {
+	case st := <-done:
+		if st.Health() != RecorderIdle {
+			t.Errorf("health = %q, want %q while nothing has completed", st.Health(), RecorderIdle)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stats() blocked behind the delivery path: a stalled recorder would stall the healer tick")
+	}
+}
