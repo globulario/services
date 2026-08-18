@@ -370,6 +370,23 @@ func (e ChangeEnvelope) requiresSimulationObligation() bool {
 }
 
 func (e ChangeEnvelope) validateProofClosure() error {
+	// One obligation, one occupied slot. An independently supplied envelope can
+	// otherwise carry several records for the same scenario and candidate, and
+	// then which one "the proof" refers to depends on which consumer looks —
+	// certification picking one while the uncertainty signal describes another.
+	seenProof := map[string]struct{}{}
+	for _, proof := range e.Proofs {
+		key := proof.Scenario + "\x00" + proof.CandidateRevision
+		if _, ok := seenProof[key]; ok {
+			return fmt.Errorf(
+				"scenario %q has more than one proof record for candidate revision %s; "+
+					"one obligation has one occurrence",
+				proof.Scenario, proof.CandidateRevision,
+			)
+		}
+		seenProof[key] = struct{}{}
+	}
+
 	requiredScenarios := map[string]bool{}
 	for _, scenario := range e.RequiredScenarios {
 		if strings.TrimSpace(scenario.Name) == "" {
@@ -619,6 +636,17 @@ func validateScenarioRequirements(requirements []ScenarioRequirement) error {
 			)
 		}
 		seen[name] = struct{}{}
+		// An obligation that names no file is not executable, so nothing can
+		// discharge it honestly. The CLIs already refuse one, but portable
+		// validation must too — otherwise a directly constructed envelope can
+		// attach a syntactically complete PASS and validate as PROVEN without a
+		// clustered scenario ever having been named, let alone run.
+		if requirement.Required && strings.TrimSpace(requirement.Path) == "" {
+			return fmt.Errorf(
+				"required scenario %q declares no path; a proof obligation must name the scenario it runs",
+				name,
+			)
+		}
 	}
 	return nil
 }

@@ -115,18 +115,29 @@ func (p ProofRecord) certifies(requirement ScenarioRequirement) error {
 			return fmt.Errorf("required scenario %q names no %s", requirement.Name, field.name)
 		}
 	}
-	// The simulator repository is observed, not asserted, so it may legitimately
-	// be unknown — a mirror or an airgapped clone has no remote to speak of.
-	// Absence is therefore not a validation failure; it is an unproven identity
-	// that admission weighs, surfaced through ProofStatus rather than silently
-	// tolerated. What is never allowed is a *contradiction*: if the checkout said
-	// what it was, it must be what the plan froze.
-	observed := strings.TrimSpace(p.Repository)
+	// The simulator repository is a claim, not proof.
+	//
+	// It comes from the checkout's remote, which lives in unversioned
+	// .git/config and is settable by whoever supplies the directory. Pointing a
+	// fork's origin at the canonical URL would otherwise launder an unrelated
+	// simulator into a canonical identity. Nothing in a checkout binds a remote
+	// URL to the commit that executed, so agreement can never be treated as
+	// established identity — only disagreement is informative.
+	//
+	// So a contradiction refuses, and an omitted requirement is read as the
+	// canonical simulator rather than as "any simulator". Agreement is recorded
+	// and surfaced as still-unproven for admission to weigh against how the
+	// checkout was actually provisioned, which is knowledge this process does
+	// not have.
+	claimed := strings.TrimSpace(p.Repository)
 	expected := strings.TrimSpace(requirement.Repository)
-	if observed != "" && expected != "" && observed != expected {
+	if expected == "" {
+		expected = CanonicalSimulationRepository
+	}
+	if claimed != "" && claimed != expected {
 		return fmt.Errorf(
-			"required scenario %q is frozen against simulator repository %q but was proven against %q",
-			requirement.Name, expected, observed,
+			"required scenario %q is frozen against simulator repository %q but was executed against a checkout claiming %q",
+			requirement.Name, expected, claimed,
 		)
 	}
 	return nil
@@ -143,13 +154,22 @@ func (e ChangeEnvelope) SimulatorIdentityUnproven() []string {
 		if !requirement.Required {
 			continue
 		}
+		// Select the record certification actually relies on. Scanning by
+		// scenario and revision alone can stop at a non-certifying sibling — an
+		// earlier FAIL carrying a repository, say — and report on a record
+		// admission never depended upon.
 		for _, proof := range e.Proofs {
-			if proof.Scenario != requirement.Name || proof.CandidateRevision != e.CandidateRevision {
+			if proof.Scenario != requirement.Name ||
+				proof.CandidateRevision != e.CandidateRevision ||
+				proof.PlanDigest != e.PlanDigest ||
+				proof.Result != "PASS" ||
+				!proof.ProofEligible {
 				continue
 			}
-			if strings.TrimSpace(proof.Repository) == "" {
-				unproven = append(unproven, requirement.Name)
-			}
+			// Every certifying record is listed: the identity behind it rests on
+			// caller-settable checkout metadata, so it is never established by
+			// this process, only ever consistent with the plan.
+			unproven = append(unproven, requirement.Name)
 			break
 		}
 	}

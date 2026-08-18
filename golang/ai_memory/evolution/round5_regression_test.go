@@ -556,14 +556,17 @@ func TestProofRepositoryMustMatchTheFrozenScenario(t *testing.T) {
 			t.Fatal("ProofStatus does not surface the unproven identity to admission")
 		}
 	})
-	t.Run("matching observed repository validates", func(t *testing.T) {
+	t.Run("agreement is accepted but never counts as proof", func(t *testing.T) {
+		// A remote URL lives in unversioned .git/config and is settable by
+		// whoever supplies the checkout, so agreement with the plan is consistency,
+		// not established identity. It validates, and it stays unproven.
 		e := provenFixture(t)
 		e.Proofs[0].Repository = CanonicalSimulationRepository
 		if err := e.Validate(); err != nil {
-			t.Fatalf("the canonical simulator was rejected: %v", err)
+			t.Fatalf("a consistent simulator claim was rejected: %v", err)
 		}
-		if len(e.SimulatorIdentityUnproven()) != 0 {
-			t.Fatal("an observed identity was reported as unproven")
+		if len(e.SimulatorIdentityUnproven()) != 1 {
+			t.Fatal("a caller-settable claim was treated as established identity")
 		}
 	})
 }
@@ -781,4 +784,77 @@ func TestSimulationObligationIsRiskScoped(t *testing.T) {
 			}
 		}
 	})
+}
+
+// A fork can point its origin at the canonical URL, because that lives in
+// unversioned .git/config. Agreement must therefore never establish identity.
+func TestSpoofedOriginCannotEstablishSimulatorIdentity(t *testing.T) {
+	fork := t.TempDir()
+	writeQuickstartHarness(t, fork, fakeHarness{mode: "pass"})
+	runGit(t, fork, "remote", "add", "origin", "git@github.com:globulario/globular-quickstart.git")
+
+	envelopePath := scenarioEnvelope(t, "chg-spoofed-origin")
+	result, err := runScenario(t, fork, envelopePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored, err := LoadChangeEnvelope(envelopePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The claim is recorded, and it is consistent, so the run is not refused...
+	if result.Proof.Repository != CanonicalSimulationRepository {
+		t.Fatalf("the checkout's claim was not recorded: %q", result.Proof.Repository)
+	}
+	// ...but admission is told the identity behind it was never established.
+	unproven := stored.SimulatorIdentityUnproven()
+	if len(unproven) != 1 || unproven[0] != "chaos" {
+		t.Fatalf("a spoofable origin was presented to admission as proven identity: %v", unproven)
+	}
+	if len(stored.ProofStatus().SimulatorIdentityUnproven) != 1 {
+		t.Fatal("ProofStatus hid the unproven identity from admission")
+	}
+}
+
+// An omitted requirement repository means the canonical simulator, not any
+// simulator — otherwise a foreign checkout certifies with nothing to contradict.
+func TestForeignSimulatorRefusedWhenRequirementOmitsRepository(t *testing.T) {
+	e := provenFixture(t)
+	if e.RequiredScenarios[0].Repository != "" {
+		t.Fatal("fixture should omit the requirement repository")
+	}
+	e.Proofs[0].Repository = "someone-else/globular-quickstart"
+	err := e.Validate()
+	if err == nil {
+		t.Fatal("a foreign simulator certified against a requirement that named none")
+	}
+	if !strings.Contains(err.Error(), "someone-else") {
+		t.Fatalf("expected the foreign claim to be named, got %v", err)
+	}
+}
+
+// A required obligation that names no file is not executable, so nothing can
+// discharge it — portable validation must say so, not only the CLIs.
+func TestRequiredScenarioMustNameAPath(t *testing.T) {
+	e := NewChangeEnvelope("chg-pathless", ChangeSimulationRepair, "repair", "source-sha", RiskCritical)
+	e.RequiredScenarios = []ScenarioRequirement{{Name: "chaos", Required: true}}
+	if err := e.BindCandidate("globulario/services", "candidate-sha"); err == nil {
+		t.Fatal("an obligation naming no scenario file was frozen into the plan")
+	}
+}
+
+// One obligation, one occurrence. Two records for the same scenario and
+// candidate let certification and the uncertainty signal describe different
+// proofs.
+func TestDuplicateProofRecordsForOneObligationAreRefused(t *testing.T) {
+	e := provenFixture(t)
+	stale := e.Proofs[0]
+	stale.Result = "FAIL"
+	stale.ProofEligible = false
+	stale.Repository = CanonicalSimulationRepository
+	e.Proofs = append([]ProofRecord{stale}, e.Proofs...)
+
+	if err := e.Validate(); err == nil {
+		t.Fatal("two proof records for one obligation were accepted")
+	}
 }

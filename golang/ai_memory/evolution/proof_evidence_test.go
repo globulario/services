@@ -21,7 +21,7 @@ func provenFixture(t *testing.T, planMutators ...func(*ChangeEnvelope)) ChangeEn
 		Command:  []string{"go", "test", "./..."},
 		Required: true,
 	}}
-	e.RequiredScenarios = []ScenarioRequirement{{Name: "chaos", Required: true}}
+	e.RequiredScenarios = []ScenarioRequirement{{Name: "chaos", Path: "tests/scenarios/chaos.yaml", Required: true}}
 	for _, mutate := range planMutators {
 		mutate(&e)
 	}

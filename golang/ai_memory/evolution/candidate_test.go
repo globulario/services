@@ -32,7 +32,7 @@ func TestBindCandidateRefusesAfterAdmission(t *testing.T) {
 func TestProofStatusNamesMissingEvidenceAndAdmissionBoundary(t *testing.T) {
 	e := NewChangeEnvelope("chg-status", ChangeSimulationRepair, "repair", "source", RiskCritical)
 	e.RequiredTests = []TestRequirement{{Name: "unit", Command: []string{"go", "test"}, Required: true}}
-	e.RequiredScenarios = []ScenarioRequirement{{Name: "chaos", Required: true}}
+	e.RequiredScenarios = []ScenarioRequirement{{Name: "chaos", Path: "tests/scenarios/chaos.yaml", Required: true}}
 	if err := e.BindCandidate("globulario/services", "sha"); err != nil {
 		t.Fatal(err)
 	}

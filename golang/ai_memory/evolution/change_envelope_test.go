@@ -4,7 +4,7 @@ import "testing"
 
 func TestProvenRequiresProofForExactCandidate(t *testing.T) {
 	e := NewChangeEnvelope("chg-1", ChangeSimulationRepair, "repair stale authority", "source-sha", RiskHigh)
-	e.RequiredScenarios = []ScenarioRequirement{{Name: "controller-zombie-after-lease-loss", Required: true}}
+	e.RequiredScenarios = []ScenarioRequirement{{Name: "controller-zombie-after-lease-loss", Path: "tests/scenarios/controller-zombie-after-lease-loss.yaml", Required: true}}
 	if err := e.BindCandidate("globulario/services", "candidate-sha"); err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestIdentityDigestIgnoresListOrdering(t *testing.T) {
 
 func TestCandidatePlanDigestRejectsShrinkingProofObligations(t *testing.T) {
 	e := NewChangeEnvelope("chg-plan-freeze", ChangeSimulationRepair, "repair", "source", RiskCritical)
-	e.RequiredScenarios = []ScenarioRequirement{{Name: "scenario-a", Required: true}}
+	e.RequiredScenarios = []ScenarioRequirement{{Name: "scenario-a", Path: "tests/scenarios/scenario-a.yaml", Required: true}}
 	if err := e.BindCandidate("globulario/services", "candidate-sha"); err != nil {
 		t.Fatal(err)
 	}
