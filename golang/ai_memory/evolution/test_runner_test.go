@@ -13,15 +13,15 @@ func TestRunDeclaredTestRecordsEvidenceForExactRevision(t *testing.T) {
 	workspace, revision := initTestRepo(t)
 	envelopePath := filepath.Join(t.TempDir(), "change.yaml")
 	e := NewChangeEnvelope("chg-test-run", ChangeFeature, "feature", revision, RiskHigh)
-	e.Stage = StageCandidate
-	e.CandidateRepository = "globulario/services"
-	e.CandidateRevision = revision
 	e.RequiredTests = []TestRequirement{{
 		Name:       "declared-test",
 		Repository: "globulario/services",
 		Command:    []string{"sh", "-c", "echo trusted-proof"},
 		Required:   true,
 	}}
+	if err := e.BindCandidate("globulario/services", revision); err != nil {
+		t.Fatal(err)
+	}
 	if err := SaveChangeEnvelope(envelopePath, e); err != nil {
 		t.Fatal(err)
 	}
@@ -53,14 +53,14 @@ func TestRunDeclaredTestRejectsWrongCheckoutRevision(t *testing.T) {
 	workspace, _ := initTestRepo(t)
 	envelopePath := filepath.Join(t.TempDir(), "change.yaml")
 	e := NewChangeEnvelope("chg-wrong-rev", ChangeFeature, "feature", "different-sha", RiskHigh)
-	e.Stage = StageCandidate
-	e.CandidateRepository = "globulario/services"
-	e.CandidateRevision = "different-sha"
 	e.RequiredTests = []TestRequirement{{
 		Name:     "declared-test",
 		Command:  []string{"sh", "-c", "true"},
 		Required: true,
 	}}
+	if err := e.BindCandidate("globulario/services", "different-sha"); err != nil {
+		t.Fatal(err)
+	}
 	if err := SaveChangeEnvelope(envelopePath, e); err != nil {
 		t.Fatal(err)
 	}
@@ -78,14 +78,14 @@ func TestFailedRerunDowngradesProvenCandidate(t *testing.T) {
 	workspace, revision := initTestRepo(t)
 	envelopePath := filepath.Join(t.TempDir(), "change.yaml")
 	e := NewChangeEnvelope("chg-rerun", ChangeSimulationRepair, "repair", revision, RiskCritical)
-	e.Stage = StageCandidate
-	e.CandidateRepository = "globulario/services"
-	e.CandidateRevision = revision
 	e.RequiredTests = []TestRequirement{{
 		Name:     "flippable",
 		Command:  []string{"sh", "-c", "test ! -f .force-test-failure"},
 		Required: true,
 	}}
+	if err := e.BindCandidate("globulario/services", revision); err != nil {
+		t.Fatal(err)
+	}
 	if err := SaveChangeEnvelope(envelopePath, e); err != nil {
 		t.Fatal(err)
 	}
