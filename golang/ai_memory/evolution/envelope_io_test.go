@@ -43,6 +43,7 @@ func TestMarkProvenOnlyAfterRequiredTestAndScenarioClosure(t *testing.T) {
 		Scenario:            "scenario-a",
 		CandidateRepository: "globulario/services",
 		CandidateRevision:   "candidate-sha",
+		PlanDigest:          e.PlanDigest,
 		Result:              "PASS",
 		ProofEligible:       true,
 	})
@@ -53,6 +54,7 @@ func TestMarkProvenOnlyAfterRequiredTestAndScenarioClosure(t *testing.T) {
 		Name:                "go-test-evolution",
 		CandidateRepository: "globulario/services",
 		CandidateRevision:   "candidate-sha",
+		PlanDigest:          e.PlanDigest,
 		Command:             []string{"go", "test", "./ai_memory/evolution"},
 		Result:              "PASS",
 	})
@@ -75,6 +77,7 @@ func TestRequiredTestRejectsSubstitutedCommand(t *testing.T) {
 	e.Tests = []TestRecord{{
 		Name:              "real-test",
 		CandidateRevision: "candidate-sha",
+		PlanDigest:        e.PlanDigest,
 		Command:           []string{"true"},
 		Result:            "PASS",
 	}}
@@ -85,8 +88,8 @@ func TestRequiredTestRejectsSubstitutedCommand(t *testing.T) {
 
 func TestAddOrReplaceProofDoesNotDoubleCountSameCandidateScenario(t *testing.T) {
 	e := ChangeEnvelope{}
-	e.AddOrReplaceProof(ProofRecord{Scenario: "scenario-a", CandidateRevision: "sha", Result: "FAIL"})
-	e.AddOrReplaceProof(ProofRecord{Scenario: "scenario-a", CandidateRevision: "sha", Result: "PASS"})
+	e.AddOrReplaceProof(ProofRecord{Scenario: "scenario-a", CandidateRevision: "sha", PlanDigest: "plan", Result: "FAIL"})
+	e.AddOrReplaceProof(ProofRecord{Scenario: "scenario-a", CandidateRevision: "sha", PlanDigest: "plan", Result: "PASS"})
 	if len(e.Proofs) != 1 || e.Proofs[0].Result != "PASS" {
 		t.Fatalf("proof replacement failed: %+v", e.Proofs)
 	}
@@ -94,8 +97,8 @@ func TestAddOrReplaceProofDoesNotDoubleCountSameCandidateScenario(t *testing.T) 
 
 func TestAddOrReplaceTestDoesNotDoubleCountSameCandidateTest(t *testing.T) {
 	e := ChangeEnvelope{}
-	e.AddOrReplaceTest(TestRecord{Name: "go-test", CandidateRevision: "sha", Result: "FAIL"})
-	e.AddOrReplaceTest(TestRecord{Name: "go-test", CandidateRevision: "sha", Result: "PASS"})
+	e.AddOrReplaceTest(TestRecord{Name: "go-test", CandidateRevision: "sha", PlanDigest: "plan", Result: "FAIL"})
+	e.AddOrReplaceTest(TestRecord{Name: "go-test", CandidateRevision: "sha", PlanDigest: "plan", Result: "PASS"})
 	if len(e.Tests) != 1 || e.Tests[0].Result != "PASS" {
 		t.Fatalf("test replacement failed: %+v", e.Tests)
 	}
