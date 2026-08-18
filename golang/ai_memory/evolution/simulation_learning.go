@@ -21,6 +21,7 @@ type ChangeBinding struct {
 	EnvelopeRef         string `json:"envelope_ref,omitempty"`
 	CandidateRepository string `json:"candidate_repository,omitempty"`
 	CandidateRevision   string `json:"candidate_revision,omitempty"`
+	PlanDigest          string `json:"plan_digest,omitempty"`
 	SimulationRevision  string `json:"simulation_revision,omitempty"`
 }
 
@@ -138,8 +139,15 @@ func (l SimulationLearning) Validate() error {
 		if strings.TrimSpace(l.Change.CandidateRepository) == "" || strings.TrimSpace(l.Change.CandidateRevision) == "" {
 			return fmt.Errorf("change-bound learning requires candidate_repository and candidate_revision")
 		}
+		if strings.TrimSpace(l.Change.PlanDigest) == "" {
+			return fmt.Errorf("change-bound learning requires plan_digest")
+		}
 		if l.Change.SimulationRevision != "" && l.Change.SimulationRevision != l.SourceRevision {
-			return fmt.Errorf("change simulation_revision %q does not match source_revision %q", l.Change.SimulationRevision, l.SourceRevision)
+			return fmt.Errorf(
+				"change simulation_revision %q does not match source_revision %q",
+				l.Change.SimulationRevision,
+				l.SourceRevision,
+			)
 		}
 	}
 	return nil
@@ -204,6 +212,7 @@ func (i SimulationIngestor) Ingest(ctx context.Context, l SimulationLearning) (S
 		metadata["change_envelope_ref"] = l.Change.EnvelopeRef
 		metadata["candidate_repository"] = l.Change.CandidateRepository
 		metadata["candidate_revision"] = l.Change.CandidateRevision
+		metadata["plan_digest"] = l.Change.PlanDigest
 	}
 	if len(l.CandidatePolicy.CandidateTypes) > 0 {
 		metadata["candidate_types"] = strings.Join(l.CandidatePolicy.CandidateTypes, ",")
