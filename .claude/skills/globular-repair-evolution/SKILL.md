@@ -55,7 +55,7 @@ Use `sensei-architect` before architecture-sensitive work. Identify:
 
 For an exact proposed mutation, use `sensei-admission` at the execution-control boundary. If the contract/authority is unknown, investigate but do not claim admission.
 
-### 2. Create the ChangeEnvelope
+### 2. Create the ChangeEnvelope and author the proof plan
 
 The machine-readable envelope is implemented in `golang/ai_memory/evolution`.
 
@@ -70,7 +70,7 @@ evolution-change init \
   --risk critical
 ```
 
-Then author/freeze in the envelope:
+Before binding a candidate, author the complete proof plan in the envelope:
 
 - `authority_scope`
 - `governing_contracts`
@@ -80,9 +80,9 @@ Then author/freeze in the envelope:
 - `required_tests`, each with the exact command
 - `required_scenarios`, each with the exact quickstart path
 
-Do not treat changing proof requirements as editorial cleanup. Required tests/scenarios are part of the envelope identity.
+Do not treat changing proof requirements as editorial cleanup. These fields define what PROVEN means.
 
-### 3. Bind the exact implementation candidate
+### 3. Bind the exact implementation candidate and freeze the plan
 
 ```bash
 evolution-change bind-candidate \
@@ -90,6 +90,10 @@ evolution-change bind-candidate \
   --repository globulario/services \
   --revision <candidate-git-sha>
 ```
+
+Binding computes `plan_digest`, a content identity over the candidate revision plus the contracts, invariants, forbidden repairs, required tests, and required scenarios. Test evidence, scenario proof, Sensei admission, and release evidence must all bind to this same digest.
+
+Once bound, changing the proof plan invalidates the candidate envelope. Do not delete or weaken a failing obligation to recover green. Re-plan explicitly before proof, or create a new ChangeEnvelope when the meaning of the change has moved.
 
 Rebinding a different pre-admission candidate clears prior candidate-derived test/proof evidence. After `ADMITTED`, candidate evidence is immutable history; create a new change/candidate instead of rewriting it.
 
@@ -117,12 +121,13 @@ The runner is intentionally ordered:
 1. rerun every required local/static test;
 2. verify candidate checkout `git HEAD` equals the envelope candidate revision;
 3. execute each exact command frozen in `TestRequirement`;
-4. capture/hash stdout+stderr evidence;
+4. capture/hash stdout+stderr evidence and stamp the frozen plan digest;
 5. stop immediately on local failure;
 6. only after local closure, run required quickstart scenarios;
-7. bind quickstart proof to change id + exact candidate revision + simulation revision;
-8. stop on first non-proof cluster result;
-9. reconcile `CANDIDATE <-> PROVEN` from current evidence.
+7. bind quickstart proof to change id + exact candidate revision + frozen plan digest + simulation revision;
+8. resolve and retain the concrete immutable quickstart run directory, never the moving `reports/latest` symlink;
+9. stop on first non-proof cluster result;
+10. reconcile `CANDIDATE <-> PROVEN` from current evidence.
 
 Individual tools also exist:
 
@@ -149,11 +154,13 @@ There is deliberately no `mark-test-pass`, `admit`, `release`, or `promote` conv
 
 A change reaches `PROVEN` only when:
 
-- every required local test has PASS evidence for the exact candidate revision;
+- the persisted envelope still matches its frozen `plan_digest`;
+- every required local test has PASS evidence for the exact candidate revision and plan digest;
 - every PASS record used the exact command declared in the envelope;
 - every required cluster scenario is supported and proof-eligible PASS;
-- scenario proof identifies the same candidate repository/revision;
-- quickstart `simulation_revision` matches the scenario proof source revision.
+- scenario proof identifies the same candidate repository/revision and plan digest;
+- quickstart `simulation_revision` matches the scenario proof source revision;
+- proof references point at a concrete run, not a mutable latest alias.
 
 A failed rerun can downgrade `PROVEN -> CANDIDATE`. Proof is not sticky green.
 
@@ -176,10 +183,11 @@ GLOBULAR_CHANGE_ID
 GLOBULAR_CHANGE_ENVELOPE_REF
 GLOBULAR_CANDIDATE_REPOSITORY
 GLOBULAR_CANDIDATE_REVISION
+GLOBULAR_CHANGE_PLAN_DIGEST
 GLOBULAR_REQUIRE_CHANGE_BINDING=1
 ```
 
-A partial/invalid binding blocks lab mutation. A green legacy executor cannot override broken proof identity.
+A partial/invalid binding blocks lab mutation. A green legacy executor cannot override broken proof identity. A result for the same code revision but a different plan digest is different proof and cannot satisfy this ChangeEnvelope.
 
 Current semantic temporal primitives include:
 
@@ -213,9 +221,9 @@ Do not claim `controller-zombie-after-lease-loss` proven merely because SIGSTOP/
 
 After proof:
 
-1. use Sensei admission for the exact candidate revision and exact proof set;
-2. only a real Sensei `ACCEPT` may advance the envelope to ADMITTED;
-3. release through the normal immutable release/workflow path;
+1. use Sensei admission for the exact candidate revision, frozen plan digest, and exact proof set;
+2. only a real Sensei `ACCEPT` bound to both candidate revision and plan digest may advance the envelope to ADMITTED;
+3. release through the normal immutable release/workflow path and bind release evidence to the same plan digest;
 4. independently verify production Repository -> Desired -> Installed -> Runtime evidence;
 5. learn outcomes into Behavioral Memory.
 
@@ -231,6 +239,8 @@ promotion_required       = true
 may_promote              = false
 ```
 
+Change-bound learning must carry the same candidate revision, frozen plan digest, and quickstart simulation revision as its proof.
+
 The simulation ingestion interface exposes only `RecordSignal`, `RecordEvidence`, and `RecordOutcome`. It has no `PromotePrinciple` capability.
 
 Simulation may generate evidence and candidate hints. Promotion remains governed.
@@ -240,7 +250,9 @@ Simulation may generate evidence and candidate hints. Promotion remains governed
 Do not claim success when:
 
 - governing contract/authority is unknown for architecture-sensitive behavior;
+- the proof plan changed after candidate binding;
 - required local test is absent, substituted, stale, or failing;
+- test/scenario evidence is bound to a different plan digest;
 - tested checkout revision differs from the candidate revision;
 - required scenario action/probe is unsupported;
 - injected failure did not occur;
