@@ -16,6 +16,7 @@ func boundProof() (string, ProofRecord) {
 		PlanDigest:          "sha256:plan",
 		SimulationRevision:  "sim-sha",
 		InvocationID:        "inv-1",
+		Result:              "FAIL", // matches validLearning()
 	}
 }
 
@@ -46,6 +47,7 @@ func TestUnboundLearningIsRefusedOnTheProofPath(t *testing.T) {
 		{"no candidate revision", func(l *SimulationLearning) { l.Change.CandidateRevision = "" }, "candidate_revision"},
 		{"no plan digest", func(l *SimulationLearning) { l.Change.PlanDigest = "" }, "plan_digest"},
 		{"no simulation revision", func(l *SimulationLearning) { l.Change.SimulationRevision = "" }, "simulation_revision"},
+		{"no result", func(l *SimulationLearning) { l.Result = "" }, "result"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			l := boundLearning()
@@ -70,6 +72,7 @@ func TestMisboundLearningIsRefused(t *testing.T) {
 		{"other candidate revision", func(l *SimulationLearning) { l.Change.CandidateRevision = "other-sha" }},
 		{"other plan digest", func(l *SimulationLearning) { l.Change.PlanDigest = "sha256:other" }},
 		{"other invocation", func(l *SimulationLearning) { l.Invocation.ID = "inv-other" }},
+		{"contradicting result", func(l *SimulationLearning) { l.Result = "PASS" }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			l := boundLearning()

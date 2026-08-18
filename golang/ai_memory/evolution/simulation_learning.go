@@ -174,6 +174,11 @@ func (l SimulationLearning) RequireBoundTo(changeID string, p ProofRecord) error
 		{"change.plan_digest", l.Change.PlanDigest, p.PlanDigest},
 		{"change.simulation_revision", l.Change.SimulationRevision, p.SimulationRevision},
 		{"invocation.id", l.Invocation.ID, p.InvocationID},
+		// The verdict is part of the occurrence, not commentary on it. A
+		// learning artifact claiming FAIL for a PASS proof would record a
+		// failure observation and promotion-candidate hints against a candidate
+		// that actually passed, and the reverse would learn a failure as success.
+		{"result", l.Result, p.Result},
 	} {
 		got := strings.TrimSpace(field.got)
 		want := strings.TrimSpace(field.want)
@@ -241,8 +246,22 @@ func (l SimulationLearning) recordID(kind string, index int) string {
 // supplied an identity, the store must answer with that identity; a different
 // one means the record we asked for is not the record that exists.
 func requireAllocatedAs(kind, requested, returned string) error {
-	if requested == "" || returned == "" || requested == returned {
+	// Only unbound ingestion, which requests no identity, may be answered with
+	// whatever the store allocates. Once we have asked for a specific identity,
+	// an empty answer is as much a failure to confirm it as a different one:
+	// an empty id cannot be attached to an outcome or point at a stored record.
+	if requested == "" {
 		return nil
+	}
+	if requested == returned {
+		return nil
+	}
+	if returned == "" {
+		return fmt.Errorf(
+			"%s identity unconfirmed: requested %q but behavioral memory returned no id",
+			kind,
+			requested,
+		)
 	}
 	return fmt.Errorf(
 		"%s identity mismatch: requested %q but behavioral memory returned %q; refusing to treat this as a replay",

@@ -97,31 +97,55 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 		scenarioName = strings.TrimSuffix(filepath.Base(opts.Scenario), filepath.Ext(opts.Scenario))
 	}
 
-	testBin := filepath.Join(opts.QuickstartDir, "tests", "harness", "bin", "globular-test")
-	if _, err := os.Stat(testBin); err != nil {
-		return QuickstartRunResult{}, fmt.Errorf("quickstart proof runner unavailable: %w", err)
-	}
-
-	invocationID, err := newInvocationID()
-	if err != nil {
-		return QuickstartRunResult{}, err
-	}
-	runDir, err := createInvocationRunDir(opts.QuickstartDir, invocationID)
-	if err != nil {
-		return QuickstartRunResult{}, err
-	}
+	identity := envelope.Identity()
 
 	// From here on the invocation owns a proof slot. Any path that fails to fill
 	// it with a valid current proof must drop whatever older claim stood for this
 	// scenario, or a failed rerun would leave the durable envelope at PROVEN.
 	fail := func(runResult QuickstartRunResult, cause error) (QuickstartRunResult, error) {
-		if invalidateErr := invalidateScenarioProof(opts.EnvelopePath, scenarioName); invalidateErr != nil {
+		if invalidateErr := invalidateScenarioProof(opts.EnvelopePath, identity, scenarioName); invalidateErr != nil {
 			return runResult, fmt.Errorf("%w (and could not withdraw the prior proof claim: %v)", cause, invalidateErr)
 		}
 		return runResult, cause
 	}
 
-	args := []string{"scenario", opts.Scenario}
+	// The simulator is the other half of the experiment, so it needs the same
+	// exactness as the candidate. A quickstart checkout can carry tracked,
+	// staged, or untracked edits while still reporting a clean HEAD, which would
+	// let modified simulator code earn proof attributed to the committed
+	// revision. Executing from a throwaway detached worktree makes the simulator
+	// contents exactly that revision by construction:
+	//
+	//     exact candidate revision × exact simulator revision = proof occurrence
+	simulationRevision, err := resolveHeadRevision(ctx, opts.QuickstartDir)
+	if err != nil {
+		return fail(QuickstartRunResult{ChangeID: envelope.ID}, err)
+	}
+	simTree, releaseSimTree, err := materializeCandidateTree(ctx, opts.QuickstartDir, simulationRevision)
+	if err != nil {
+		return fail(QuickstartRunResult{ChangeID: envelope.ID}, fmt.Errorf("materialize simulator revision: %w", err))
+	}
+	defer releaseSimTree()
+
+	testBin := filepath.Join(simTree, "tests", "harness", "bin", "globular-test")
+	if _, err := os.Stat(testBin); err != nil {
+		return fail(QuickstartRunResult{ChangeID: envelope.ID}, fmt.Errorf("quickstart proof runner unavailable: %w", err))
+	}
+	scenarioPath, err := rebaseScenarioPath(opts.QuickstartDir, simTree, opts.Scenario)
+	if err != nil {
+		return fail(QuickstartRunResult{ChangeID: envelope.ID}, err)
+	}
+
+	invocationID, err := newInvocationID()
+	if err != nil {
+		return fail(QuickstartRunResult{ChangeID: envelope.ID}, err)
+	}
+	runDir, err := createInvocationRunDir(opts.EnvelopePath, envelope.ID, invocationID)
+	if err != nil {
+		return fail(QuickstartRunResult{ChangeID: envelope.ID}, err)
+	}
+
+	args := []string{"scenario", scenarioPath}
 	if opts.KeepArtifacts {
 		args = append(args, "--keep-artifacts")
 	}
@@ -129,7 +153,7 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 		args = append(args, "--verbose")
 	}
 	cmd := exec.CommandContext(ctx, testBin, args...)
-	cmd.Dir = opts.QuickstartDir
+	cmd.Dir = simTree
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = append(
@@ -152,7 +176,7 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 			exitCode = exitErr.ExitCode()
 		} else {
 			return fail(
-				QuickstartRunResult{InvocationID: invocationID},
+				QuickstartRunResult{ChangeID: envelope.ID, InvocationID: invocationID},
 				fmt.Errorf("run quickstart scenario: %w", runErr),
 			)
 		}
@@ -166,6 +190,17 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 		InvocationID: invocationID,
 		ProofPath:    proofPath,
 		LearningPath: learningPath,
+	}
+
+	// A run that did not succeed cannot certify, whatever it wrote. A harness can
+	// emit a valid PASS artifact and then exit nonzero — teardown or artifact
+	// cleanup failing after the scenario itself passed — and recording that would
+	// leave the durable envelope PROVEN off a run the operator was told failed.
+	if exitCode != 0 {
+		return fail(partial, fmt.Errorf(
+			"quickstart scenario exited %d; a run that did not succeed cannot certify a candidate",
+			exitCode,
+		))
 	}
 
 	artifact, err := loadQuickstartProof(proofPath)
@@ -214,6 +249,13 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 			envelope.PlanDigest,
 		))
 	}
+	if artifact.SourceRevision != simulationRevision {
+		return fail(partial, fmt.Errorf(
+			"proof simulation revision %q is not the simulator revision this run executed %q",
+			artifact.SourceRevision,
+			simulationRevision,
+		))
+	}
 	if artifact.Change.SimulationRevision != artifact.SourceRevision {
 		return fail(partial, fmt.Errorf(
 			"proof simulation revision %q does not match proof source revision %q",
@@ -246,9 +288,10 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 	}
 	proof.Digest = digest
 
-	envelope.AddOrReplaceProof(proof)
-	marked := envelope.ReconcileProofStage()
-	if err := SaveChangeEnvelope(opts.EnvelopePath, envelope); err != nil {
+	marked, err := MutateEnvelope(opts.EnvelopePath, identity, func(e *ChangeEnvelope) {
+		e.AddOrReplaceProof(proof)
+	})
+	if err != nil {
 		return partial, err
 	}
 
@@ -275,15 +318,27 @@ func newInvocationID() (string, error) {
 	), nil
 }
 
-// createInvocationRunDir creates the directory this invocation owns. It must not
-// already exist: an existing directory could hold a sibling run's artifacts, and
-// consuming those is the ambiguity this whole mechanism removes.
-func createInvocationRunDir(quickstartDir, invocationID string) (string, error) {
-	reports := filepath.Join(quickstartDir, "tests", "reports")
-	if err := os.MkdirAll(reports, 0o755); err != nil {
-		return "", fmt.Errorf("create quickstart reports dir: %w", err)
+// createInvocationRunDir creates the directory this invocation owns.
+//
+// It sits beside the envelope's other evidence, deliberately outside both the
+// candidate and the simulator checkouts. The simulator now executes from a
+// throwaway worktree that is discarded afterwards, so anything written inside it
+// would not survive to be verified; and the real quickstart checkout is not a
+// scratch space for proof output either.
+//
+// It must not already exist: an existing directory could hold a sibling run's
+// artifacts, and consuming those is the ambiguity this mechanism removes.
+func createInvocationRunDir(envelopePath, changeID, invocationID string) (string, error) {
+	base := filepath.Join(
+		filepath.Dir(envelopePath),
+		".evolution-evidence",
+		safeEvidenceName(changeID),
+		"scenarios",
+	)
+	if err := os.MkdirAll(base, 0o755); err != nil {
+		return "", fmt.Errorf("create proof evidence dir: %w", err)
 	}
-	runDir := filepath.Join(reports, invocationID)
+	runDir := filepath.Join(base, safeEvidenceName(invocationID))
 	if err := os.Mkdir(runDir, 0o755); err != nil {
 		return "", fmt.Errorf("create proof invocation run dir: %w", err)
 	}
@@ -297,29 +352,18 @@ func createInvocationRunDir(quickstartDir, invocationID string) (string, error) 
 // invalidateScenarioProof withdraws any standing proof claim for one required
 // scenario at the current candidate revision and reconciles the stage. It only
 // ever removes a claim; it never asserts a result this invocation cannot show.
-func invalidateScenarioProof(envelopePath, scenario string) error {
-	envelope, err := LoadChangeEnvelope(envelopePath)
-	if err != nil {
-		return err
-	}
-	if envelope.Stage != StageCandidate && envelope.Stage != StageProven {
-		return nil
-	}
-	kept := envelope.Proofs[:0]
-	removed := false
-	for _, proof := range envelope.Proofs {
-		if proof.Scenario == scenario && proof.CandidateRevision == envelope.CandidateRevision {
-			removed = true
-			continue
+func invalidateScenarioProof(envelopePath string, identity EnvelopeIdentity, scenario string) error {
+	_, err := MutateEnvelope(envelopePath, identity, func(e *ChangeEnvelope) {
+		kept := e.Proofs[:0]
+		for _, proof := range e.Proofs {
+			if proof.Scenario == scenario && proof.CandidateRevision == e.CandidateRevision {
+				continue
+			}
+			kept = append(kept, proof)
 		}
-		kept = append(kept, proof)
-	}
-	if !removed && envelope.Stage == StageCandidate {
-		return nil
-	}
-	envelope.Proofs = kept
-	envelope.ReconcileProofStage()
-	return SaveChangeEnvelope(envelopePath, envelope)
+		e.Proofs = kept
+	})
+	return err
 }
 
 func loadQuickstartProof(path string) (QuickstartProofArtifact, error) {
@@ -342,4 +386,46 @@ func loadQuickstartProof(path string) (QuickstartProofArtifact, error) {
 		)
 	}
 	return proof, nil
+}
+
+func resolveHeadRevision(ctx context.Context, dir string) (string, error) {
+	out, err := exec.CommandContext(ctx, "git", "-C", dir, "rev-parse", "HEAD").Output()
+	if err != nil {
+		return "", fmt.Errorf("resolve simulator revision in %q: %w", dir, err)
+	}
+	revision := strings.TrimSpace(string(out))
+	if revision == "" {
+		return "", fmt.Errorf("simulator checkout %q has no resolvable revision", dir)
+	}
+	return revision, nil
+}
+
+// rebaseScenarioPath maps a scenario named against the operator's quickstart
+// checkout onto the detached worktree that is actually executing. Running the
+// committed harness against an uncommitted scenario file would reintroduce the
+// contamination the worktree exists to prevent.
+func rebaseScenarioPath(quickstartDir, simTree, scenario string) (string, error) {
+	root, err := filepath.Abs(quickstartDir)
+	if err != nil {
+		return "", fmt.Errorf("resolve quickstart dir: %w", err)
+	}
+	target := scenario
+	if !filepath.IsAbs(target) {
+		target = filepath.Join(root, target)
+	}
+	rel, err := filepath.Rel(root, target)
+	if err != nil {
+		return "", fmt.Errorf("resolve scenario path: %w", err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("scenario %q is outside the quickstart checkout", scenario)
+	}
+	rebased := filepath.Join(simTree, rel)
+	if _, err := os.Stat(rebased); err != nil {
+		return "", fmt.Errorf(
+			"scenario %q is not present at simulator revision: %w; commit it before proving against it",
+			rel, err,
+		)
+	}
+	return rebased, nil
 }

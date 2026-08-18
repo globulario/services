@@ -40,11 +40,19 @@ func writeQuickstartHarness(t *testing.T, quickstartDir string, h fakeHarness) {
 set -e
 MODE="` + h.mode + `"
 SCENARIO="` + scenario + `"
+if [ "$MODE" = "pass-then-exit-nonzero" ]; then
+  PASS_THEN_FAIL=1
+else
+  PASS_THEN_FAIL=0
+fi
 if [ "$MODE" = "fail-silently" ]; then
   # Dies before producing anything for this invocation, and before it could
   # rotate any shared pointer.
   exit 1
 fi
+# Mirror the real harness: source_revision comes from the tree being executed,
+# which under the runner is a detached worktree of the exact simulator revision.
+SRC_REV="$(git rev-parse HEAD)"
 INV="$GLOBULAR_PROOF_INVOCATION_ID"
 if [ "$MODE" = "wrong-invocation" ]; then INV="inv-someone-else"; fi
 if [ "$MODE" = "no-invocation" ]; then INV=""; fi
@@ -56,24 +64,46 @@ cat > "$GLOBULAR_PROOF_RUN_DIR/scenario-proof.json" <<EOF
 {
   "scenario": "$SCENARIO",
   "suite": "resilience",
-  "source_revision": "sim-sha",
+  "source_revision": "$SRC_REV",
   "status": "SUPPORTED",
   "change": {
     "id": "$GLOBULAR_CHANGE_ID",
     "candidate_repository": "$GLOBULAR_CANDIDATE_REPOSITORY",
     "candidate_revision": "$GLOBULAR_CANDIDATE_REVISION",
     "plan_digest": "$GLOBULAR_CHANGE_PLAN_DIGEST",
-    "simulation_revision": "sim-sha"
+    "simulation_revision": "$SRC_REV"
   },
   "invocation": {"id": "$INV", "run_dir": "$GLOBULAR_PROOF_RUN_DIR"},
   "execution": {"result": "PASS", "proof_eligible": true}
 }
 EOF
+if [ "$PASS_THEN_FAIL" = "1" ]; then
+  # Scenario itself passed; teardown/cleanup failed afterwards.
+  echo "teardown failed" >&2
+  exit 7
+fi
 `
 	path := filepath.Join(binDir, "globular-test")
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	// The simulator now executes from a detached worktree of its own committed
+	// revision, so the fixture has to be a real repository and each harness
+	// variant has to be committed to take effect.
+	scenarioDir := filepath.Join(quickstartDir, "tests", "scenarios")
+	if err := os.MkdirAll(scenarioDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(scenarioDir, "chaos.yaml"), []byte("name: chaos\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(quickstartDir, ".git")); err != nil {
+		runGit(t, quickstartDir, "init")
+		runGit(t, quickstartDir, "config", "user.email", "evolution-test@example.invalid")
+		runGit(t, quickstartDir, "config", "user.name", "Evolution Test")
+	}
+	runGit(t, quickstartDir, "add", "-A")
+	runGit(t, quickstartDir, "commit", "-m", "simulator "+h.mode+" "+scenario, "--allow-empty")
 }
 
 func scenarioEnvelope(t *testing.T, id string) (envelopePath string) {
@@ -113,14 +143,14 @@ func plantStaleReport(t *testing.T, quickstartDir, changeID, planDigest string) 
 	proof := map[string]any{
 		"scenario":        "chaos",
 		"suite":           "resilience",
-		"source_revision": "sim-sha",
+		"source_revision": "stale-sim-sha",
 		"status":          "SUPPORTED",
 		"change": map[string]string{
 			"id":                   changeID,
 			"candidate_repository": "globulario/services",
 			"candidate_revision":   "candidate-sha",
 			"plan_digest":          planDigest,
-			"simulation_revision":  "sim-sha",
+			"simulation_revision":  "stale-sim-sha",
 		},
 		"invocation": map[string]string{"id": "inv-stale", "run_dir": stale},
 		"execution":  map[string]any{"result": "PASS", "proof_eligible": true},
@@ -156,16 +186,27 @@ func TestScenarioProofFromCurrentInvocationIsAccepted(t *testing.T) {
 	if result.Proof.InvocationID != result.InvocationID || result.InvocationID == "" {
 		t.Fatalf("proof is not bound to this invocation: %+v", result)
 	}
-	// The consumed artifact lives in this invocation's own directory.
-	if filepath.Dir(result.ProofPath) != filepath.Join(quickstart, "tests", "reports", result.InvocationID) {
+	// The consumed artifact lives in this invocation's own directory, beside the
+	// envelope's other evidence — deliberately outside both checkouts, since the
+	// simulator worktree is discarded after the run.
+	if filepath.Base(filepath.Dir(result.ProofPath)) != result.InvocationID {
 		t.Fatalf("proof was not read from this invocation's run dir: %s", result.ProofPath)
+	}
+	if strings.HasPrefix(result.ProofPath, quickstart+string(filepath.Separator)) {
+		t.Fatalf("proof artifact was written inside the simulator checkout: %s", result.ProofPath)
 	}
 	// All prior bindings survive.
 	if result.Proof.CandidateRevision != "candidate-sha" ||
-		result.Proof.SimulationRevision != "sim-sha" ||
 		result.Proof.Repository != "globulario/globular-quickstart" ||
 		result.Proof.Digest == "" {
 		t.Fatalf("proof lost a required binding: %+v", result.Proof)
+	}
+	// The simulation revision is now the exact committed simulator the run
+	// executed from, not a value the artifact was free to assert.
+	simHead := strings.TrimSpace(mustGitOutput(t, quickstart, "rev-parse", "HEAD"))
+	if result.Proof.SimulationRevision != simHead {
+		t.Fatalf("proof simulation revision %q is not the simulator revision %q",
+			result.Proof.SimulationRevision, simHead)
 	}
 }
 
@@ -291,5 +332,131 @@ func TestEachInvocationGetsItsOwnRunDirectory(t *testing.T) {
 			t.Fatalf("two invocations shared a run directory: %s", dir)
 		}
 		seen[dir] = true
+	}
+}
+
+func mustGitOutput(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	out, err := gitOutput(dir, args...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// A harness can emit a fully valid, correctly stamped PASS artifact and then
+// exit nonzero because teardown or cleanup failed. The run did not succeed, so
+// it must not certify — and it must not leave a previous PROVEN standing.
+func TestPassArtifactWithNonzeroExitDoesNotCertify(t *testing.T) {
+	quickstart := t.TempDir()
+	envelopePath := scenarioEnvelope(t, "chg-teardown-fail")
+
+	writeQuickstartHarness(t, quickstart, fakeHarness{mode: "pass"})
+	first, err := runScenario(t, quickstart, envelopePath)
+	if err != nil || !first.MarkedProven {
+		t.Fatalf("first run should prove: %+v err=%v", first, err)
+	}
+
+	writeQuickstartHarness(t, quickstart, fakeHarness{mode: "pass-then-exit-nonzero"})
+	result, err := runScenario(t, quickstart, envelopePath)
+	if err == nil {
+		t.Fatal("a run that exited nonzero certified the candidate anyway")
+	}
+	if result.ExitCode == 0 {
+		t.Fatalf("expected the harness exit code to be reported, got %+v", result)
+	}
+	stored, loadErr := LoadChangeEnvelope(envelopePath)
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
+	if stored.Stage == StageProven {
+		t.Fatal("durable envelope stayed PROVEN after a failed run")
+	}
+	for _, p := range stored.Proofs {
+		if p.Scenario == "chaos" && p.Result == "PASS" && p.ProofEligible {
+			t.Fatalf("the superseded PASS survived a nonzero-exit rerun: %+v", p)
+		}
+	}
+}
+
+// A concurrent success must not write back a snapshot that predates another
+// invocation's withdrawal, which would resurrect the proof that was invalidated.
+func TestConcurrentSuccessCannotResurrectWithdrawnProof(t *testing.T) {
+	quickstart := t.TempDir()
+	envelopePath := scenarioEnvelope(t, "chg-concurrent")
+	writeQuickstartHarness(t, quickstart, fakeHarness{mode: "pass"})
+
+	proven, err := runScenario(t, quickstart, envelopePath)
+	if err != nil || !proven.MarkedProven {
+		t.Fatalf("setup run should prove: %+v err=%v", proven, err)
+	}
+	before, err := LoadChangeEnvelope(envelopePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before.Stage != StageProven {
+		t.Fatalf("expected PROVEN setup, got %s", before.Stage)
+	}
+	identity := before.Identity()
+
+	// A concurrent invocation withdraws the standing proof.
+	if err := invalidateScenarioProof(envelopePath, identity, "chaos"); err != nil {
+		t.Fatal(err)
+	}
+	withdrawn, err := LoadChangeEnvelope(envelopePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if withdrawn.Stage == StageProven {
+		t.Fatal("withdrawal did not demote the envelope")
+	}
+
+	// An invocation holding the pre-withdrawal snapshot now commits an unrelated
+	// delta. Going through the one owner, it reloads current state first, so the
+	// withdrawal survives instead of being overwritten.
+	if _, err := MutateEnvelope(envelopePath, identity, func(e *ChangeEnvelope) {
+		e.Learning = append(e.Learning, ArtifactRef{Kind: "note", URI: "concurrent"})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	after, err := LoadChangeEnvelope(envelopePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Stage == StageProven {
+		t.Fatal("a concurrent write resurrected the withdrawn proof")
+	}
+	for _, p := range after.Proofs {
+		if p.Scenario == "chaos" {
+			t.Fatalf("withdrawn proof came back: %+v", p)
+		}
+	}
+}
+
+// A mutation must not land on an envelope that has moved to a different
+// candidate or plan while the invocation was running.
+func TestMutationRefusesAMovedEnvelope(t *testing.T) {
+	envelopePath := scenarioEnvelope(t, "chg-moved")
+	stale, err := LoadChangeEnvelope(envelopePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	staleIdentity := stale.Identity()
+
+	rebound, err := LoadChangeEnvelope(envelopePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := rebound.BindCandidate("globulario/services", "a-different-candidate"); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveChangeEnvelope(envelopePath, rebound); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := MutateEnvelope(envelopePath, staleIdentity, func(e *ChangeEnvelope) {
+		e.Proofs = append(e.Proofs, ProofRecord{Scenario: "chaos", Result: "PASS"})
+	}); err == nil {
+		t.Fatal("a result was applied to a different candidate")
 	}
 }

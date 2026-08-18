@@ -63,9 +63,30 @@ func RunDeclaredTest(ctx context.Context, opts TestRunOptions) (TestRunResult, e
 		return TestRunResult{}, fmt.Errorf("test %q has no declared command", requirement.Name)
 	}
 
+	identity := envelope.Identity()
+	// A rerun that cannot execute must not leave the previous PASS standing. A
+	// missing executable, a cancelled context, an unusable workspace — none of
+	// them re-prove anything, so the standing claim for this test is withdrawn
+	// and the stage reconciled, exactly as an unsuccessful scenario attempt is.
+	fail := func(cause error) (TestRunResult, error) {
+		if _, invalidateErr := MutateEnvelope(opts.EnvelopePath, identity, func(e *ChangeEnvelope) {
+			kept := e.Tests[:0]
+			for _, record := range e.Tests {
+				if record.Name == requirement.Name && record.CandidateRevision == e.CandidateRevision {
+					continue
+				}
+				kept = append(kept, record)
+			}
+			e.Tests = kept
+		}); invalidateErr != nil {
+			return TestRunResult{}, fmt.Errorf("%w (and could not withdraw the prior proof claim: %v)", cause, invalidateErr)
+		}
+		return TestRunResult{}, cause
+	}
+
 	workspace, err := filepath.Abs(opts.WorkspaceDir)
 	if err != nil {
-		return TestRunResult{}, fmt.Errorf("resolve workspace: %w", err)
+		return fail(fmt.Errorf("resolve workspace: %w", err))
 	}
 	// Two independent guards, because they answer different questions.
 	// The first refuses to proceed while the operator's checkout disagrees with
@@ -74,16 +95,16 @@ func RunDeclaredTest(ctx context.Context, opts TestRunOptions) (TestRunResult, e
 	// candidate commit by construction, so nothing outside that commit — ignored
 	// build output, a stale generated file, a mid-run edit — can reach the test.
 	if err := requirePristineCandidateWorkspace(ctx, workspace, envelope.CandidateRevision); err != nil {
-		return TestRunResult{}, err
+		return fail(err)
 	}
 	candidateTree, releaseTree, err := materializeCandidateTree(ctx, workspace, envelope.CandidateRevision)
 	if err != nil {
-		return TestRunResult{}, err
+		return fail(err)
 	}
 	defer releaseTree()
 	workDir, err := resolveContainedWorkDir(candidateTree, requirement.WorkDir)
 	if err != nil {
-		return TestRunResult{}, err
+		return fail(err)
 	}
 
 	cmd := exec.CommandContext(ctx, requirement.Command[0], requirement.Command[1:]...)
@@ -98,7 +119,8 @@ func RunDeclaredTest(ctx context.Context, opts TestRunOptions) (TestRunResult, e
 		if errors.As(runErr, &exitErr) {
 			exitCode = exitErr.ExitCode()
 		} else {
-			return TestRunResult{}, fmt.Errorf("run declared test %q: %w", requirement.Name, runErr)
+			// The command never produced a verdict, so nothing was proven.
+			return fail(fmt.Errorf("run declared test %q: %w", requirement.Name, runErr))
 		}
 	}
 
@@ -136,9 +158,10 @@ func RunDeclaredTest(ctx context.Context, opts TestRunOptions) (TestRunResult, e
 		EvidenceRef:         evidencePath,
 		Digest:              digest,
 	}
-	envelope.AddOrReplaceTest(record)
-	marked := envelope.ReconcileProofStage()
-	if err := SaveChangeEnvelope(opts.EnvelopePath, envelope); err != nil {
+	marked, err := MutateEnvelope(opts.EnvelopePath, identity, func(e *ChangeEnvelope) {
+		e.AddOrReplaceTest(record)
+	})
+	if err != nil {
 		return TestRunResult{}, err
 	}
 	return TestRunResult{

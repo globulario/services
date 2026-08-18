@@ -67,10 +67,91 @@ func SaveChangeEnvelope(path string, envelope ChangeEnvelope) error {
 	if err != nil {
 		return fmt.Errorf("encode change envelope: %w", err)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	// Write through a sibling temp file and rename, so a reader never observes a
+	// half-written envelope and a crash mid-write cannot truncate the record.
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".change-envelope-*")
+	if err != nil {
+		return fmt.Errorf("stage change envelope: %w", err)
+	}
+	tmpName := tmp.Name()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
 		return fmt.Errorf("write change envelope: %w", err)
 	}
+	if err := tmp.Chmod(0o644); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
+		return fmt.Errorf("set change envelope mode: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpName)
+		return fmt.Errorf("flush change envelope: %w", err)
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		_ = os.Remove(tmpName)
+		return fmt.Errorf("commit change envelope: %w", err)
+	}
 	return nil
+}
+
+// EnvelopeIdentity is the part of a ChangeEnvelope an in-flight invocation
+// assumed when it started. A mutation is only applied if the envelope on disk
+// still describes that same thing.
+type EnvelopeIdentity struct {
+	ID                string
+	CandidateRevision string
+	PlanDigest        string
+}
+
+func (e ChangeEnvelope) Identity() EnvelopeIdentity {
+	return EnvelopeIdentity{
+		ID:                e.ID,
+		CandidateRevision: e.CandidateRevision,
+		PlanDigest:        e.PlanDigest,
+	}
+}
+
+// MutateEnvelope is the single durable owner of ChangeEnvelope mutation.
+//
+// A scenario runs for a long time between reading the envelope and persisting a
+// result, and invocations for the same change can overlap. Writing back the
+// snapshot read before the run would silently undo whatever another invocation
+// decided meanwhile — including a withdrawal, which would resurrect a proof that
+// had been invalidated. So the long simulation happens outside any lock, and
+// only the mutation is transactional: take the lock, reload what is actually on
+// disk now, confirm it is still the same candidate under the same frozen plan,
+// apply just this invocation's delta, reconcile, and commit atomically.
+//
+// Every path that changes an envelope goes through here — recording a proof and
+// withdrawing one alike. Two owners would reintroduce exactly the race this
+// exists to remove.
+func MutateEnvelope(path string, identity EnvelopeIdentity, apply func(*ChangeEnvelope)) (bool, error) {
+	var marked bool
+	err := withEnvelopeLock(path, func() error {
+		current, err := LoadChangeEnvelope(path)
+		if err != nil {
+			return err
+		}
+		if current.Identity() != identity {
+			return fmt.Errorf(
+				"change envelope moved under this invocation: expected %s@%s plan %s, found %s@%s plan %s; "+
+					"a result cannot be applied to a different candidate",
+				identity.ID, identity.CandidateRevision, identity.PlanDigest,
+				current.ID, current.CandidateRevision, current.PlanDigest,
+			)
+		}
+		if current.Stage != StageCandidate && current.Stage != StageProven {
+			return fmt.Errorf(
+				"change envelope is at stage %s; proof results only apply to CANDIDATE or PROVEN",
+				current.Stage,
+			)
+		}
+		apply(&current)
+		marked = current.ReconcileProofStage()
+		return SaveChangeEnvelope(path, current)
+	})
+	return marked, err
 }
 
 func (e *ChangeEnvelope) AddOrReplaceProof(proof ProofRecord) {
