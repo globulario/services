@@ -113,12 +113,14 @@ func LoadAndRegisterPermissions(serviceName string) (perms []interface{}, reg *S
 // use its compiled fallback.
 func LoadPermissions(serviceName string) ([]interface{}, bool, error) {
 	paths := permissionsPaths(serviceName)
+	//go:uncertainty:declared-failsafe the API returns (value, fromFile, error): the middle bool IS the discriminator, so callers can tell "no external file / unusable file" from a real value and fall back to compiled defaults deliberately. Residual nit: absent and corrupt return the same tuple, distinguishable only in logs (LoadClusterRoles logs corrupt at Error). Triaged 2026-08-14.
 	data, path, err := readFirst(paths)
 	if err != nil {
 		return nil, false, nil // no file found
 	}
 
 	var pf PermissionsFile
+	//go:uncertainty:declared-failsafe the API returns (value, fromFile, error): the middle bool IS the discriminator, so callers can tell "no external file / unusable file" from a real value and fall back to compiled defaults deliberately. Residual nit: absent and corrupt return the same tuple, distinguishable only in logs (LoadClusterRoles logs corrupt at Error). Triaged 2026-08-14.
 	if err := json.Unmarshal(data, &pf); err != nil {
 		slog.Warn("policy: invalid JSON in permissions file", "path", path, "error", err)
 		return nil, false, nil
@@ -280,6 +282,7 @@ func RegisterAllFromDirectory(dir string) {
 			continue
 		}
 		var pf PermissionsFile
+		//go:uncertainty:declared-failsafe the API returns (value, fromFile, error): the middle bool IS the discriminator, so callers can tell "no external file / unusable file" from a real value and fall back to compiled defaults deliberately. Residual nit: absent and corrupt return the same tuple, distinguishable only in logs (LoadClusterRoles logs corrupt at Error). Triaged 2026-08-14.
 		if err := json.Unmarshal(data, &pf); err != nil {
 			continue
 		}
@@ -311,12 +314,14 @@ type ServiceRole struct {
 // Returns (roles, fromFile, error). If no file found, returns (nil, false, nil).
 func LoadServiceRoles(serviceName string) ([]ServiceRole, bool, error) {
 	paths := rolesPaths(serviceName)
+	//go:uncertainty:declared-failsafe the API returns (value, fromFile, error): the middle bool IS the discriminator, so callers can tell "no external file / unusable file" from a real value and fall back to compiled defaults deliberately. Residual nit: absent and corrupt return the same tuple, distinguishable only in logs (LoadClusterRoles logs corrupt at Error). Triaged 2026-08-14.
 	data, path, err := readFirst(paths)
 	if err != nil {
 		return nil, false, nil
 	}
 
 	var rf ServiceRolesFile
+	//go:uncertainty:declared-failsafe the API returns (value, fromFile, error): the middle bool IS the discriminator, so callers can tell "no external file / unusable file" from a real value and fall back to compiled defaults deliberately. Residual nit: absent and corrupt return the same tuple, distinguishable only in logs (LoadClusterRoles logs corrupt at Error). Triaged 2026-08-14.
 	if err := json.Unmarshal(data, &rf); err != nil {
 		slog.Warn("policy: invalid JSON in roles file", "path", path, "error", err)
 		return nil, false, nil
@@ -345,12 +350,14 @@ type ClusterRolesFile struct {
 // use its compiled fallback.
 func LoadClusterRoles() (map[string][]string, bool, error) {
 	paths := clusterRolesPaths()
+	//go:uncertainty:declared-failsafe the API returns (value, fromFile, error): the middle bool IS the discriminator, so callers can tell "no external file / unusable file" from a real value and fall back to compiled defaults deliberately. Residual nit: absent and corrupt return the same tuple, distinguishable only in logs (LoadClusterRoles logs corrupt at Error). Triaged 2026-08-14.
 	data, path, err := readFirst(paths)
 	if err != nil {
 		return nil, false, nil
 	}
 
 	var crf ClusterRolesFile
+	//go:uncertainty:declared-failsafe the API returns (value, fromFile, error): the middle bool IS the discriminator, so callers can tell "no external file / unusable file" from a real value and fall back to compiled defaults deliberately. Residual nit: absent and corrupt return the same tuple, distinguishable only in logs (LoadClusterRoles logs corrupt at Error). Triaged 2026-08-14.
 	if err := json.Unmarshal(data, &crf); err != nil {
 		slog.Error("policy: corrupted cluster-roles file — JSON parse failed; falling back to compiled defaults", "path", path, "error", err)
 		return nil, false, nil

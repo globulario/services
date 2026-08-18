@@ -213,16 +213,27 @@ if [[ -n "${MINIO_BOOTSTRAP_IP}" && "${MINIO_BOOTSTRAP_IP}" != "${NODE_IP}" ]]; 
 fi
 
 echo ""
-echo "[configure-resolver] Step 3a: Ensure NSS resolve module..."
-# Without libnss-resolve, Go binaries use glibc's stub resolver which doesn't
-# honor systemd-resolved routing domains (~globular.internal). The mdns4_minimal
-# module with [NOTFOUND=return] blocks .internal lookups before reaching DNS.
-if ! dpkg -l libnss-resolve 2>/dev/null | grep -q '^ii'; then
-    apt-get install -y libnss-resolve >/dev/null 2>&1 || true
-    echo "  ✓ libnss-resolve installed"
-else
-    echo "  → libnss-resolve already installed"
-fi
+echo "[configure-resolver] Step 3a: Unblock .internal lookups in nsswitch..."
+# This step used to also `apt-get install -y libnss-resolve`, justified by the
+# claim that "without libnss-resolve, Go binaries use glibc's stub resolver
+# which doesn't honor systemd-resolved routing domains (~globular.internal)".
+# That claim is false, and was measured to be false on 2026-08-14 against a
+# pinned Ubuntu Noble release-20260518 image (systemd 255.4-1ubuntu8.15) with
+# libnss-resolve genuinely absent:
+#
+#   getent hosts globular.internal            -> 10.0.0.63
+#   getent hosts globule-nuc.globular.internal -> 10.0.0.8
+#   <impossible name>                          -> correctly did not resolve
+#
+# The routing domain is honoured by systemd-resolved itself, and its stub
+# listener answers over ordinary DNS, which the `dns` NSS source reaches with no
+# extra module on any distro. Go services do not use NSS at all — they resolve
+# via config.ClusterResolver. So the install was a second dependency on a
+# package Globular does not need, alongside the bundled one; both are gone.
+#
+# The REAL problem this step solves is the rest of that old comment and it
+# remains: an `mdns4_minimal [NOTFOUND=return]` entry short-circuits .internal
+# lookups BEFORE they ever reach dns. That rewrite is kept, unchanged.
 if grep -q 'mdns4_minimal.*NOTFOUND.*return' /etc/nsswitch.conf; then
     sed -i 's/^hosts:.*/hosts:          files resolve dns myhostname/' /etc/nsswitch.conf
     echo "  ✓ nsswitch.conf updated (resolve before dns)"

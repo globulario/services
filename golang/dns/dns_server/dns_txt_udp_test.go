@@ -25,6 +25,7 @@ func TestTXTServedOverUDP(t *testing.T) {
 	}
 	srv = s
 	if err := s.openConnection(); err != nil {
+		skipIfStoreUnreachable(t, err)
 		t.Fatalf("open connection: %v", err)
 	}
 
@@ -86,6 +87,7 @@ func TestTXTManagedDomainEnforcement(t *testing.T) {
 	}
 	srv = s
 	if err := s.openConnection(); err != nil {
+		skipIfStoreUnreachable(t, err)
 		t.Fatalf("open connection: %v", err)
 	}
 
@@ -159,6 +161,7 @@ func TestTXTNewMethodServedOverUDP(t *testing.T) {
 	}
 	srv = s
 	if err := s.openConnection(); err != nil {
+		skipIfStoreUnreachable(t, err)
 		t.Fatalf("open connection: %v", err)
 	}
 

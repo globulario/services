@@ -8,7 +8,15 @@ package domain
 // Loading is idempotent and NON-DESTRUCTIVE: re-running re-writes catalog rows
 // (same data) and re-proposes seed principles only while they are still merely
 // proposed — a seed principle that has since been promoted or revoked is left
-// untouched, so load never silently demotes governed state.
+// semantically untouched, so load never silently demotes or imports arbitrary
+// new governed knowledge.
+//
+// One narrow migration exception exists for already-promoted seed-backed
+// principles: if a newer seed adds condition.always, the loader canonically adds
+// that technical sentinel plus an explicit migration marker to the promoted row,
+// then repairs the active condition index. No other new seed field/condition is
+// adopted. Keeping the sentinel on the canonical principle means explanation and
+// later revocation observe exactly the same reach as runtime lookup.
 //
 // Seed principles are written at PROPOSED_PRINCIPLE. The loader NEVER promotes —
 // promotion stays behind the gate (see core/governance.go).
@@ -24,10 +32,11 @@ import (
 
 // LoadResult reports what a load wrote.
 type LoadResult struct {
-	Authorities      int
-	Conditions       int
-	PrinciplesSeeded int
-	PrinciplesSkipped int // already promoted/revoked — left as-is
+	Authorities                 int
+	Conditions                  int
+	PrinciplesSeeded            int
+	PrinciplesSkipped           int // already promoted/revoked — left as governed state
+	PromotedPrinciplesReindexed int // seed-backed promoted rows migrated to canonical condition.always reach
 }
 
 func toRefs[T ~string](in []string) []T {
@@ -40,6 +49,70 @@ func toRefs[T ~string](in []string) []T {
 
 func seedMeta(domainName string) map[string]string {
 	return map[string]string{"source": "seed", "immutable": "true", "domain_pack": domainName}
+}
+
+func cloneMetadata(in map[string]string) map[string]string {
+	out := make(map[string]string, len(in)+1)
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}
+
+func containsString(in []string, want string) bool {
+	for _, v := range in {
+		if v == want {
+			return true
+		}
+	}
+	return false
+}
+
+func seedBackedByDomain(p *api.Principle, domainName string) bool {
+	return p != nil && p.Metadata != nil &&
+		p.Metadata["source"] == "seed" && p.Metadata["domain_pack"] == domainName
+}
+
+// migratePromotedAlwaysReach repairs one upgrade-only seam. An older seed-backed
+// principle may already be PROMOTED before its domain pack gains condition.always.
+// Because active runtime reach lives in the principles_by_condition index, the
+// old row would otherwise remain invisible to universal forbidden-action matching.
+//
+// This is deliberately not a general seed refresh:
+//   - only already-PROMOTED, seed-backed principles are eligible;
+//   - only the technical condition.always sentinel may be copied from the seed;
+//   - authorities, evidence, forbidden moves, approval, risk and status stay put;
+//   - no other newly-authored seed condition/ref/field is adopted.
+//
+// The sentinel and migration marker are persisted on the canonical principle
+// before indexing. ExplainPrinciple therefore reports the migrated reach, and
+// RevokePrinciple later deindexes it through the ordinary canonical AppliesWhen.
+func migratePromotedAlwaysReach(ctx context.Context, st store.Store, domainName string, existing *api.Principle, seed PrincipleSeed) (bool, error) {
+	if existing == nil || existing.Status != api.StatusPromotedPrinciple {
+		return false, nil
+	}
+	if !seedBackedByDomain(existing, domainName) {
+		return false, nil
+	}
+	if !containsString(seed.AppliesWhen, AlwaysConditionID) {
+		return false, nil
+	}
+	always := api.ConditionRef(AlwaysConditionID)
+	if principleDeclaresCondition(existing, always) {
+		return false, nil
+	}
+
+	migrated := *existing
+	migrated.AppliesWhen = append(append([]api.ConditionRef(nil), existing.AppliesWhen...), always)
+	migrated.Metadata = cloneMetadata(existing.Metadata)
+	migrated.Metadata[RuntimeAlwaysReachMetadataKey] = RuntimeAlwaysReachSeedMigration
+	if err := st.CreatePrinciple(ctx, &migrated); err != nil {
+		return false, fmt.Errorf("persist runtime reach migration: %w", err)
+	}
+	if err := st.IndexPromotedPrinciple(ctx, &migrated); err != nil {
+		return false, fmt.Errorf("index runtime reach migration: %w", err)
+	}
+	return true, nil
 }
 
 // LoadCatalogs persists a domain's authority/condition catalog rows and proposes
@@ -83,26 +156,19 @@ func LoadCatalogs(ctx context.Context, st store.Store, project string, d Domain)
 		// Non-destructive: do not reset an already-governed principle to PROPOSED.
 		if existing, err := st.GetPrinciple(ctx, project, d.Name(), ps.ID); err == nil {
 			if existing.Status != api.StatusProposedPrinciple && existing.Status != api.StatusUnspecified {
+				if migrated, err := migratePromotedAlwaysReach(ctx, st, d.Name(), existing, ps); err != nil {
+					return res, fmt.Errorf("load principle %q: migrate always reach: %w", ps.ID, err)
+				} else if migrated {
+					res.PromotedPrinciplesReindexed++
+				}
 				res.PrinciplesSkipped++
 				continue
 			}
 		} else if !errors.Is(err, store.ErrNotFound) {
 			return res, fmt.Errorf("load principle %q: pre-check: %w", ps.ID, err)
 		}
-		p := &api.Principle{
-			ID: ps.ID, Project: project, Domain: dom, Title: ps.Title,
-			AppliesWhen:      toRefs[api.ConditionRef](ps.AppliesWhen),
-			Authorities:      toRefs[api.AuthorityRef](ps.Authorities),
-			RequiredEvidence: toRefs[api.RequiredEvidenceRef](ps.RequiredEvidence),
-			ForbiddenMoves:   toRefs[api.ForbiddenMoveRef](ps.ForbiddenMoves),
-			RecommendedAction: ps.RecommendedAction, RiskLevel: ps.RiskLevel,
-			RevocationRule: ps.RevocationRule, PromotionReason: ps.PromotionReason,
-			Status: api.StatusProposedPrinciple, Version: 1, ProposedBy: "seed:" + d.Name(),
-			SourceRefs: ps.SourceRefs, GeneratedFrom: ps.GeneratedFrom,
-			Provenance: api.Provenance{AgentID: "seed:" + d.Name()},
-			Metadata:   seedMeta(d.Name()),
-		}
-		if err := st.CreatePrinciple(ctx, p); err != nil {
+		p := PrincipleFromSeed(project, d, ps)
+		if err := st.CreatePrinciple(ctx, &p); err != nil {
 			return res, fmt.Errorf("load principle %q: %w", ps.ID, err)
 		}
 		res.PrinciplesSeeded++

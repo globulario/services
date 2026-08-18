@@ -123,7 +123,9 @@ func (rs ReachableSet) BlockedByDependents(targetName string, catalog []*repopb.
 //
 // catalog       — all manifests known to the repository (any state).
 // explicitRoots — build_ids anchored externally (desired/installed/workflow/pins).
-//                 May be nil or empty; retention-window roots still apply.
+//
+//	May be nil or empty; retention-window roots still apply.
+//
 // cfg           — retention-window policy.
 func ComputeReachable(
 	catalog []*repopb.ArtifactManifest,

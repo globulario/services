@@ -50,17 +50,17 @@ import (
 
 // BackfillSummary reports the outcome of a backfill pass.
 type BackfillSummary struct {
-	Scanned             int
-	PublishedOK         int
-	MissingBlob         int
-	ChecksumMismatch    int
-	Quarantined         int
-	Revoked             int
-	Inconclusive        int
-	AlreadyClassified   int
-	Errors              int
-	Truncated           bool
-	Duration            time.Duration
+	Scanned           int
+	PublishedOK       int
+	MissingBlob       int
+	ChecksumMismatch  int
+	Quarantined       int
+	Revoked           int
+	Inconclusive      int
+	AlreadyClassified int
+	Errors            int
+	Truncated         bool
+	Duration          time.Duration
 }
 
 // LogFields returns a slice suitable for slog calls.

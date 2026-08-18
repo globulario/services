@@ -133,8 +133,20 @@ func (objectstoreStandaloneInCluster) Evaluate(snap *collector.Snapshot, _ Confi
 				"node_count": fmt.Sprintf("%d", nodeCount),
 			}),
 		},
+		// The workflow named here must be one that EXISTS. This step used to
+		// say "objectstore.minio.migrate_to_distributed", which is not a
+		// workflow in golang/workflow/definitions — an operator following the
+		// remediation got "workflow not found" and the finding looked
+		// unfixable. The real transition is a topology-generation apply.
+		//
+		// This stays operator-initiated on purpose: growing standalone ->
+		// distributed rewrites .minio.sys, so per
+		// intent:objectstore.destructive_changes_require_approval it needs
+		// explicit approval and a matching generation. Do not "fix" this
+		// finding by auto-promoting the topology.
 		Remediation: []*cluster_doctorpb.RemediationStep{
-			step(1, "Migrate to distributed MinIO", "globular workflow start objectstore.minio.migrate_to_distributed"),
+			step(1, "Publish a distributed topology generation, then apply it (destructive: rewrites .minio.sys — requires operator approval)",
+				"globular workflow start objectstore.minio.apply_topology_generation"),
 			step(2, "Check pool nodes: globular config get /globular/objectstore/config | jq .nodes", ""),
 		},
 		InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,

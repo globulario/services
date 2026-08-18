@@ -35,8 +35,8 @@ func authCtx(subject, principalType string) context.Context {
 		ToContext(context.Background())
 }
 
-// 1. Federation must resolve to a subject before authorization can run; an
-//    authenticated caller with no subject cannot be authorized.
+//  1. Federation must resolve to a subject before authorization can run; an
+//     authenticated caller with no subject cannot be authorized.
 func TestForgeIdentityMustResolveToSubjectBeforeAuthorization(t *testing.T) {
 	srv := &server{}
 
@@ -74,8 +74,8 @@ func TestReleaseAllocationRequiresNamespacePermission(t *testing.T) {
 	}
 }
 
-// 3. A GitHub org-shaped identity does not bypass RBAC: without the permission,
-//    it is denied even though the subject string looks authoritative.
+//  3. A GitHub org-shaped identity does not bypass RBAC: without the permission,
+//     it is denied even though the subject string looks authoritative.
 func TestGitHubOrgBindingDoesNotBypassRBAC(t *testing.T) {
 	srv := &server{}
 	withReleaseAccess(t, false, nil)
@@ -121,8 +121,8 @@ func TestOrganizationOwnerMayAllocateStableWhenPermissionExists(t *testing.T) {
 	}
 }
 
-// 6. CI without a resolved subject cannot allocate a release (no implicit
-//    privilege); it fails closed.
+//  6. CI without a resolved subject cannot allocate a release (no implicit
+//     privilege); it fails closed.
 func TestCIWithoutResolvedSubjectCannotAllocateRelease(t *testing.T) {
 	srv := &server{}
 	// CI presented a token that authenticated but did not resolve to a subject.
@@ -136,9 +136,9 @@ func TestCIWithoutResolvedSubjectCannotAllocateRelease(t *testing.T) {
 	}
 }
 
-// 7. Federation and authorization are separate steps: the SAME federated
-//    identity yields opposite results depending only on the RBAC permission —
-//    proving the forge identity never decides.
+//  7. Federation and authorization are separate steps: the SAME federated
+//     identity yields opposite results depending only on the RBAC permission —
+//     proving the forge identity never decides.
 func TestForgeTrustAndRBACAuthorizationAreSeparateSteps(t *testing.T) {
 	srv := &server{}
 	ctx := authCtx("globulario", "application")
@@ -170,18 +170,18 @@ func withRolePermissions(t *testing.T, m map[string][]string) {
 	t.Cleanup(func() { security.RolePermissions = prev })
 }
 
-// 8. P3: explicit resource grant (or namespace ownership) on the namespace is
-//    sufficient release authority on its own.
+//  8. P3: explicit resource grant (or namespace ownership) on the namespace is
+//     sufficient release authority on its own.
 func TestReleaseAuthority_ExplicitResourceGrantIsSufficient(t *testing.T) {
 	if !releaseAuthorityDecision(true, nil, false) {
 		t.Fatal("an explicit release.allocate resource grant must authorize STABLE")
 	}
 }
 
-// 9. P3: a bound role granting release.allocate is authority ONLY when the
-//    subject is associated with the namespace — capability without association
-//    is not blanket authority and must be forced to DEV. This is the core
-//    namespace-scoping property of the RBAC-native grant.
+//  9. P3: a bound role granting release.allocate is authority ONLY when the
+//     subject is associated with the namespace — capability without association
+//     is not blanket authority and must be forced to DEV. This is the core
+//     namespace-scoping property of the RBAC-native grant.
 func TestReleaseAuthority_RoleCapabilityRequiresNamespaceAssociation(t *testing.T) {
 	withRolePermissions(t, map[string][]string{"releaser": {"release.allocate"}})
 
@@ -193,7 +193,7 @@ func TestReleaseAuthority_RoleCapabilityRequiresNamespaceAssociation(t *testing.
 	}
 }
 
-// 10. P3: a bound role that does NOT grant release.allocate confers no release
+//  10. P3: a bound role that does NOT grant release.allocate confers no release
 //     authority, even with namespace association (association alone ≠ release).
 func TestReleaseAuthority_RoleWithoutCapabilityIsDevOnly(t *testing.T) {
 	withRolePermissions(t, map[string][]string{"publisher-only": {"repository.artifact.write"}})
@@ -206,7 +206,7 @@ func TestReleaseAuthority_RoleWithoutCapabilityIsDevOnly(t *testing.T) {
 	}
 }
 
-// 11. P3: the cluster-roles.json grant is actually wired — the publisher service
+//  11. P3: the cluster-roles.json grant is actually wired — the publisher service
 //     account role carries release.allocate in the embedded policy, so a subject
 //     bound to it resolves the capability via HasRolePermission. This is what
 //     makes Slice 1's gate operable for a real, non-superuser CI release authority.

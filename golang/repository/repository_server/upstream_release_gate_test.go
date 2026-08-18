@@ -13,8 +13,8 @@ import (
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
 )
 
-// 1. Only STABLE (the convergeable channel) is subject to the gate; a DEV claim
-//    is never touched, regardless of federation/authorization state.
+//  1. Only STABLE (the convergeable channel) is subject to the gate; a DEV claim
+//     is never touched, regardless of federation/authorization state.
 func TestUpstreamRelease_NonStableClaimPassesThrough(t *testing.T) {
 	for _, ch := range []string{"dev", "candidate", "canary"} {
 		if final, downgraded := upstreamReleaseDecision(ch, true, false, false); downgraded || final != ch {
@@ -23,8 +23,8 @@ func TestUpstreamRelease_NonStableClaimPassesThrough(t *testing.T) {
 	}
 }
 
-// 2. Safe rollout: an unmanaged namespace (no registered trusted publishers) is
-//    never downgraded, even for a STABLE claim with no authority.
+//  2. Safe rollout: an unmanaged namespace (no registered trusted publishers) is
+//     never downgraded, even for a STABLE claim with no authority.
 func TestUpstreamRelease_UnmanagedNamespaceUntouched(t *testing.T) {
 	if final, downgraded := upstreamReleaseDecision("stable", false, false, false); downgraded || final != "stable" {
 		t.Fatalf("unmanaged namespace must be untouched; got (%q, downgraded=%v)", final, downgraded)
@@ -35,9 +35,9 @@ func TestUpstreamRelease_UnmanagedNamespaceUntouched(t *testing.T) {
 	}
 }
 
-// 3. THE core contract: in a managed namespace, a federated-but-NOT-authorized
-//    publisher is downgraded to DEV. Federation (a trusted-publisher binding) is
-//    NOT authorization — package.forge_binding_is_not_authorization.
+//  3. THE core contract: in a managed namespace, a federated-but-NOT-authorized
+//     publisher is downgraded to DEV. Federation (a trusted-publisher binding) is
+//     NOT authorization — package.forge_binding_is_not_authorization.
 func TestUpstreamRelease_FederationWithoutAuthorizationIsDowngraded(t *testing.T) {
 	final, downgraded := upstreamReleaseDecision("stable", true /*managed*/, true /*federated*/, false /*authorized*/)
 	if !downgraded || final != "dev" {
@@ -57,8 +57,8 @@ func TestUpstreamRelease_UnfederatedStableIsDowngraded(t *testing.T) {
 	}
 }
 
-// 5. Both steps satisfied → STABLE survives. This is the only path to a
-//    convergeable upstream import.
+//  5. Both steps satisfied → STABLE survives. This is the only path to a
+//     convergeable upstream import.
 func TestUpstreamRelease_FederatedAndAuthorizedKeepsStable(t *testing.T) {
 	if final, downgraded := upstreamReleaseDecision("stable", true, true, true); downgraded || final != "stable" {
 		t.Fatalf("federated+authorized STABLE must survive; got (%q, downgraded=%v)", final, downgraded)

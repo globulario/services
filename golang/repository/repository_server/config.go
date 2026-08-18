@@ -8,16 +8,16 @@ import (
 // Phase 1 Step 1: Extracted from server struct for clean separation of concerns.
 type Config struct {
 	// Core service identity
-	ID          string `json:"Id"`
-	Name        string `json:"Name"`
-	Domain      string `json:"Domain"`
-	Address     string `json:"Address"`
-	Port        int    `json:"Port"`
-	Proxy       int    `json:"Proxy"`
-	Protocol    string `json:"Protocol"`
-	Version     string `json:"Version"`
-	PublisherID string `json:"PublisherId"`
-	Description string `json:"Description"`
+	ID          string   `json:"Id"`
+	Name        string   `json:"Name"`
+	Domain      string   `json:"Domain"`
+	Address     string   `json:"Address"`
+	Port        int      `json:"Port"`
+	Proxy       int      `json:"Proxy"`
+	Protocol    string   `json:"Protocol"`
+	Version     string   `json:"Version"`
+	PublisherID string   `json:"PublisherId"`
+	Description string   `json:"Description"`
 	Keywords    []string `json:"Keywords"`
 
 	// Service discovery
@@ -34,11 +34,11 @@ type Config struct {
 	KeepAlive       bool   `json:"KeepAlive"`
 
 	// Platform metadata
-	Platform    string `json:"Platform"`
-	Checksum    string `json:"Checksum"`
-	Path        string `json:"Path"`
-	Proto       string `json:"Proto"`
-	Mac         string `json:"Mac"`
+	Platform string `json:"Platform"`
+	Checksum string `json:"Checksum"`
+	Path     string `json:"Path"`
+	Proto    string `json:"Proto"`
+	Mac      string `json:"Mac"`
 
 	// Runtime state
 	Process      int    `json:"Process"`
@@ -137,34 +137,34 @@ func LoadFromFile(path string) (*Config, error) {
 // Clone creates a deep copy of the configuration.
 func (c *Config) Clone() *Config {
 	clone := &Config{
-		ID:              c.ID,
-		Name:            c.Name,
-		Domain:          c.Domain,
-		Address:         c.Address,
-		Port:            c.Port,
-		Proxy:           c.Proxy,
-		Protocol:        c.Protocol,
-		Version:         c.Version,
-		PublisherID:     c.PublisherID,
-		Description:     c.Description,
-		Keywords:        globular_service.CloneStringSlice(c.Keywords),
-		Repositories:    globular_service.CloneStringSlice(c.Repositories),
-		Discoveries:     globular_service.CloneStringSlice(c.Discoveries),
-		Dependencies:    globular_service.CloneStringSlice(c.Dependencies),
-		AllowAllOrigins: c.AllowAllOrigins,
-		AllowedOrigins:  c.AllowedOrigins,
-		KeepUpToDate:    c.KeepUpToDate,
-		KeepAlive:       c.KeepAlive,
-		Platform:        c.Platform,
-		Checksum:        c.Checksum,
-		Path:            c.Path,
-		Proto:           c.Proto,
-		Mac:             c.Mac,
-		Process:         c.Process,
-		ProxyProcess:    c.ProxyProcess,
-		State:           c.State,
-		LastError:       c.LastError,
-		ModTime:         c.ModTime,
+		ID:                c.ID,
+		Name:              c.Name,
+		Domain:            c.Domain,
+		Address:           c.Address,
+		Port:              c.Port,
+		Proxy:             c.Proxy,
+		Protocol:          c.Protocol,
+		Version:           c.Version,
+		PublisherID:       c.PublisherID,
+		Description:       c.Description,
+		Keywords:          globular_service.CloneStringSlice(c.Keywords),
+		Repositories:      globular_service.CloneStringSlice(c.Repositories),
+		Discoveries:       globular_service.CloneStringSlice(c.Discoveries),
+		Dependencies:      globular_service.CloneStringSlice(c.Dependencies),
+		AllowAllOrigins:   c.AllowAllOrigins,
+		AllowedOrigins:    c.AllowedOrigins,
+		KeepUpToDate:      c.KeepUpToDate,
+		KeepAlive:         c.KeepAlive,
+		Platform:          c.Platform,
+		Checksum:          c.Checksum,
+		Path:              c.Path,
+		Proto:             c.Proto,
+		Mac:               c.Mac,
+		Process:           c.Process,
+		ProxyProcess:      c.ProxyProcess,
+		State:             c.State,
+		LastError:         c.LastError,
+		ModTime:           c.ModTime,
 		Root:              c.Root,
 		GCRetentionWindow: c.GCRetentionWindow,
 	}

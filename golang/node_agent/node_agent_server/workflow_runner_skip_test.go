@@ -251,13 +251,30 @@ func TestNodeJoinProfilePlacementSkipsUnauthorizedPackages(t *testing.T) {
 		}
 	}
 
+	// NODE_BASELINE: envoy/gateway/xds are authorized on EVERY resolved profile,
+	// not because "core" claims them but because a node cannot participate in
+	// the mesh without them. They used to be listed as disallowed below; that
+	// assertion described the catalog before component_catalog.NodeBaseline
+	// existed, and it contradicted the join script, which has always installed
+	// the three unconditionally. The contradiction is what left every compute
+	// node permanently reporting placement.installed_package_orphaned for all
+	// three. Authorization was widened to match the join; this assertion is
+	// restated, not dropped.
+	for _, name := range component_catalog.NodeBaseline {
+		if !workflowPackageAllowedForProfiles(name, coreProfiles) {
+			t.Fatalf("NODE_BASELINE package %q must be allowed on any resolved profile — "+
+				"the join installs it unconditionally, so rejecting it here recreates "+
+				"the orphaned-install contradiction", name)
+		}
+	}
+
+	// Everything the baseline does NOT cover must still be rejected. Widening
+	// authorization must not become a general amnesty: if this list ever passes
+	// the filter, orphaned-install detection has stopped working.
 	disallowed := []string{
 		"scylladb",
 		"scylla-manager",
 		"scylla-manager-agent",
-		"envoy",
-		"gateway",
-		"xds",
 		"keepalived",
 		"sctool",
 		"yt-dlp",

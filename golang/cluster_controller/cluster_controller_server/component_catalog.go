@@ -602,16 +602,21 @@ func buildCatalog() []*Component {
 			Priority: 900,
 			Profiles: []string{"core", "compute"},
 		},
-		{
-			// libnss-resolve: systemd-resolved NSS bridge, bundled via
-			// bundle_debs/install_local_debs (no live apt-get at install
-			// time). Every node needs *.globular.internal resolution to
-			// work reliably, same as the other universal COMMAND tools
-			// above — not profile-gated.
-			Name:     "libnss-resolve",
-			Priority: 900,
-			Profiles: []string{"core", "compute"},
-		},
+		// libnss-resolve was removed here on 2026-08-14. It was never a
+		// Globular runtime prerequisite: the NSS module only answers because
+		// systemd-resolved is already routing globular.internal at the cluster
+		// DNS (our resolved.conf.d drop-in), and once that route exists the
+		// resolved stub serves the same answers over standard DNS via the
+		// ordinary `dns` NSS source. Go services bypass NSS entirely
+		// (config.ClusterResolver). Proven on a pinned Ubuntu Noble
+		// release-20260518 / systemd 255.4-1ubuntu8.15 image with the module
+		// genuinely absent: getent resolved cluster FQDNs, and an impossible
+		// name correctly failed.
+		//
+		// Bundling it also coupled the release to the builder's exact systemd
+		// version — libnss-resolve Depends systemd-resolved (= X) while
+		// systemd-resolved is deliberately never bundled — which broke Day-1
+		// joins twice (2026-08-10, 2026-08-14).
 
 		// ---------------------------------------------------------------
 		// Infrastructure components — monitoring, VIP, database management

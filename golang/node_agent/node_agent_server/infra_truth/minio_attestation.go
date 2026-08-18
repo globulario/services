@@ -84,6 +84,24 @@ func attestMinioTopologyMatchesDesired(desired *MinioDesired, rendered *MinioRen
 	if desired == nil {
 		return nil
 	}
+	// The pool topology is not a contract for a node outside the pool.
+	//
+	// A node absent from ExpectedPeers has its globular-minio unit deliberately
+	// held stopped by the node-agent topology gate, so it cannot form an
+	// isolated store and cannot reformat a pool drive — the two hazards this
+	// attestation exists to catch (fm:minio.wrong_topology_appears_healthy).
+	// Comparing its leftover rendered config against a pool it is not in
+	// produced CRITICAL findings on healthy non-members: migrating this cluster
+	// standalone -> distributed immediately raised
+	// minio.topology_matches_desired and minio.not_stalled on both compute
+	// nodes, which are not storage-profile nodes and never render a pool
+	// config.
+	//
+	// Members are still checked in full — that is the case where a standalone
+	// rendering is genuinely dangerous.
+	if !minioSelfIsPoolMember(desired) {
+		return nil
+	}
 	if desired.Mode == MinioModeDistributed && rendered.Mode == MinioModeStandalone {
 		return newViolation(
 			"minio.topology_matches_desired",
@@ -129,4 +147,31 @@ func attestMinioSelfInPool(desired *MinioDesired, rendered *MinioRenderedConfig)
 		fmt.Sprintf("self=%s endpoints=%s", self, strings.Join(rendered.Endpoints, ",")),
 		minioRemediationOwner,
 	)
+}
+
+// minioSelfIsPoolMember reports whether this node is one of the desired pool's
+// expected peers. A single-node (standalone) desired state names only this
+// node, so it is a member by definition.
+func minioSelfIsPoolMember(desired *MinioDesired) bool {
+	if desired == nil {
+		return false
+	}
+	peers := desired.ExpectedPeers
+	if len(peers) == 0 {
+		// No pool published: nothing to be outside of. Keep the check in force
+		// rather than waiving on missing evidence.
+		return true
+	}
+	for _, self := range desired.ExpectedListenAddresses {
+		self = strings.TrimSpace(self)
+		if self == "" {
+			continue
+		}
+		for _, p := range peers {
+			if strings.EqualFold(strings.TrimSpace(p), self) {
+				return true
+			}
+		}
+	}
+	return false
 }

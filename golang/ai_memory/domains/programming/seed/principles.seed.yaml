@@ -1,9 +1,13 @@
 # programming seed principles — authored as PROPOSED, never auto-promoted.
 # Each is generative (recommended_action) and pairs forbidden moves with the safe
 # behavior to prefer. Every ref below must resolve within this pack's catalogs.
+# condition.always gives forbidden-move matching universal reach without engaging
+# the principle for unrelated actions; the runtime engages an always principle
+# only when one of its forbidden moves matches (or another declared condition does).
 - id: principle.prog.no_deploy_without_passing_tests
   title: No deploy to a shared environment without passing tests
   applies_when:
+    - condition.always
     - condition.prog.deploy_to_production
   authorities:
     - authority.prog.test.passing_suite
@@ -15,6 +19,7 @@
   recommended_action: >-
     Before deploying to a shared environment, require the change's covering tests to be
     green; if a path is genuinely untestable, record explicit maintainer authority instead.
+    Never silence a failing test to manufacture a green result.
   risk_level: high
   revocation_rule: narrow if the deploy target is a throwaway/isolated sandbox no one depends on
   promotion_reason: repeated breakage from changes merged red or without covering tests
@@ -23,6 +28,7 @@
 - id: principle.prog.preserve_public_contract
   title: Preserve the published contract or bump the version
   applies_when:
+    - condition.always
     - condition.prog.public_api_change
   authorities:
     - authority.prog.contract.api_spec
@@ -41,6 +47,7 @@
 - id: principle.prog.backup_before_destructive_migration
   title: Verify a backup before any destructive data migration
   applies_when:
+    - condition.always
     - condition.prog.schema_migration
     - condition.prog.destructive_data_op
   authorities:
@@ -60,6 +67,7 @@
 - id: principle.prog.spec_over_forum
   title: Trust the spec and the runtime over community lore
   applies_when:
+    - condition.always
     - condition.prog.public_api_change
   authorities:
     - authority.prog.contract.api_spec
@@ -74,3 +82,21 @@
   promotion_reason: plausible-but-wrong behavior propagated by trusting forum answers over the contract
   source_refs:
     - seed:programming/authority-inversion
+- id: principle.prog.never_commit_secret
+  title: Never commit credentials or private key material to source control
+  applies_when:
+    - condition.always
+  authorities:
+    - authority.prog.maintainer.codeowner
+  required_evidence: []
+  forbidden_moves:
+    - forbidden.prog.commit_secret_in_source
+  recommended_action: >-
+    Remove credentials, API keys, tokens, and private key material from the diff before commit;
+    inject them through the repository's approved secret path and rotate any value that has
+    already entered version history.
+  risk_level: irreversible
+  revocation_rule: revoke only if the repository stops being persistent/shareable history and the referenced material is provably non-secret test data
+  promotion_reason: a secret committed to version history is effectively leaked and difficult to erase completely; prevention must have universal reach
+  source_refs:
+    - seed:programming/security-boundary

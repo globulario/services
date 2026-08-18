@@ -73,11 +73,22 @@ jobs:
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
           echo "Using globular-installer $version ($ref)"
 
+      - name: Resolve pinned packages revision
+        id: packages_pin
+        working-directory: services
+        run: |
+          rev="$(scripts/release/packages-revision.sh)"
+          echo "rev=${rev}" >> "$GITHUB_OUTPUT"
+          echo "packages pinned at ${rev}"
+
       - name: Checkout packages
         uses: actions/checkout@v4
         with:
           repository: globulario/packages
           path: packages
+          # Pinned by scripts/release/package-sources.json — a release consumes
+          # the revision this repo declares, never whatever main happens to be.
+          ref: ${{ steps.packages_pin.outputs.rev }}
           # Package metadata/registry are consumed as source authority only; no
           # release step depends on packages git history.
           fetch-depth: 1

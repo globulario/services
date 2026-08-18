@@ -1,0 +1,98 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    # ─────────────────────────────────────────────────────────────────────────
+    # PREDICATE FIXED — 2026-08-15, commit 7378b07d.
+    #
+    # The description below is written in the present tense and is now FALSE of
+    # the code. golang/release_boundary/proof.go evalA4 no longer compares
+    # process_start_unix against install_committed_unix. It compares
+    # Runtime.RunningExeSHA256 against Installed.EntrypointChecksum, which is
+    # sound because the installer replaces binaries with os.Rename over a temp
+    # file: a pre-install process holds the superseded inode and cannot hash to
+    # the new artifact. Timestamps remain in the report as corroboration only,
+    # and absent identity evidence now yields INDETERMINATE, never FAILED.
+    #
+    # Promote as HISTORY, not as a live defect. A reviewer who reads it as
+    # current will go looking for a predicate that no longer exists.
+    #
+    # What remains TRUE and worth keeping from the description:
+    #   - the class: a proof that a restart can satisfy without changing what it
+    #     claims to prove is not a proof
+    #   - the installer protocol fact (service started BEFORE receipt commit),
+    #     which is what made the ordering rule invalid and is unchanged
+    #   - the caution recorded under
+    #     meta.physical_clocks_disagree_use_logical_ordering: "logical ordering"
+    #     here meant an explicit causal/protocol relation, NOT Lamport or vector
+    #     clocks. The fix used the typed owner transition, not a clock mechanism.
+    #     That caution was correct and steered the repair.
+    #
+    # Regression evidence is preserved as a test rather than only as prose:
+    # release_boundary.TestA4_LiveFalsePositive_2026_08_14 replays the exact
+    # nuc measurements cited below (checksum and both timestamps verbatim).
+    # ─────────────────────────────────────────────────────────────────────────
+    proposed_by: agent
+    kind: failure_mode
+    id: failure.services.release_boundary_a4_infers_causal_provenance_from_wall_clock
+    title: Release-boundary A4 infers causal provenance from wall-clock ordering, so a restart launders the false positive
+    description: |-
+        The release-boundary proof evaluator decides its A4 assertion ("restart after install") by comparing two wall-clock values: process_start_unix > install_committed_unix. That predicate is semantically invalid for the actual installation protocol, because the node-agent installer deliberately starts the service BEFORE committing the installation receipt.
+
+        Observed 2026-08-14 on a 5-node cluster, service `event`, independently on two nodes:
+
+          20:27:18  installer-api: installing event from local package
+          20:27:19  service event port allocated        <- process_start_unix   = 1786753639
+          20:27:20  stored entrypoint_checksum for event <- install_committed_unix = 1786753640
+          20:27:20  workflow-runner: event started after install
+
+        The installer's own log asserts "event started after install" — it is the receipt commit, not the install, that lands after process start. Reproduced on globule-lenovo with process_start 1786755598 / install_committed 1786755599.
+
+        This is not flakiness. On both nodes A0-A3 returned PROVEN with byte-identical evidence: expected_checksum == installed_checksum == running_exe_sha256 == 98fa59cf37d82a6345a447b76c32db1fece697f9f2d680ec2de2b90c7462f89b, and desired_build_id == manifest_build_id == installed_build_id == 019ffcdd-d51e-7649-953b-07b0faa811aa with publish_state PUBLISHED. The running binary's provenance is fully established; only the temporal predicate failed. It surfaces as a finding only when service-start and receipt-commit straddle a second boundary, which is why it hit `event` on 2 of 4 joined nodes and not the other ~30 services.
+
+        The consequence that matters most: restarting the service flips the A4 verdict WITHOUT changing the provenance of the executable. Restart-as-remediation therefore converts a known false positive into a green result — it launders the finding rather than proving anything.
+
+        This is the mirror image of install.failed_transaction_promoted_to_installed_by_observer: there an observer promotes state the owner never successfully asserted; here an observer withholds proof the owner did establish, because it reconstructs causality from timestamps instead of consuming the owner's causal evidence. It is the same family as cluster_controller.heartbeat_staleness_uses_node_reported_clock — a clock-derived signal driving a definitive verdict.
+
+        Proposed direction (wording to be settled on placement): release-boundary proof must establish causal provenance rather than infer it from wall-clock ordering. The intended evidence chain is: install committed -> supervisor restart requested -> PID changed -> executable hash verified. That chain also removes any requirement that the two events be comparably clocked.
+    severity: high
+    source_files:
+        - golang/release_boundary/proof.go
+        - golang/cluster_doctor/cluster_doctor_server/rules/release_boundary_unproven.go
+        - golang/node_agent/node_agent_server/internal/installreceipt/installreceipt.go
+    related_invariants:
+        - doctor.must_compare_claims_to_proofs
+        - diagnostics.must_measure_reality
+        - installed_state_requires_successful_owner_install_receipt
+        # Meta parents (principle-extraction step 1). A4 is an instance of an
+        # existing shared law, not grounds for a new top-level invariant.
+        # NOTE: meta.clock_skew_invalidates_cross_node_time_comparison does NOT
+        # apply — both A4 timestamps originate on the same node, so the defect is
+        # not skew. It is that a timestamp records an observation, not the event,
+        # and that causal ordering needs causal/logical evidence.
+        - meta.timestamp_is_an_observation_not_an_event_time
+        # Applies only in the sense of "order by an explicit causal/protocol
+        # relation instead of by clock readings". It is NOT a call to introduce
+        # Lamport/vector clocks: A4 needs no distributed logical-clock mechanism.
+        # A typed owner transition already supplies the causal relation —
+        #   install receipt committed
+        #     -> restart/start action owned by the supervisor
+        #     -> new process identity observed
+        #     -> entrypoint checksum verified
+        # The protocol edge is the stronger evidence; do not let this parent
+        # steer the implementation toward a clock mechanism.
+        - meta.physical_clocks_disagree_use_logical_ordering
+    related_failures:
+        - install.failed_transaction_promoted_to_installed_by_observer
+        - cluster_controller.heartbeat_staleness_uses_node_reported_clock
+    forbidden_fixes:
+        - Restart the service to clear the A4 finding
+    evidence:
+        - 'globule-nuc node-agent journal 2026-08-14 20:27:18-20:27:20: install begins, process starts at :19, entrypoint_checksum committed at :20, then ''event started after install'''
+        - 'release_verify_boundary(event, 681710ee-6966-5df3-b155-3cef8b4e1a96): A0/A1/A2/A3 PROVEN, A4 FAILED with process_start_unix=1786753639 install_committed_unix=1786753640'
+        - 'release_verify_boundary(event, ffc29469-52d7-5929-844a-3a8d3a627d7c): identical shape, process_start_unix=1786755598 install_committed_unix=1786755599'
+        - Both nodes deliberately NOT restarted so the failing verdict remains reproducible
+        - running_exe_sha256 equals published checksum on both nodes, proving the binary is correct while A4 reports unproven
+    domain: github.com/globulario/services

@@ -593,6 +593,22 @@ func (srv *NodeAgentServer) ApplyPackageRelease(ctx context.Context, req *node_a
 		poolState, poolErr := config.LoadObjectStoreDesiredState(ctx)
 		if poolErr == nil && !nodeIPInPool(nodeIP, poolState) {
 			log.Printf("apply-package: minio installed on non-member node %s (ip=%s) — skipping service start (held_not_in_topology)", srv.nodeID, nodeIP)
+			// Not starting it is not the same as it not running. The minio
+			// package's own post-install script starts the service ("MinIO
+			// already running" in its output), so by the time this gate is
+			// reached the unit is frequently active already. Skipping the
+			// start then leaves an unauthorized MinIO running until the next
+			// syncTicker sweep — a ~90s window in which every joining
+			// storage node serves an isolated data store, which cluster-doctor
+			// reports as objectstore.minio.active_on_non_member and
+			// objectstore.minio.standalone_splitbrain (both CRITICAL).
+			//
+			// enforceMinioHeld is idempotent and non-destructive: it stops the
+			// unit only when active, wipes no data and rewrites no config. It
+			// is the same enforcement reconcileMinioSystemdConfig applies; we
+			// apply it here so the hold takes effect at install time instead
+			// of up to one sweep later.
+			srv.enforceMinioHeld(ctx, nodeIP, poolState.Generation)
 			_ = installed_state.WriteInstalledPackage(ctx, &node_agentpb.InstalledPackage{
 				NodeId:      srv.nodeID,
 				Name:        name,

@@ -14,8 +14,14 @@ var packageNativeDeps = map[string][]string{
 	"sql": {"libodbc.so.2"},
 }
 
+// nativeDepProviders maps a SONAME to the OS package that actually ships the
+// library file. This must name the RUNTIME library package, not the tools
+// package: libodbc.so.2 lives in libodbc2; unixodbc only ships the odbcinst
+// CLI and pulls libodbc2 in transitively. The build-side counterpart is
+// native_debs() in golang/globularcli/tools/specgen/specgen.sh, which bundles
+// these debs into the package so install stays offline.
 var nativeDepProviders = map[string]string{
-	"libodbc.so.2": "debian:unixodbc",
+	"libodbc.so.2": "debian:libodbc2",
 }
 
 // nativeLibScanDirs lists the standard library directories on Debian/Ubuntu
@@ -66,7 +72,7 @@ func nativeDepProvider(soname string) string {
 func nativeDepManualAction(soname string) string {
 	switch soname {
 	case "libodbc.so.2":
-		return "sudo apt-get install -y unixodbc"
+		return "sudo apt-get install -y libodbc2"
 	default:
 		return ""
 	}

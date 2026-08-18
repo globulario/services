@@ -795,6 +795,50 @@ func isWiredInterface(name string) bool {
 		strings.HasPrefix(name, "enx")
 }
 
+// isVirtualInterface reports whether an interface is a container/VM/tunnel
+// construct whose address is meaningless to any other node.
+//
+// These addresses MUST NOT enter node identity. Membership identity is
+// hostname + IPs (node_identity.hostname_ip_for_membership_domain_mac_for_other_axes),
+// so a docker bridge address is not a harmless extra entry — it is a claim that
+// this node is reachable at an address that, on every other host, belongs to a
+// DIFFERENT machine's container network. 172.17.0.1 exists on every Docker host
+// in the fleet and resolves locally on each one.
+//
+// Observed on globule-ryzen 2026-08-04: the node registered
+// ["10.0.0.63", "10.10.0.1", "172.17.0.1"], publishing docker0 and a
+// docker-compose bridge as node identity alongside its real LAN address.
+//
+// Deliberately a DENY list over well-known virtual prefixes rather than an
+// allow list of physical ones: isWiredInterface already enumerates physical
+// names for preference ordering, and reusing it as an admission filter would
+// silently drop wireless (wlp5s0 — this node's only real interface) and any
+// NIC whose name does not match the enumerated prefixes. Excluding a real
+// address is worse than including a virtual one, because it removes the node's
+// only reachable identity.
+func isVirtualInterface(name string) bool {
+	for _, prefix := range []string{
+		"docker", // docker0
+		"br-",    // docker-compose / user-defined bridges
+		"veth",   // container side of a veth pair
+		"virbr",  // libvirt
+		"vmnet",  // VMware
+		"vboxnet",
+		"cni",        // CNI plugins
+		"flannel",    // flannel overlay
+		"cali",       // calico
+		"tun", "tap", // tunnels
+		"wg", // wireguard
+		"zt", // zerotier
+		"tailscale",
+	} {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // defaultGatewayIPs returns the set of default-gateway IPs from the kernel
 // routing table (/proc/net/route). These are the IPs of upstream routers, not
 // addresses this node owns — they must never appear in the node's identity IP
@@ -850,6 +894,13 @@ func gatherIPs() []string {
 	for _, iface := range ifaces {
 		// Skip down or loopback interfaces
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		// Skip container/VM/tunnel interfaces. Their addresses are local
+		// fictions: 172.17.0.1 exists on every Docker host, so publishing it as
+		// node identity tells the cluster this node is reachable at an address
+		// that names a different machine everywhere else.
+		if isVirtualInterface(iface.Name) {
 			continue
 		}
 		wired := isWiredInterface(iface.Name)

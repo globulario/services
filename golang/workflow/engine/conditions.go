@@ -8,6 +8,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 )
@@ -333,7 +334,42 @@ func resolveVar(path string, inputs, outputs map[string]any) any {
 	if v, ok := inputs[path]; ok {
 		return v
 	}
+
+	// Dotted paths: a step's output is a report map, and guards address fields
+	// inside it — len(reachability_report.critical) > 0,
+	// len(minio_report.violations) > 0.
+	//
+	// Only whole-key lookups happened above, so "report.field" was searched as
+	// one literal key, missed, and resolved to nil. len(nil) is 0, so every
+	// such guard evaluated false forever and the steps behind them never ran.
+	// That is why fence_unreachable_nodes never fired even while the
+	// reachability step it depends on was logging quorum_at_risk=true.
+	if strings.Contains(path, ".") {
+		if v := resolveDotted(path, outputs); v != nil {
+			return v
+		}
+		if v := resolveDotted(path, inputs); v != nil {
+			return v
+		}
+	}
 	return nil
+}
+
+// resolveDotted walks "a.b.c" through nested map[string]any.
+func resolveDotted(path string, root map[string]any) any {
+	parts := strings.Split(path, ".")
+	var cur any = root
+	for _, part := range parts {
+		m, ok := cur.(map[string]any)
+		if !ok {
+			return nil
+		}
+		cur, ok = m[part]
+		if !ok {
+			return nil
+		}
+	}
+	return cur
 }
 
 func collectionLength(v any) int {
@@ -347,6 +383,32 @@ func collectionLength(v any) int {
 		return len(c)
 	case map[string]any:
 		return len(c)
+	}
+
+	// Fall back to reflection for every other slice/array/map/string.
+	//
+	// The type switch alone returned 0 for anything it did not name, which
+	// makes `len(x) > 0` guards fail closed AND silently. A handler that
+	// returns a concretely-typed collection — []map[string]any is the common
+	// one — was indistinguishable from an empty one.
+	//
+	// That is how partition fencing never ran: invariantValidateNodeReachability
+	// returns `critical` as []map[string]any, so
+	// `len(reachability_report.critical) > 0` on the fence_unreachable_nodes
+	// step evaluated false on every pass, even with the step's own log line
+	// reporting quorum_at_risk=true. The neighbouring minio step worked purely
+	// because its violations happened to be []any. A guard whose answer depends
+	// on the handler's concrete Go type rather than on how many items it holds
+	// is not a guard.
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Slice, reflect.Array, reflect.Map, reflect.String:
+		return rv.Len()
+	case reflect.Pointer, reflect.Interface:
+		if rv.IsNil() {
+			return 0
+		}
+		return collectionLength(rv.Elem().Interface())
 	default:
 		return 0
 	}

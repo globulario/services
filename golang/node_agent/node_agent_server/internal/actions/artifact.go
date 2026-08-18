@@ -23,15 +23,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/identity"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions/serviceports"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/supervisor"
+	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/runtimedirs"
+	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/systemdutil"
 	"github.com/globulario/services/golang/versionutil"
-	"github.com/globulario/services/golang/repository/repositorypb"
-	"github.com/globulario/services/golang/config"
-	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
@@ -607,13 +607,14 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 		stagingRoot = filepath.Join(ActionStagingRoot, service)
 	}
 	scriptsDir := filepath.Join(stagingRoot, "scripts")
+	debsDir := filepath.Join(stagingRoot, "debs")
 
 	// Admission gate: plan and validate the WHOLE archive before creating a
 	// directory or writing a byte. A package is admitted in full or rejected in
 	// full — extracting part of an archive and skipping the unsafe remainder
 	// would advance the version marker and restart the service against contents
 	// that no longer match the published artifact.
-	plan, violations, err := planArtifactExtraction(artifact, currentExtractionRoots(service, scriptsDir))
+	plan, violations, err := planArtifactExtraction(artifact, currentExtractionRoots(service, scriptsDir, debsDir))
 	if err != nil {
 		return "", err
 	}
@@ -814,6 +815,23 @@ func (serviceInstallPayloadAction) Apply(ctx context.Context, args *structpb.Str
 	// implement the describe protocol (node_agent_server, xds, gateway,
 	// minio, etc). Identity of the extracted bytes is already verified
 	// upstream by artifact.fetch (sha256 match vs manifest digest).
+	// Install the package's bundled OS dependencies before the native-library
+	// preflight below. A SERVICE package that links a native library ships the
+	// providing .deb in debs/ (see native_debs() in specgen.sh); until this ran
+	// here, install_payload extracted bin/, systemd/, config/, scripts/, data/
+	// and policy/ but silently dropped debs/, so the library never arrived and
+	// the preflight aborted the install it was meant to protect.
+	//
+	// That is how sql failed every compute-profile join: install_workloads_compute
+	// reported NATIVE_LIBRARY_DEPENDENCY_MISSING for libodbc.so.2 even though the
+	// package carried libodbc2, which failed node.join and left
+	// globular-sql.service on disk with no installed_state receipt.
+	// (invariant:install.join_path_must_complete_install_contract — an install
+	// path must complete the whole contract, not the part it happens to extract.)
+	if err := installBundledDebs(ctx, debsDir, service); err != nil {
+		return "", fmt.Errorf("install bundled debs for %s: %w", service, err)
+	}
+
 	exe := executableForService(service)
 	if exe != "" {
 		binPath := filepath.Join(binDir, exe)

@@ -22,9 +22,9 @@ func (s *stubLedger) ListManifests(ctx context.Context) ([]manifestRow, error) {
 func (s *stubLedger) GetManifest(_ context.Context, _ string) (*manifestRow, error) {
 	return nil, nil
 }
-func (s *stubLedger) PutManifest(_ context.Context, _ manifestRow) error        { return nil }
-func (s *stubLedger) UpdatePublishState(_ context.Context, _, _ string) error   { return nil }
-func (s *stubLedger) DeleteManifest(_ context.Context, _ string) error          { return nil }
+func (s *stubLedger) PutManifest(_ context.Context, _ manifestRow) error      { return nil }
+func (s *stubLedger) UpdatePublishState(_ context.Context, _, _ string) error { return nil }
+func (s *stubLedger) DeleteManifest(_ context.Context, _ string) error        { return nil }
 func (s *stubLedger) FindByEntrypointChecksum(_ context.Context, _ string) ([]manifestRow, error) {
 	return nil, nil
 }

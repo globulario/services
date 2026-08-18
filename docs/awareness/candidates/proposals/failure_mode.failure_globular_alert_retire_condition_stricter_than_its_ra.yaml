@@ -1,0 +1,21 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: failure_mode
+    id: failure.globular.alert_retire_condition_stricter_than_its_raise_condition_lat
+    title: Alert retire condition stricter than its raise condition latches the alert
+    description: 'The controller raised the durable quorum_loss alert at critical_nodes >= 2 but retired it only at critical_nodes == 0. A cluster recovering from a two-node outage into an unrelated single-node partition never passes through zero, so a CRITICAL quorum-at-risk alert kept flying while quorum was not at risk. Any alert whose clear predicate is stricter than its raise predicate has this shape: the alert survives the condition that justified it and becomes something operators learn to ignore. Fix: retire on the exact negation of the raise predicate, and name the threshold once so raise and clear cannot drift apart.'
+    severity: warning
+    source_files:
+        - golang/cluster_controller/cluster_controller_server/workflow_invariant.go
+    required_tests:
+        - golang/cluster_controller/cluster_controller_server/workflow_invariant_quorum_alert_test.go:TestQuorumAtRiskCount_RaiseAndRetireShareOneThreshold
+    evidence:
+        - 'Resilience suite 2026-08-11: dual-node-failure legitimately raised /globular/cluster/alerts/quorum_loss, then network-partition-fencing failed its no_quorum_loss_alert assertion (11 of 12 checks passed)'
+        - network-partition-fencing partitions exactly ONE node, and the trigger_emergency_backup step is gated on reachability_report.quorum_at_risk == true, so the alert present at assertion time could only have been the stale key
+    domain: github.com/globulario/services
+    contract: A durable alert is retired by the exact negation of the predicate that raised it. Raise and clear must read one named predicate, not two independently spelled thresholds; a clear condition stricter than the raise condition latches the alert past the condition it reports.

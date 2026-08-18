@@ -1,0 +1,24 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: invariant
+    id: invariant.globular.an_observer_must_be_proven_able_to_see_the_known_good_baseli
+    title: An observer must be proven able to see the known-good baseline before its readings are evidence
+    description: 'Before an observation supports any conclusion, the observer must first be shown to report the expected value for a state already known to be true. An absent, null or negative reading taken BEFORE any perturbation invalidates every subsequent reading from that observer, because it proves the instrument cannot distinguish "the property is false" from "I cannot see the property". This applies to test probes, diagnostic shell commands, monitoring queries and ad-hoc investigation scripts alike. The failure is silent and self-confirming: a broken observer reports exactly the answer an experiment often hopes to find, so it reads as a clean negative result rather than as no result at all.'
+    severity: high
+    source_files:
+        - tests/harness/lib/probes.sh
+    forbidden_fixes:
+        - Treat a null/absent/zero baseline reading as a passing negative result and continue the experiment
+        - Assert on a probe that has never been shown to return a positive reading against known-good state
+    evidence:
+        - '2026-08-12 fencing experiment: the LastSeen observer read ''None'' at BASELINE, before any network block, for a node that was demonstrably heartbeating. It then read ''None'' for 20 minutes and was very nearly reported as ''fencing never fired''. Root cause: the parser used CamelCase keys (LastSeen, Metadata) against a snake_case JSON schema (last_seen, metadata), so both the staleness reading AND the fenced flag were structurally unreadable. Direct inspection showed fencing had fired correctly at 959s.'
+        - Same session, quickstart probe doctor.finding read an etcd prefix (/globular/doctor/findings) that nothing writes; verified empty while the doctor RPC simultaneously reported 4 findings. It could only ever answer present:false and therefore could never fail.
+        - Same session, a convergence check used 'systemctl list-units' without --all, which omits cleanly-stopped inactive units, and reported '0 non-running units' while 13 services were down.
+    repo: globulario/globular-quickstart
+    domain: globular
+    contract: Any observer used as evidence must demonstrate a positive reading against known-good state before its negative readings are trusted. A baseline that reads null/absent/zero for a condition known to hold invalidates the observer, not the system under test.

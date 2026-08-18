@@ -1,0 +1,106 @@
+package fixture
+
+// KNOWN-BAD 1 — the interceptor shape (ServerInterceptors.go:448-452).
+// Producer preserved a sentinel; consumer erases it and continues to a verdict.
+func badConsumerCollapse(domain, method string) bool {
+	infos, err := getActionResourceInfos(domain, method)
+	if err != nil {
+		logWarn("proceeding with empty resource infos", err)
+		infos = make([]*ResourceInfos, 0)
+	}
+	return validateAction(infos)
+}
+
+// KNOWN-BAD 2 — the repository shape (trusted_publisher.go:167-170).
+// A failed read is returned as an empty set with a nil error.
+func badErrorErased(dir string) ([]*Publisher, error) {
+	entries, err := readDir(dir)
+	if err != nil {
+		return nil, nil
+	}
+	return parse(entries), nil
+}
+
+// KNOWN-BAD 3 — the policy shape (signature_policy.go:109-134).
+// A decode failure becomes the most permissive posture, then decides.
+func badPermissiveDefault(raw []byte) bool {
+	policy, err := unmarshalPolicy(raw)
+	if err != nil {
+		policy = defaultSignaturePolicy()
+	}
+	return policyDecision(policy)
+}
+
+// KNOWN-GOOD 1 — the RBAC timeout shape (ServerInterceptors.go:398-419).
+// "a stalled authorization service must NOT silently grant"
+func goodDeniesOnError(method string) (bool, error) {
+	allowed, err := validateActionRemote(method)
+	if err != nil {
+		return false, err
+	}
+	return allowed, nil
+}
+
+// KNOWN-GOOD 2 — logged and carried on, but no verdict downstream.
+// Not every swallowed error is an authority collapse.
+func goodNoVerdictDownstream(path string) {
+	data, err := readFile(path)
+	if err != nil {
+		logWarn("cache read failed", err)
+		data = nil
+	}
+	writeCache(data)
+}
+
+// KNOWN-GOOD 3 — a declared fail-safe, annotated with its reason.
+func goodDeclaredFailsafe(method string) bool {
+	infos, err := lookup(method)
+	//go:uncertainty:declared-failsafe empty set means "unauthenticated allowlist", proven by TestAllowlistBypassesRBAC
+	if err != nil {
+		infos = nil
+	}
+	return validateAction(infos)
+}
+
+// KNOWN-BAD 4 — an opt-out with no stated reason is itself reported.
+func badUnjustifiedOptOut(method string) bool {
+	infos, err := lookup(method)
+	//go:uncertainty:declared-failsafe
+	if err != nil {
+		infos = nil
+	}
+	return validateAction(infos)
+}
+
+// KNOWN-GOOD 4 — the cluster-doctor shape. No local guard at all, because
+// correctness is centralised in snapshotSourceUnavailableFindings + the ratchet
+// test. There is no ERASURE here, so the scanner must stay silent: absence of a
+// local guard is explicitly NOT the thing being detected.
+func goodCentralisedElsewhere(snap *Snapshot) []Finding {
+	if snap.Nodes == nil {
+		return nil
+	}
+	return evaluateRules(snap)
+}
+
+// KNOWN-GOOD 5 — node_agent/heartbeat.go:1715. Marking inventory INCOMPLETE on
+// error is the honest answer, not an erasure. Fail-closed.
+func goodMarksIncompleteOnError(ctx Ctx) Status {
+	inventoryComplete := true
+	installed, err := computeInstalled(ctx)
+	if err != nil {
+		logWarn("compute installed services", err)
+		inventoryComplete = false
+	}
+	return resolveStatus(installed, inventoryComplete)
+}
+
+// KNOWN-GOOD 6 — mcp/governor.go:417. Recording that a command failed.
+func goodRecordsFailure(cmd Cmd) Result {
+	var result Result
+	err := cmd.Run()
+	if err != nil {
+		result.Success = false
+	}
+	return decideBranch(result)
+}

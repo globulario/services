@@ -546,13 +546,40 @@ func GetControllerGatewayHost() string {
 	return controllerGatewayHost()
 }
 
+// nodeAgentStatePaths lists the node-agent state file locations in resolution
+// order: the canonical `node-agent/` path first, then the pre-Project-O
+// `nodeagent/` path.
+//
+// Both must be tried. node-agent's MigrateLegacyStatePathOnce relocates the
+// legacy file to the canonical path AND REMOVES the legacy directory, so a
+// reader that knows only the legacy path returns empty on precisely the nodes
+// that migrated correctly — while still working on nodes where the join script
+// has written state but the agent has not started yet. Reading one path made
+// this look like "no controller endpoint configured" instead of a layout skew.
+var nodeAgentStatePaths = []string{
+	"/var/lib/globular/node-agent/state.json",
+	"/var/lib/globular/nodeagent/state.json",
+}
+
 // controllerGatewayHost reads the controller endpoint from the node-agent
 // state file and returns the host portion (e.g. "10.0.0.63"). Returns ""
 // if the state file is missing or unparseable.
 func controllerGatewayHost() string {
-	stateRoot := "/var/lib/globular"
-	data, err := os.ReadFile(filepath.Join(stateRoot, "nodeagent", "state.json"))
-	if err != nil {
+	return readControllerHostFrom(nodeAgentStatePaths)
+}
+
+// readControllerHostFrom returns the host portion of the controller endpoint
+// recorded in the first readable state file among paths.
+func readControllerHostFrom(paths []string) string {
+	var data []byte
+	for _, p := range paths {
+		b, err := os.ReadFile(p)
+		if err == nil {
+			data = b
+			break
+		}
+	}
+	if data == nil {
 		return ""
 	}
 	var state struct {

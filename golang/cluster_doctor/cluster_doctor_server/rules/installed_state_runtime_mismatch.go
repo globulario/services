@@ -71,6 +71,29 @@ func (installedStateRuntimeMismatch) Evaluate(snap *collector.Snapshot, cfg Conf
 	// the cluster was healthy as designed.
 	ingressDisabled := IngressIsDisabled(snap)
 
+	// Desired state decides what is SUPPOSED to run. A package that is on disk
+	// but absent from desired state is not "not converged" — nobody asked it to
+	// run. Reporting it as drift is the Layer2↔Layer3 collapse this file's
+	// header forbids, and it is unclearable: no convergence pass will ever start
+	// a service the cluster never desired.
+	//
+	// Observed 2026-08-10: node.join's install_workloads_compute places seven
+	// workload packages (sql, catalog, ldap, mail, blog, conversation, echo) on
+	// every compute-profile node. None are in the cluster's 48-package desired
+	// set, so they sit installed-and-disabled forever — 29 of the 31 findings on
+	// an otherwise healthy cluster, two per package, permanently.
+	//
+	// Fail-safe: an EMPTY desired set means the collector could not read desired
+	// state, not that nothing is desired. Suppressing on missing evidence would
+	// silence every real mismatch at once
+	// (fm doctor.rule_silently_suppressed_on_data_source_error), so the filter
+	// applies only when desired state was actually observed.
+	desiredKnown := len(snap.DesiredServiceTargets) > 0
+	desiredNames := make(map[string]bool, len(snap.DesiredServiceTargets))
+	for svc := range snap.DesiredServiceTargets {
+		desiredNames[normalizeInstalledName(svc)] = true
+	}
+
 	for _, node := range snap.Nodes {
 		nodeID := node.GetNodeId()
 		if nodeID == "" {
@@ -118,6 +141,10 @@ func (installedStateRuntimeMismatch) Evaluate(snap *collector.Snapshot, cfg Conf
 				continue
 			}
 			if packageIsCommand(canon, nodeKinds) {
+				continue
+			}
+			// Installed but never desired — see desiredKnown above.
+			if desiredKnown && !desiredNames[canon] {
 				continue
 			}
 			// Ingress-gated: keepalived is "installed but inactive" by

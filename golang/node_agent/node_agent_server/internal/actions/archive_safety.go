@@ -104,11 +104,12 @@ type extractionRoots struct {
 	systemd string
 	config  string
 	scripts string
+	debs    string
 	state   string
 	policy  string
 }
 
-func currentExtractionRoots(service, scriptsDir string) extractionRoots {
+func currentExtractionRoots(service, scriptsDir, debsDir string) extractionRoots {
 	binDir, systemdDir, configDir, _ := installPaths()
 	return extractionRoots{
 		service: service,
@@ -116,6 +117,7 @@ func currentExtractionRoots(service, scriptsDir string) extractionRoots {
 		systemd: systemdDir,
 		config:  configDir,
 		scripts: scriptsDir,
+		debs:    debsDir,
 		state:   ActionStateDir,
 		policy:  ActionPolicyDir,
 	}
@@ -313,6 +315,12 @@ func classifyArchiveEntry(name string) (kind string, mapped bool) {
 		return "config", true
 	case strings.HasPrefix(name, "scripts/"):
 		return "scripts", true
+	case strings.HasPrefix(name, "debs/"):
+		// Bundled OS packages carrying a service's native library dependencies,
+		// dpkg-installed before the ldd preflight. Added on master after this
+		// branch was cut, and mapped here rather than in an inline switch so it
+		// inherits the same containment enforcement as every other destination.
+		return "debs", true
 	case strings.HasPrefix(name, "data/"):
 		return "data", true
 	case strings.HasPrefix(name, "policy/"):
@@ -345,6 +353,8 @@ func archiveEntryDestination(name, kind string, roots extractionRoots) (dest, ro
 		return filepath.Join(root, strings.TrimPrefix(name, "config/")), root
 	case "scripts":
 		return filepath.Join(roots.scripts, filepath.Base(name)), roots.scripts
+	case "debs":
+		return filepath.Join(roots.debs, filepath.Base(name)), roots.debs
 	case "data":
 		return filepath.Join(roots.state, strings.TrimPrefix(name, "data/")), roots.state
 	case "policy":

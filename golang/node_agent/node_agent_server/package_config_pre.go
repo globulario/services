@@ -23,8 +23,8 @@ import (
 	"strings"
 	"time"
 
-	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	"github.com/globulario/services/golang/node_agent/node_agent_server/internal/actions"
+	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
 	repositorypb "github.com/globulario/services/golang/repository/repositorypb"
 )
 
@@ -45,16 +45,16 @@ type configSnapshot struct {
 //
 //   - (snap, true,  nil)  policy was consulted and permits the apply
 //   - (nil,  true,  nil)  no repo configured / pre-Phase-D artifact / no
-//                         configs declared — policy IS observable and
-//                         legitimately empty
+//     configs declared — policy IS observable and
+//     legitimately empty
 //   - (nil,  false, nil)  repository unreachable OR manifest fetch failed —
-//                         policy is NOT observable; the caller must decide
-//                         whether to fail-open (current behaviour) or
-//                         fail-closed (recommended when the user package
-//                         declared FAIL_ON_LOCAL_MODIFICATION configs in
-//                         the previous install).
+//     policy is NOT observable; the caller must decide
+//     whether to fail-open (current behaviour) or
+//     fail-closed (recommended when the user package
+//     declared FAIL_ON_LOCAL_MODIFICATION configs in
+//     the previous install).
 //   - (snap, _,     err)  FAIL_ON_LOCAL_MODIFICATION hit; CONFLICT receipt
-//                         already recorded; apply MUST abort.
+//     already recorded; apply MUST abort.
 //
 // Calling code should treat any non-nil error as a hard abort: a CONFLICT
 // receipt has already been recorded and the apply must NOT proceed to
@@ -84,6 +84,7 @@ func (srv *NodeAgentServer) applyConfigPolicyPreInstall(
 	// fail-open behaviour), but policyObservable=false so the caller can
 	// log the observability gap. Promoting this to fail-closed is the
 	// next step once the observability data confirms how often this fires.
+	//go:uncertainty:declared-failsafe returns (value, policyObservable, error): the middle bool carries the uncertainty to the caller, and the file already documents promoting this to fail-closed once observability data shows how often it fires. Triaged 2026-08-14.
 	conn, _, err := actions.DialRepository(ctx, repoAddr)
 	if err != nil {
 		log.Printf("config-policy: dial repository failed (policy unobservable; apply proceeds): %v", err)
@@ -91,6 +92,7 @@ func (srv *NodeAgentServer) applyConfigPolicyPreInstall(
 	}
 	defer conn.Close()
 	repo := repositorypb.NewPackageRepositoryClient(conn)
+	//go:uncertainty:declared-failsafe same discriminator as above, and this function proves it distinguishes the two cases: unobservable returns (nil,false,nil) while a definitive "no manifest" returns (nil,true,nil) a few lines below. Triaged 2026-08-14.
 	manifest, err := fetchManifestForReceipts(withAgentAuth(ctx), repo, publisherID, pkg)
 	if err != nil {
 		log.Printf("config-policy: fetch manifest failed for %s/%s@%s (policy unobservable; apply proceeds): %v", publisherID, pkg.GetName(), pkg.GetVersion(), err)

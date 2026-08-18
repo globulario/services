@@ -306,10 +306,34 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 	// Persist the node-reported inventory hash under the observed key.
 	// This is distinct from applied_hash_services which is only set by the
 	// reconciler when convergence with the desired state is confirmed.
+	//
+	// Issued off-lock, bounded, best-effort — the same shape as the
+	// nodeIdentityProj upsert below, and for the same reason. This write used
+	// to run synchronously on the HANDLER's context while srv.mu was held.
+	// srv.mu is the single global controller state lock and this is the
+	// heartbeat hot path, so one slow etcd round-trip here stalls every other
+	// node's heartbeat commit behind it. With a partitioned etcd member the
+	// handler context gave it no effective bound: observed 2026-08-12,
+	// "srv.mu held for 28.384131173s by \"ReportNodeStatus:commit\"". While the
+	// lock was held no LastSeen advanced, so invariantValidateNodeReachability
+	// read stale timestamps and declared healthy nodes — including the
+	// controller's OWN node — critically unreachable, which took the critical
+	// count to 2 and raised a cluster-wide quorum_loss alert from a
+	// single-node partition.
+	//
+	// The error was already log-only, so nothing downstream depended on it
+	// completing inline. Never make this synchronous again, and never hand it
+	// the handler context: an unbounded write under the state lock converts
+	// one slow peer into a false cluster-wide emergency.
 	if appliedSvcHash != "" && inventoryComplete {
-		if err := srv.putNodeObservedServiceHash(ctx, nodeID, appliedSvcHash); err != nil {
-			log.Printf("ReportNodeStatus: store observed service hash for %s: %v", nodeID, err)
-		}
+		hashNodeID, hashValue := nodeID, appliedSvcHash
+		go func() {
+			bg, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := srv.putNodeObservedServiceHash(bg, hashNodeID, hashValue); err != nil {
+				log.Printf("ReportNodeStatus: store observed service hash for %s: %v", hashNodeID, err)
+			}
+		}()
 	}
 	// Update installed versions when the node reports inventory, even if empty
 	// (inventoryComplete=true means the node has finished scanning).

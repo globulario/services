@@ -391,9 +391,20 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 				}
 			}
 			unit := packageUnit(pkgName)
+			// Enable before Start, for the same reason apply_package_release.go
+			// enables before Restart: the usual way a desired unit ends up
+			// loaded-but-inactive is the crash-loop suppressor, which
+			// `systemctl disable`s it. Starting without re-enabling repairs
+			// only the running process, not the boot contract — the unit comes
+			// back inactive on the next reboot and this same repair runs again,
+			// so the convergence SUCCEEDED reported below would not survive a
+			// restart (intent:install.result_requires_durable_commit).
+			if enableErr := supervisor.Enable(ctx, unit); enableErr != nil {
+				log.Printf("grpc-workflow: install-package %s: enable %s failed (proceeding to start): %v", pkgName, unit, enableErr)
+			}
 			if startErr := supervisor.Start(ctx, unit); startErr == nil {
 				if waitErr := supervisor.WaitActive(ctx, unit, 30*time.Second); waitErr == nil {
-					log.Printf("grpc-workflow: install-package %s: repair via Start succeeded", pkgName)
+					log.Printf("grpc-workflow: install-package %s: repair via Enable+Start succeeded", pkgName)
 					srv.emitConvergenceResult(&installed_state.ConvergenceResultV1{
 						ActionID:        convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
 						WorkflowID:      wfID,

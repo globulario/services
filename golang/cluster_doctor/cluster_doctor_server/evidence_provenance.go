@@ -50,7 +50,12 @@ func inferEvidenceSource(service, rpc string) evidence.Source {
 		return evidence.SourceVerifierAttestation
 	case s == "cluster_controller" || s == "cluster-controller":
 		return evidence.SourceControllerSnapshot
-	case s == "node_agent" || s == "node-agent":
+	case s == "node_agent" || s == "node-agent" ||
+		strings.HasPrefix(s, "node_agent@") || strings.HasPrefix(s, "node-agent@"):
+		// Per-node collector evidence preserves the writer instance as
+		// node_agent@<node_id>. It is still a node-agent service observation,
+		// not inferred evidence; retaining the instance is what lets harvest
+		// completeness be scoped to the remediation target.
 		return evidence.SourceServiceLog
 	case strings.Contains(s, "prometheus") || strings.Contains(s, "telemetry") || strings.Contains(s, "metric"):
 		return evidence.SourceTelemetry
@@ -67,7 +72,17 @@ func inferEvidenceSource(service, rpc string) evidence.Source {
 // returns the worst trust level across all entries. A finding with no
 // evidence is Untrusted (silence is not freshness).
 //
+// Verdict closure is part of the same central trust decision used by both
+// operator-driven ExecuteRemediation and background healer dispatch. Only a
+// conclusive FAIL with no CheckError can authorize privileged execution, even
+// when every individual evidence row is recent. Under reduced harvest the
+// registry preserves such a FAIL only when the missing collectors are
+// unrelated to the finding. Dry-run requests remain inspectable because
+// ExecuteRemediation intentionally allows dry-runs through the trust refusal.
 func findingEvidenceTrust(f rules.Finding, now time.Time) evidence.TrustLevel {
+	if eligible, _ := rules.RemediationEvidenceClosure(f); !eligible {
+		return evidence.TrustUntrusted
+	}
 	if len(f.Evidence) == 0 {
 		return evidence.TrustUntrusted
 	}

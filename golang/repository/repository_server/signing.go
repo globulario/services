@@ -48,8 +48,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gocql/gocql"
 	repopb "github.com/globulario/services/golang/repository/repositorypb"
+	"github.com/gocql/gocql"
 )
 
 // ── Public-key parsing ────────────────────────────────────────────────────
@@ -132,8 +132,8 @@ func (s *scyllaStore) getTrustedPublisher(ctx context.Context, publisherID, keyI
 		return nil, fmt.Errorf("scylla: not connected")
 	}
 	var (
-		pemBytes []byte
-		alg, ts, createdBy, notes string
+		pemBytes                           []byte
+		alg, ts, createdBy, notes          string
 		validFrom, validUntil, createdUnix int64
 	)
 	err := sess.Query(`SELECT public_key_pem, algorithm, trust_state,
@@ -182,8 +182,8 @@ func (s *scyllaStore) listTrustedPublishers(ctx context.Context, publisherID str
 	var out []*repopb.TrustedPublisher
 	var (
 		pubID, keyID, alg, ts, createdBy, notes string
-		pemBytes []byte
-		validFrom, validUntil, createdUnix int64
+		pemBytes                                []byte
+		validFrom, validUntil, createdUnix      int64
 	)
 	for iter.Scan(&pubID, &keyID, &pemBytes, &alg, &ts, &validFrom, &validUntil, &createdBy, &createdUnix, &notes) {
 		state := repopb.TrustState_TRUST_STATE_UNSPECIFIED
@@ -234,8 +234,8 @@ func (s *scyllaStore) listArtifactSignatures(ctx context.Context, artifactKey st
 	var out []*repopb.ArtifactSignature
 	var (
 		keyID, digest, alg, signedBy, provRef string
-		sigBytes []byte
-		signedAt int64
+		sigBytes                              []byte
+		signedAt                              int64
 	)
 	for iter.Scan(&keyID, &digest, &alg, &sigBytes, &signedBy, &signedAt, &provRef) {
 		buf := make([]byte, len(sigBytes))
@@ -257,7 +257,7 @@ func (s *scyllaStore) listArtifactSignatures(ctx context.Context, artifactKey st
 // These maps are guarded by the existing artifactStateMu — operators rarely
 // hit this path concurrently and the lock is already cheap.
 type trustCache struct {
-	publishers map[string]map[string]*repopb.TrustedPublisher // publisherID → keyID → row
+	publishers map[string]map[string]*repopb.TrustedPublisher  // publisherID → keyID → row
 	signatures map[string]map[string]*repopb.ArtifactSignature // artifactKey → keyID → sig
 }
 

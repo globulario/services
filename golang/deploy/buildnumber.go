@@ -28,6 +28,7 @@ func QueryLatestBuild(ctx context.Context, client *repository_client.Repository_
 		Kind:        repopb.ArtifactKind_SERVICE,
 	}
 
+	//go:uncertainty:declared-failsafe a repository read failure looks like "first publish" and would reset the build number, but the collision fails closed downstream: resolveVersionIntent(EXACT) rejects versions already in the PUBLISHED ledger (artifact_handlers.go:1355-1367), and identical bytes are idempotent. Triaged 2026-08-14.
 	manifest, err := client.GetArtifactManifest(ref, 0)
 	if err != nil {
 		// No artifact exists yet — first publish.

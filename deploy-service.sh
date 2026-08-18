@@ -27,7 +27,15 @@ GOLANG_DIR="${SERVICES_ROOT}/golang"
 STAGE_BIN="${GOLANG_DIR}/tools/stage/linux-amd64/usr/local/bin"
 GENERATED="${SERVICES_ROOT}/generated"
 SPECS_DIR="${GENERATED}/specs"
-VERSION="0.0.2"
+# Version comes from the committed source authority
+# (golang/build/package-versions.txt, materialized from each service's
+# zz_version_generated.go — see docs/design/package-identity-single-authority.md),
+# resolved after the package name is known. It used to default to a hardcoded
+# "0.0.2", which silently produced a package older than anything deployed: the
+# cluster ran ai-memory 1.2.312 while this script built and tried to publish
+# 0.0.2, i.e. a downgrade, which node.package_downgrade_requires_force_flag
+# forbids. --version still overrides for the hotfix lane.
+VERSION=""
 PUBLISHER="core@globular.io"
 PLATFORM="linux_amd64"
 # Repository address: resolve from etcd via the CLI, fall back to mesh routing.
@@ -124,6 +132,25 @@ if [[ -n "$COMMENT" ]]; then
     echo ""
 fi
 
+# Resolve the version from the committed source authority unless --version was
+# given. Registry names are hyphenated (ai-memory) while service dirs are
+# underscored (ai_memory). Fail loudly rather than guessing: publishing a version
+# nobody declared is how a downgrade reaches the cluster.
+if [[ -z "$VERSION" ]]; then
+    PKG_VERSIONS="${GOLANG_DIR}/build/package-versions.txt"
+    REG_NAME="${SERVICE//_/-}"
+    if [[ -f "$PKG_VERSIONS" ]]; then
+        VERSION="$(sed -n "s/^${REG_NAME}=//p" "$PKG_VERSIONS" | head -1)"
+    fi
+    if [[ -z "$VERSION" ]]; then
+        echo "ERROR: no version for '${REG_NAME}' in ${PKG_VERSIONS}." >&2
+        echo "       Regenerate it (scripts/gen-package-versions-from-source.sh) or pass --version." >&2
+        exit 1
+    fi
+    echo "  Version: ${VERSION} (from committed source authority)"
+    echo ""
+fi
+
 echo "→ Step 1: Determining build number..."
 
 CURRENT_BUILD=0
@@ -141,8 +168,13 @@ echo ""
 echo "→ Step 2: Building binary..."
 GO_PKG_REL="./${GO_PKG_DIR#${GOLANG_DIR}/}"
 # Inject version and build number via ldflags so the binary knows its identity at runtime.
-LDFLAGS="-X main.Version=${VERSION} -X main.BuildNumberStr=${NEXT_BUILD}"
-(cd "${GOLANG_DIR}" && go build -ldflags "${LDFLAGS}" -o "${STAGE_BIN}/${EXEC_NAME}" "${GO_PKG_REL}")
+# -s -w strips the symbol table and DWARF; -trimpath removes local paths. The
+# repository refuses a release-channel artifact carrying debug sections
+# ("release artifact carries debug section .debug_aranges"), so an unstripped
+# build here fails at publish after doing all the work. scripts/build-release.sh
+# has always built this way; this lane had not.
+LDFLAGS="-X main.Version=${VERSION} -X main.BuildNumberStr=${NEXT_BUILD} -s -w"
+(cd "${GOLANG_DIR}" && go build -trimpath -ldflags "${LDFLAGS}" -o "${STAGE_BIN}/${EXEC_NAME}" "${GO_PKG_REL}")
 echo "  ✓ Built ${EXEC_NAME} (version=${VERSION}, build=${NEXT_BUILD})"
 
 # Copy to payload

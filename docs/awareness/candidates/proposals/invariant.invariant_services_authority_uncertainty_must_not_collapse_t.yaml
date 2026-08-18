@@ -1,0 +1,42 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: invariant
+    id: invariant.services.authority_uncertainty_must_not_collapse_to_an_empty_scope_at
+    title: Authority uncertainty must not collapse to an empty scope at a verdict boundary
+    description: |-
+        When a component cannot determine authority information, that uncertainty must reach the decision. It must not be converted into a benign-looking zero value — an empty slice, a nil map, a default policy — and then flowed into an authorization, policy, verdict, or certification decision as if it were a determinate answer.
+
+        The recurring shape is a producer/consumer split, and the defect is always at the consumer:
+
+            producer:  error means "authority information unavailable"  (preserved carefully)
+            consumer:  log a warning
+                       x = zeroValue
+                       continue into Authorize / Evaluate / Verify / Admit / Resolve / Certify
+
+        The producer usually gets this right — often with a comment explaining why the error detail matters. The consumer erases it one call later. After that erasure, no downstream code can tell "there are no applicable resources" from "I could not find out which resources apply".
+
+        This is the generalized form of meta.fail_safe_defaults_when_authority_is_uncertain ("when the authority decision cannot be made, the default is REFUSE") and meta.absence_scope_must_be_explicit ("'not found where' is not the same as 'does not exist'"), stated at the point where it actually gets violated: the boundary, not the detection.
+
+        WHAT THIS DOES NOT SAY. An empty value is legitimate when it is the DECLARED fail-safe behaviour, established by a mechanism that is itself proven. cluster-doctor is the reference example of doing this correctly: 38 of 61 rules carry no local snap.HadError guard, and that is a deliberate, documented decision (docs/awareness/decisions/doctor-btail-guards-are-legibility-not-correctness.md). Correctness is centralised in two proven layers — snapshotSourceUnavailableFindings emits INVARIANT_UNKNOWN with a non-empty CheckError for every errored source (registry.go:402, wired at :353 and :642), and TestNoRuleEmitsConfidentFailureOnErroredSnapshot forbids confident failures from an errored snapshot. Both tests pass. Mechanically adding per-rule guards there would damage legitimate partial-snapshot reasoning.
+
+        So the test for a violation is NOT "is there a local guard". It is: can a downstream consumer distinguish unknown from determinate, by SOME proven mechanism? Centralised is fine. Absent is not.</description>
+        <parameter name="evidence">["ServerInterceptors.go:448-452 collapses a resource-info lookup error into an empty []*rbacpb.ResourceInfos and continues authorization; the producer at :340-343 had deliberately preserved a timeout sentinel citing meta.connection_errors_must_not_be_absorbed", "repository listTrustedPublishers (trusted_publisher.go:167-170) returns nil, nil when the directory read fails, making a storage outage indistinguishable from an empty publisher set", "loadSignaturePolicyFromEtcd (signature_policy.go:109-134) returns permissive defaults on unmarshal error, so a CORRUPT policy silently becomes no policy", "Counter-example proving the rule is satisfiable centrally: cluster-doctor's 38 unguarded rules are safe because snapshotSourceUnavailableFindings emits INVARIANT_UNKNOWN per errored source and TestEvaluateAll_EmptyFindings_SurfacesSourceUnavailable proves it reaches the report", "Counter-example of the consumer doing it right: the RBAC ValidateAction timeout path returns deny with the comment 'a stalled authorization service must NOT silently grant'"]
+    severity: high
+    source_files:
+        - golang/interceptors/ServerInterceptors.go
+        - golang/repository/repository_server/trusted_publisher.go
+        - golang/repository/repository_server/signature_policy.go
+        - golang/cluster_doctor/cluster_doctor_server/rules/registry.go
+    related_invariants:
+        - meta.fail_safe_defaults_when_authority_is_uncertain
+        - meta.absence_scope_must_be_explicit
+        - meta.connection_errors_must_not_be_absorbed
+        - meta.silence_is_not_valid_for_unexpected
+    forbidden_fixes:
+        - Add a local error guard to every call site as a mechanical sweep, without checking whether a proven central mechanism already carries the uncertainty
+    domain: github.com/globulario/services

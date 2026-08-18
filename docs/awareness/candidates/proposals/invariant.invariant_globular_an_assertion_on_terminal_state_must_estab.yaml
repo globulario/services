@@ -1,0 +1,26 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: invariant
+    id: invariant.globular.an_assertion_on_terminal_state_must_establish_the_causal_pre
+    title: An assertion on terminal state must establish the causal predicates its claim depends on
+    description: 'A test that observes only the final state of a mechanism proves that the state was reached, not that the mechanism reached it. Any other defect capable of driving the same terminal predicate true can counterfeit the assertion, and the test will report the property as verified while measuring the defect. The assertion must therefore establish the intermediate predicates its claim depends on, not just the endpoint. network-partition-fencing asserted only "node is fenced" — but the fenced state is reachable via ANY mechanism that produces stale LastSeen, and a controller lock-starvation bug was producing exactly that. The scenario reported network-partition fencing as working for as long as an unrelated defect happened to satisfy its endpoint. The claim "partition causes fencing" required the chain: partition -> heartbeat stops arriving -> LastSeen ages naturally -> staleness threshold crossed -> fence applied to that node only. This is distinct from instrument sensitivity (an observer that cannot see a true state): here the observer worked correctly and reported a true state that did not mean what the test claimed it meant.'
+    severity: high
+    source_files:
+        - tests/scenarios/resilience/network-partition-fencing.yaml
+    related_failures:
+        - a_defect_elsewhere_can_hold_a_chaos_assertion_true_so_removing_the_defect_looks_like_a_regression
+    forbidden_fixes:
+        - Certify a causal property from terminal state alone when another known defect or mechanism can satisfy the same predicate
+        - Restore a green assertion by relaxing the production threshold the assertion was measuring
+    evidence:
+        - network-partition-fencing asserted node5_fenced only. Controller lock starvation pre-aged LastSeen cluster-wide, satisfying the fence predicate without any genuine partition-driven staleness, so the assertion was green while measuring the wrong mechanism.
+        - Fixing the lock defect removed the counterfeit driver and the assertion began failing, presenting as a regression caused by the fix rather than as the loss of a false positive.
+        - Direct measurement of the full chain (blocked 19:06:04 -> fenced 19:22:03 = 959s, only the isolated node) was required to establish that the mechanism itself was correct.
+    repo: globulario/globular-quickstart
+    domain: globular
+    contract: An assertion may certify a causal claim only if the evidence path establishes the intermediate predicates the claim depends on. Observing the terminal predicate alone certifies reachability, not causation, and is invalid whenever another known mechanism can satisfy that predicate.

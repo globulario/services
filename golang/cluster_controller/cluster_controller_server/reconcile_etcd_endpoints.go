@@ -86,9 +86,20 @@ type etcdEndpointReconciler struct {
 	now      func() time.Time
 
 	listMembers       func(ctx context.Context) ([]memberSnapshot, error)
-	snapshotCoreNodes func() []string // returns routable IPs of core-profile ready nodes
-	writeToEtcd       func(ctx context.Context, key, value string) error
-	writeOutcome      func(ctx context.Context, out etcdEndpointReconcileOutcome) error
+	snapshotCoreNodes func() []string // returns routable IPs of core-profile READY nodes (quorum guard only)
+	// knownCoreNodes returns routable IPs of every core-profile node the
+	// controller knows, REGARDLESS of convergence status. Endpoint membership
+	// must not depend on whether a node happens to be mid-convergence: a node
+	// that is a live etcd member is reachable at its client URL whether its
+	// status says "ready" or "converging".
+	knownCoreNodes func() []string
+	// readEndpointList returns the currently published endpoint list, and
+	// whether the key exists. The reconciler writes only when the published
+	// value differs from desired — without this it cannot tell "already
+	// correct" from "needs correcting" and rewrites on every tick.
+	readEndpointList func(ctx context.Context) (string, bool, error)
+	writeToEtcd      func(ctx context.Context, key, value string) error
+	writeOutcome     func(ctx context.Context, out etcdEndpointReconcileOutcome) error
 }
 
 func newEtcdEndpointReconciler(srv *server) *etcdEndpointReconciler {
@@ -144,6 +155,46 @@ func newEtcdEndpointReconciler(srv *server) *etcdEndpointReconciler {
 			}
 		}
 		return ips
+	}
+	r.knownCoreNodes = func() []string {
+		srv.lock("etcd-endpoint-reconciler:known")
+		defer srv.unlock()
+		var ips []string
+		for _, n := range srv.state.Nodes {
+			if n == nil {
+				continue
+			}
+			hasCoreProfile := false
+			for _, p := range n.Profiles {
+				if p == "core" {
+					hasCoreProfile = true
+					break
+				}
+			}
+			if !hasCoreProfile {
+				continue
+			}
+			// Deliberately NOT filtered on n.Status — see knownCoreNodes doc.
+			if ip := nodeRoutableIP(n); ip != "" {
+				ips = append(ips, ip)
+			}
+		}
+		return ips
+	}
+	r.readEndpointList = func(ctx context.Context) (string, bool, error) {
+		if srv.etcdClient == nil {
+			return "", false, fmt.Errorf("etcd client not initialised")
+		}
+		rctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		resp, err := srv.etcdClient.Get(rctx, etcdEndpointListKey)
+		if err != nil {
+			return "", false, err
+		}
+		if len(resp.Kvs) == 0 {
+			return "", false, nil
+		}
+		return string(resp.Kvs[0].Value), true, nil
 	}
 	r.writeToEtcd = func(ctx context.Context, key, value string) error {
 		if srv.etcdClient == nil {
@@ -203,9 +254,47 @@ func (r *etcdEndpointReconciler) reconcileOnce(ctx context.Context) {
 		return
 	}
 
-	desired := computeDesiredEndpoints(coreIPs)
-	stale := detectStaleEtcdMembers(members, coreIPs)
+	// Endpoint membership comes from etcd's OWN member list, filtered to nodes
+	// this controller knows carry the core profile. It must NOT be derived from
+	// node convergence status.
+	//
+	// It was: desired = computeDesiredEndpoints(coreIPs) where coreIPs held only
+	// nodes with Status ready/admitted, while drift was measured against the live
+	// member list. Those are two different authorities, so they disagreed
+	// whenever any core node was mid-convergence, and the disagreement could not
+	// be resolved by writing — every tick re-detected drift and rewrote the key.
+	//
+	// Observed 2026-08-10 on a converging 5-node cluster: `live=5` on every pass
+	// while the published list was rewritten to a rotating 3-member subset —
+	// [.12 .14 .15], then [.11 .14 .15], then [.13 .14 .15] — each one omitting
+	// two members that were live in etcd, and each labelling those live members
+	// "stale". Publishing an endpoint list that omits reachable members is a
+	// direct hazard to invariant:etcd.endpoint_reachability (a service starting
+	// in that window can be handed endpoints it cannot reach), and deriving
+	// membership from anything but etcd forks the truth
+	// (intent:etcd.is_source_of_truth).
+	knownIPs := coreIPs
+	if r.knownCoreNodes != nil {
+		if all := r.knownCoreNodes(); len(all) > 0 {
+			knownIPs = all
+		}
+	}
+	desired := computeDesiredEndpoints(knownIPs)
+	stale := detectStaleEtcdMembers(members, knownIPs)
+
+	// Drift is what the PUBLISHED list says, when we can read it: that is the
+	// value other services actually consume, so it decides both ways — an
+	// already-correct list is left alone, and a wrong one is corrected even
+	// while live membership happens to agree with desired. The membership
+	// comparison is only the fallback for when the read fails.
 	drift := detectEtcdEndpointDrift(members, desired)
+	if r.readEndpointList != nil {
+		if current, found, err := r.readEndpointList(ctx); err != nil {
+			log.Printf("etcd-endpoint-reconciler: read published endpoint list: %v — falling back to membership comparison", err)
+		} else {
+			drift = !found || !publishedEndpointsMatch(current, desired)
+		}
+	}
 
 	if len(stale) > 0 {
 		log.Printf("etcd-endpoint-reconciler: stale members (no auto-remove): %v", stale)
@@ -271,6 +360,29 @@ func (r *etcdEndpointReconciler) reconcileOnce(ctx context.Context) {
 
 // computeDesiredEndpoints returns a sorted list of etcd client endpoints
 // (https://{ip}:2379) for the given core-node IPs.
+// publishedEndpointsMatch reports whether the JSON currently stored at
+// etcdEndpointListKey already holds exactly the desired endpoint set.
+// Compared as a SET so a reordering never counts as drift.
+func publishedEndpointsMatch(published string, desired []string) bool {
+	var current []string
+	if err := json.Unmarshal([]byte(published), &current); err != nil {
+		return false
+	}
+	if len(current) != len(desired) {
+		return false
+	}
+	set := make(map[string]bool, len(current))
+	for _, ep := range current {
+		set[ep] = true
+	}
+	for _, ep := range desired {
+		if !set[ep] {
+			return false
+		}
+	}
+	return true
+}
+
 func computeDesiredEndpoints(coreIPs []string) []string {
 	eps := make([]string, 0, len(coreIPs))
 	for _, ip := range coreIPs {

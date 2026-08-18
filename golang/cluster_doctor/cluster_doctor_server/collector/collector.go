@@ -46,6 +46,7 @@ package collector
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -92,6 +93,15 @@ type Collector struct {
 	aiMemoryClient      ai_memorypb.AiMemoryServiceClient // optional; nil until WithAiMemoryClient
 	clusterID           string
 	cache               *SnapshotCache
+
+	// verificationWriteMu guards verificationWriteHashes, the per-key content
+	// hashes of the last verdict successfully written by
+	// persistVerificationResults. It exists to stop that write re-Putting
+	// byte-identical payloads on every collection cycle — see the comment there
+	// for why that mattered. It is NOT a correctness cache: a missing entry only
+	// means "write it again", never "assume it is current".
+	verificationWriteMu     sync.Mutex
+	verificationWriteHashes map[string][sha256.Size]byte
 
 	connMu     sync.Mutex
 	agentConns map[string]*grpc.ClientConn // keyed by AgentEndpoint
