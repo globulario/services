@@ -9,7 +9,14 @@ func TestProvenRequiresProofForExactCandidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.Stage = StageProven
-	e.Proofs = []ProofRecord{{Scenario: "controller-zombie-after-lease-loss", CandidateRepository: "globulario/services", CandidateRevision: "other-sha", Result: "PASS", ProofEligible: true}}
+	e.Proofs = []ProofRecord{{
+		Scenario:            "controller-zombie-after-lease-loss",
+		CandidateRepository: "globulario/services",
+		CandidateRevision:   "other-sha",
+		PlanDigest:          e.PlanDigest,
+		Result:              "PASS",
+		ProofEligible:       true,
+	}}
 	if err := e.Validate(); err == nil {
 		t.Fatal("expected candidate revision mismatch")
 	}
@@ -19,15 +26,20 @@ func TestProvenRequiresProofForExactCandidate(t *testing.T) {
 	}
 }
 
-func TestAdmissionMustBindCandidate(t *testing.T) {
+func TestAdmissionMustBindCandidateAndPlan(t *testing.T) {
 	e := NewChangeEnvelope("chg-2", ChangeFeature, "new feature", "source-sha", RiskMedium)
 	if err := e.BindCandidate("globulario/services", "candidate-sha"); err != nil {
 		t.Fatal(err)
 	}
 	e.Stage = StageAdmitted
-	e.Admission = AdmissionRecord{Status: "ACCEPT", Revision: "wrong-sha"}
+	e.Admission = AdmissionRecord{Status: "ACCEPT", Revision: "wrong-sha", PlanDigest: e.PlanDigest}
 	if err := e.Validate(); err == nil {
 		t.Fatal("expected admission revision mismatch")
+	}
+	e.Admission.Revision = "candidate-sha"
+	e.Admission.PlanDigest = "sha256:wrong-plan"
+	if err := e.Validate(); err == nil {
+		t.Fatal("expected admission plan mismatch")
 	}
 }
 
