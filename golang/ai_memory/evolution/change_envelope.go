@@ -59,6 +59,17 @@ type ScenarioRequirement struct {
 	Required   bool   `json:"required" yaml:"required"`
 }
 
+// TestRequirement freezes the command that constitutes a required test. The
+// trusted test runner executes this exact command; an agent cannot substitute a
+// cheaper command while keeping the same test name.
+type TestRequirement struct {
+	Name       string   `json:"name" yaml:"name"`
+	Repository string   `json:"repository,omitempty" yaml:"repository,omitempty"`
+	WorkDir    string   `json:"work_dir,omitempty" yaml:"work_dir,omitempty"`
+	Command    []string `json:"command" yaml:"command"`
+	Required   bool     `json:"required" yaml:"required"`
+}
+
 type ProofRecord struct {
 	Scenario            string `json:"scenario" yaml:"scenario"`
 	Repository          string `json:"repository,omitempty" yaml:"repository,omitempty"`
@@ -73,14 +84,15 @@ type ProofRecord struct {
 }
 
 // TestRecord proves one required local/static/invariant test against the exact
-// candidate revision. A scenario PASS cannot substitute for a missing test.
+// candidate revision and records the exact command that was executed.
 type TestRecord struct {
-	Name                string `json:"name" yaml:"name"`
-	CandidateRepository string `json:"candidate_repository,omitempty" yaml:"candidate_repository,omitempty"`
-	CandidateRevision   string `json:"candidate_revision" yaml:"candidate_revision"`
-	Result              string `json:"result" yaml:"result"`
-	EvidenceRef         string `json:"evidence_ref,omitempty" yaml:"evidence_ref,omitempty"`
-	Digest              string `json:"digest,omitempty" yaml:"digest,omitempty"`
+	Name                string   `json:"name" yaml:"name"`
+	CandidateRepository string   `json:"candidate_repository,omitempty" yaml:"candidate_repository,omitempty"`
+	CandidateRevision   string   `json:"candidate_revision" yaml:"candidate_revision"`
+	Command             []string `json:"command" yaml:"command"`
+	Result              string   `json:"result" yaml:"result"`
+	EvidenceRef         string   `json:"evidence_ref,omitempty" yaml:"evidence_ref,omitempty"`
+	Digest              string   `json:"digest,omitempty" yaml:"digest,omitempty"`
 }
 
 type AdmissionRecord struct {
@@ -128,7 +140,7 @@ type ChangeEnvelope struct {
 	ForbiddenRepairs       []string              `json:"forbidden_repairs,omitempty" yaml:"forbidden_repairs,omitempty"`
 	ProductionEvidence     []ArtifactRef         `json:"production_evidence,omitempty" yaml:"production_evidence,omitempty"`
 	RequiredScenarios      []ScenarioRequirement `json:"required_scenarios,omitempty" yaml:"required_scenarios,omitempty"`
-	RequiredTests          []string              `json:"required_tests,omitempty" yaml:"required_tests,omitempty"`
+	RequiredTests          []TestRequirement     `json:"required_tests,omitempty" yaml:"required_tests,omitempty"`
 	Tests                  []TestRecord          `json:"tests,omitempty" yaml:"tests,omitempty"`
 	Proofs                 []ProofRecord         `json:"proofs,omitempty" yaml:"proofs,omitempty"`
 	Admission              AdmissionRecord       `json:"admission,omitempty" yaml:"admission,omitempty"`
@@ -192,7 +204,7 @@ func (e ChangeEnvelope) Validate() error {
 	if err := validateUnique("forbidden_repairs", e.ForbiddenRepairs); err != nil {
 		return err
 	}
-	if err := validateUnique("required_tests", e.RequiredTests); err != nil {
+	if err := validateTestRequirements(e.RequiredTests); err != nil {
 		return err
 	}
 
@@ -310,10 +322,13 @@ func (e ChangeEnvelope) validateProofClosure() error {
 		}
 	}
 
-	requiredTests := make(map[string]bool, len(e.RequiredTests))
-	for _, name := range e.RequiredTests {
-		requiredTests[name] = false
+	requiredTests := map[string]TestRequirement{}
+	for _, requirement := range e.RequiredTests {
+		if requirement.Required {
+			requiredTests[requirement.Name] = requirement
+		}
 	}
+	satisfiedTests := map[string]bool{}
 	for _, test := range e.Tests {
 		if test.CandidateRepository != "" && test.CandidateRepository != e.CandidateRepository {
 			return fmt.Errorf(
@@ -331,14 +346,16 @@ func (e ChangeEnvelope) validateProofClosure() error {
 				e.CandidateRevision,
 			)
 		}
-		if test.Result == "PASS" {
-			if _, ok := requiredTests[test.Name]; ok {
-				requiredTests[test.Name] = true
+		requirement, required := requiredTests[test.Name]
+		if required && test.Result == "PASS" {
+			if !stringSlicesEqual(test.Command, requirement.Command) {
+				return fmt.Errorf("test %q command does not match declared requirement", test.Name)
 			}
+			satisfiedTests[test.Name] = true
 		}
 	}
-	for name, satisfied := range requiredTests {
-		if !satisfied {
+	for name := range requiredTests {
+		if !satisfiedTests[name] {
 			return fmt.Errorf(
 				"required test %q has no PASS record for candidate revision %s",
 				name,
@@ -351,18 +368,20 @@ func (e ChangeEnvelope) validateProofClosure() error {
 
 func (e ChangeEnvelope) IdentityDigest() (string, error) {
 	identity := struct {
-		SchemaVersion      int        `json:"schema_version"`
-		ID                 string     `json:"change_id"`
-		Kind               ChangeKind `json:"kind"`
-		Intent             string     `json:"intent"`
-		SourceRevision     string     `json:"source_revision"`
-		ProductionRevision string     `json:"production_revision,omitempty"`
-		RiskClass          RiskClass  `json:"risk_class"`
-		AuthorityScope     []string   `json:"authority_scope,omitempty"`
-		GoverningContracts []string   `json:"governing_contracts,omitempty"`
-		RelevantInvariants []string   `json:"relevant_invariants,omitempty"`
-		KnownFailureModes  []string   `json:"known_failure_modes,omitempty"`
-		ForbiddenRepairs   []string   `json:"forbidden_repairs,omitempty"`
+		SchemaVersion      int                   `json:"schema_version"`
+		ID                 string                `json:"change_id"`
+		Kind               ChangeKind            `json:"kind"`
+		Intent             string                `json:"intent"`
+		SourceRevision     string                `json:"source_revision"`
+		ProductionRevision string                `json:"production_revision,omitempty"`
+		RiskClass          RiskClass             `json:"risk_class"`
+		AuthorityScope     []string              `json:"authority_scope,omitempty"`
+		GoverningContracts []string              `json:"governing_contracts,omitempty"`
+		RelevantInvariants []string              `json:"relevant_invariants,omitempty"`
+		KnownFailureModes  []string              `json:"known_failure_modes,omitempty"`
+		ForbiddenRepairs   []string              `json:"forbidden_repairs,omitempty"`
+		RequiredScenarios  []ScenarioRequirement `json:"required_scenarios,omitempty"`
+		RequiredTests      []TestRequirement     `json:"required_tests,omitempty"`
 	}{
 		SchemaVersion:      e.SchemaVersion,
 		ID:                 e.ID,
@@ -376,6 +395,8 @@ func (e ChangeEnvelope) IdentityDigest() (string, error) {
 		RelevantInvariants: sorted(e.RelevantInvariants),
 		KnownFailureModes:  sorted(e.KnownFailureModes),
 		ForbiddenRepairs:   sorted(e.ForbiddenRepairs),
+		RequiredScenarios:  canonicalScenarios(e.RequiredScenarios),
+		RequiredTests:      canonicalTests(e.RequiredTests),
 	}
 	encoded, err := json.Marshal(identity)
 	if err != nil {
@@ -439,6 +460,69 @@ func validateUnique(name string, values []string) error {
 		seen[value] = struct{}{}
 	}
 	return nil
+}
+
+func validateTestRequirements(requirements []TestRequirement) error {
+	seen := map[string]struct{}{}
+	for _, requirement := range requirements {
+		name := strings.TrimSpace(requirement.Name)
+		if name == "" {
+			return fmt.Errorf("required_tests contains an empty name")
+		}
+		if _, ok := seen[name]; ok {
+			return fmt.Errorf("required_tests contains duplicate %q", name)
+		}
+		seen[name] = struct{}{}
+		if requirement.Required && len(requirement.Command) == 0 {
+			return fmt.Errorf("required test %q has no command", name)
+		}
+		for _, arg := range requirement.Command {
+			if strings.TrimSpace(arg) == "" {
+				return fmt.Errorf("required test %q command contains an empty argument", name)
+			}
+		}
+	}
+	return nil
+}
+
+func stringSlicesEqual(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for idx := range left {
+		if left[idx] != right[idx] {
+			return false
+		}
+	}
+	return true
+}
+
+func canonicalScenarios(in []ScenarioRequirement) []ScenarioRequirement {
+	out := append([]ScenarioRequirement(nil), in...)
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Name != out[j].Name {
+			return out[i].Name < out[j].Name
+		}
+		if out[i].Repository != out[j].Repository {
+			return out[i].Repository < out[j].Repository
+		}
+		return out[i].Path < out[j].Path
+	})
+	return out
+}
+
+func canonicalTests(in []TestRequirement) []TestRequirement {
+	out := append([]TestRequirement(nil), in...)
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Name != out[j].Name {
+			return out[i].Name < out[j].Name
+		}
+		if out[i].Repository != out[j].Repository {
+			return out[i].Repository < out[j].Repository
+		}
+		return out[i].WorkDir < out[j].WorkDir
+	})
+	return out
 }
 
 func sorted(in []string) []string {
