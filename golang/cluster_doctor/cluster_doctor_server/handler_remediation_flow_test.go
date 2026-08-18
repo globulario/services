@@ -81,7 +81,10 @@ func TestExecuteRemediation_EscalationClearsOnApprovalThenReturnsToCooldown(t *t
 		lastFindings: []rules.Finding{{
 			FindingID:   findingID,
 			InvariantID: "runtime.desired_enabled_not_alive",
-			Summary:     "unit is not running",
+			// Conclusive by construction: this fixture exercises the cooldown and
+			// escalation path, not verdict closure.
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+			Summary:         "unit is not running",
 			Evidence: []*cluster_doctorpb.Evidence{{
 				SourceService: "cluster_controller",
 				SourceRpc:     "GetClusterHealthV1",
@@ -153,7 +156,9 @@ func TestExecuteRemediation_RejectsWhenFindingHasNoInvariantOrEvidence(t *testin
 	srv := &ClusterDoctorServer{
 		executor: &ActionExecutor{nodeAgentDialer: &fakeNodeAgentDialer{}},
 		lastFindings: []rules.Finding{{
-			FindingID: findingID,
+			FindingID:       findingID,
+			InvariantID:     "runtime.desired_enabled_not_alive",
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
 			Remediation: []*cluster_doctorpb.RemediationStep{{
 				Order: 1,
 				Action: &cluster_doctorpb.RemediationAction{
@@ -214,8 +219,11 @@ func TestExecuteRemediation_RequiresApprovalAfterRepeatedFailures(t *testing.T) 
 		lastFindings: []rules.Finding{{
 			FindingID:   "finding-failure-escalation",
 			InvariantID: "runtime.desired_enabled_not_alive",
-			Summary:     "unit is not running",
-			Evidence:    ev,
+			// Conclusive by construction: this fixture exercises the failure-rate
+			// breaker, not verdict closure.
+			InvariantStatus: cluster_doctorpb.InvariantStatus_INVARIANT_FAIL,
+			Summary:         "unit is not running",
+			Evidence:        ev,
 			Remediation: []*cluster_doctorpb.RemediationStep{{
 				Order: 1,
 				Action: &cluster_doctorpb.RemediationAction{
