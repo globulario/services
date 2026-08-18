@@ -93,7 +93,9 @@ func (e ChangeEnvelope) ProofStatus() ProofStatus {
 				continue
 			}
 			found = true
-			passed = record.Result == "PASS" && stringSlicesEqual(record.Command, requirement.Command)
+			passed = record.Result == "PASS" &&
+				record.PlanDigest == e.PlanDigest &&
+				stringSlicesEqual(record.Command, requirement.Command)
 			break
 		}
 		if !found {
@@ -113,7 +115,7 @@ func (e ChangeEnvelope) ProofStatus() ProofStatus {
 				continue
 			}
 			found = true
-			passed = proof.Result == "PASS" && proof.ProofEligible
+			passed = proof.Result == "PASS" && proof.ProofEligible && proof.PlanDigest == e.PlanDigest
 			break
 		}
 		if !found {
