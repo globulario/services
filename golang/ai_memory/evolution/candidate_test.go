@@ -7,8 +7,8 @@ func TestBindCandidateClearsEvidenceWhenRevisionChanges(t *testing.T) {
 	if err := e.BindCandidate("globulario/services", "sha-a"); err != nil {
 		t.Fatal(err)
 	}
-	e.Tests = []TestRecord{{Name: "test", CandidateRevision: "sha-a", Result: "PASS"}}
-	e.Proofs = []ProofRecord{{Scenario: "scenario", CandidateRevision: "sha-a", Result: "PASS", ProofEligible: true}}
+	e.Tests = []TestRecord{{Name: "test", CandidateRevision: "sha-a", PlanDigest: e.PlanDigest, Result: "PASS"}}
+	e.Proofs = []ProofRecord{{Scenario: "scenario", CandidateRevision: "sha-a", PlanDigest: e.PlanDigest, Result: "PASS", ProofEligible: true}}
 	if err := e.BindCandidate("globulario/services", "sha-b"); err != nil {
 		t.Fatal(err)
 	}
@@ -23,7 +23,7 @@ func TestBindCandidateRefusesAfterAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.Stage = StageAdmitted
-	e.Admission = AdmissionRecord{Status: "ACCEPT", Revision: "sha-a"}
+	e.Admission = AdmissionRecord{Status: "ACCEPT", Revision: "sha-a", PlanDigest: e.PlanDigest}
 	if err := e.BindCandidate("globulario/services", "sha-b"); err == nil {
 		t.Fatal("expected admitted candidate to be immutable")
 	}
@@ -40,8 +40,8 @@ func TestProofStatusNamesMissingEvidenceAndAdmissionBoundary(t *testing.T) {
 	if len(status.MissingRequiredTests) != 1 || len(status.MissingScenarios) != 1 || status.ProofComplete {
 		t.Fatalf("unexpected incomplete status: %+v", status)
 	}
-	e.Tests = []TestRecord{{Name: "unit", CandidateRevision: "sha", Command: []string{"go", "test"}, Result: "PASS"}}
-	e.Proofs = []ProofRecord{{Scenario: "chaos", CandidateRevision: "sha", Result: "PASS", ProofEligible: true}}
+	e.Tests = []TestRecord{{Name: "unit", CandidateRevision: "sha", PlanDigest: e.PlanDigest, Command: []string{"go", "test"}, Result: "PASS"}}
+	e.Proofs = []ProofRecord{{Scenario: "chaos", CandidateRevision: "sha", PlanDigest: e.PlanDigest, Result: "PASS", ProofEligible: true}}
 	e.Stage = StageProven
 	status = e.ProofStatus()
 	if !status.ProofComplete || status.NextAuthorityBoundary != "sensei_admission" {
