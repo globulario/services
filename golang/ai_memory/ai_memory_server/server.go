@@ -1200,21 +1200,29 @@ func loadBehavioralSeed(st store.Store) {
 	if _, ok := st.(store.Unconfigured); ok {
 		return // no persistence backend wired
 	}
-	pack, err := cluster_operator.New()
-	if err != nil {
-		logger.Error("behavioral seed: cluster_operator pack invalid", "err", err)
-		return
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	res, err := domain.LoadCatalogs(ctx, st, behavioralSeedProject, pack)
-	if err != nil {
-		logger.Warn("behavioral seed: cluster_operator load failed (non-fatal)", "err", err)
-		return
+
+	// Every pack this build ships, from the same list the registry uses. Seeding
+	// only cluster_operator while registering more left the other domains
+	// resolvable but catalog-empty in the store, which is where the discovery
+	// and promotion surfaces actually read from.
+	for _, p := range shippedPacks() {
+		pack, err := p.load()
+		if err != nil {
+			logger.Error("behavioral seed: pack invalid — its domain will have no catalogs in the store",
+				"pack", p.name, "err", err)
+			continue
+		}
+		res, err := domain.LoadCatalogs(ctx, st, behavioralSeedProject, pack)
+		if err != nil {
+			logger.Warn("behavioral seed: load failed (non-fatal)", "pack", p.name, "err", err)
+			continue
+		}
+		logger.Info("behavioral seed: pack loaded", "pack", p.name,
+			"authorities", res.Authorities, "conditions", res.Conditions,
+			"principles_seeded", res.PrinciplesSeeded, "principles_skipped", res.PrinciplesSkipped)
 	}
-	logger.Info("behavioral seed: cluster_operator loaded",
-		"authorities", res.Authorities, "conditions", res.Conditions,
-		"principles_seeded", res.PrinciplesSeeded, "principles_skipped", res.PrinciplesSkipped)
 }
 
 func main() {
