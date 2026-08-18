@@ -35,6 +35,7 @@ func provenFixture(t *testing.T, planMutators ...func(*ChangeEnvelope)) ChangeEn
 		PlanDigest:          e.PlanDigest,
 		Command:             []string{"go", "test", "./..."},
 		Result:              "PASS",
+		InvocationID:        "inv-t1",
 		EvidenceRef:         "evidence/tests/unit.log",
 		Digest:              "sha256:unit-evidence",
 	}}

@@ -21,6 +21,7 @@ type TestRunOptions struct {
 
 type TestRunResult struct {
 	ExitCode     int
+	InvocationID string
 	EvidencePath string
 	Record       TestRecord
 	MarkedProven bool
@@ -63,6 +64,10 @@ func RunDeclaredTest(ctx context.Context, opts TestRunOptions) (TestRunResult, e
 		return TestRunResult{}, fmt.Errorf("test %q has no declared command", requirement.Name)
 	}
 
+	invocationID, err := newInvocationID()
+	if err != nil {
+		return TestRunResult{}, err
+	}
 	identity := envelope.Identity()
 	// A rerun that cannot execute must not leave the previous PASS standing. A
 	// missing executable, a cancelled context, an unusable workspace — none of
@@ -124,11 +129,19 @@ func RunDeclaredTest(ctx context.Context, opts TestRunOptions) (TestRunResult, e
 		}
 	}
 
+	// One invocation, one artifact. A shared <test-name>.log lets two concurrent
+	// runs of the same required test write the same file, so one can overwrite it
+	// between the other's write and its digest — and a passing run could then
+	// record PASS over a failing sibling's output and land as the last mutation,
+	// leaving the candidate PROVEN on evidence from an execution that is not the
+	// one it names. The scenario runner already owns its output this way; the
+	// test leg never inherited it.
 	evidenceDir := filepath.Join(
 		filepath.Dir(opts.EnvelopePath),
 		".evolution-evidence",
 		safeEvidenceName(envelope.ID),
 		"tests",
+		safeEvidenceName(invocationID),
 	)
 	if err := os.MkdirAll(evidenceDir, 0o755); err != nil {
 		return fail(fmt.Errorf("create test evidence dir: %w", err))
@@ -153,6 +166,7 @@ func RunDeclaredTest(ctx context.Context, opts TestRunOptions) (TestRunResult, e
 		CandidateRepository: envelope.CandidateRepository,
 		CandidateRevision:   envelope.CandidateRevision,
 		PlanDigest:          envelope.PlanDigest,
+		InvocationID:        invocationID,
 		Command:             append([]string(nil), requirement.Command...),
 		Result:              result,
 		EvidenceRef:         evidencePath,
@@ -166,6 +180,7 @@ func RunDeclaredTest(ctx context.Context, opts TestRunOptions) (TestRunResult, e
 	}
 	return TestRunResult{
 		ExitCode:     exitCode,
+		InvocationID: invocationID,
 		EvidencePath: evidencePath,
 		Record:       record,
 		MarkedProven: marked,

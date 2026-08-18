@@ -31,6 +31,9 @@ func (e ChangeEnvelope) ValidateEvidenceIdentity() error {
 			if strings.TrimSpace(record.CandidateRepository) == "" {
 				return fmt.Errorf("required test %q names no candidate repository", requirement.Name)
 			}
+			if strings.TrimSpace(record.InvocationID) == "" {
+				return fmt.Errorf("required test %q names no invocation id", requirement.Name)
+			}
 			if strings.TrimSpace(record.EvidenceRef) == "" {
 				return fmt.Errorf("required test %q has no evidence_ref", requirement.Name)
 			}

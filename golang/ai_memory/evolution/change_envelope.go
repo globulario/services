@@ -92,6 +92,7 @@ type TestRecord struct {
 	CandidateRepository string   `json:"candidate_repository,omitempty" yaml:"candidate_repository,omitempty"`
 	CandidateRevision   string   `json:"candidate_revision" yaml:"candidate_revision"`
 	PlanDigest          string   `json:"plan_digest" yaml:"plan_digest"`
+	InvocationID        string   `json:"invocation_id,omitempty" yaml:"invocation_id,omitempty"`
 	Command             []string `json:"command" yaml:"command"`
 	Result              string   `json:"result" yaml:"result"`
 	EvidenceRef         string   `json:"evidence_ref,omitempty" yaml:"evidence_ref,omitempty"`

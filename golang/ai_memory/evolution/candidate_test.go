@@ -42,7 +42,7 @@ func TestProofStatusNamesMissingEvidenceAndAdmissionBoundary(t *testing.T) {
 	}
 	e.Tests = []TestRecord{{
 		Name: "unit", CandidateRepository: "globulario/services",
-		CandidateRevision: "sha", PlanDigest: e.PlanDigest,
+		CandidateRevision: "sha", PlanDigest: e.PlanDigest, InvocationID: "inv-t1",
 		Command: []string{"go", "test"}, Result: "PASS",
 		EvidenceRef: "tests/unit.log", Digest: "sha256:unit",
 	}}

@@ -63,6 +63,7 @@ func TestMarkProvenOnlyAfterRequiredTestAndScenarioClosure(t *testing.T) {
 		PlanDigest:          e.PlanDigest,
 		Command:             []string{"go", "test", "./ai_memory/evolution"},
 		Result:              "PASS",
+		InvocationID:        "inv-t1",
 		EvidenceRef:         "tests/go-test-evolution.log",
 		Digest:              "sha256:go-test-evolution",
 	})

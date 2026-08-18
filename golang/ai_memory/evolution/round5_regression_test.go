@@ -107,15 +107,19 @@ func TestUnwritableEvidenceWithdrawsStandingProof(t *testing.T) {
 	}
 	_ = revision
 
-	// The evidence log becomes unwritable between runs, so this invocation can
-	// execute the command but cannot persist what it observed.
-	if err := os.Chmod(first.Record.EvidenceRef, 0o444); err != nil {
+	// Each invocation now owns its own evidence directory, so a previous log
+	// cannot block a later run — that collision is gone by construction. The law
+	// still has to hold though: make the directory those invocation dirs are
+	// created under unwritable, so this run executes the command but cannot
+	// persist what it observed.
+	testsRoot := filepath.Dir(filepath.Dir(first.Record.EvidenceRef))
+	if err := os.Chmod(testsRoot, 0o555); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(first.Record.EvidenceRef, 0o644) })
-	if f, err := os.OpenFile(first.Record.EvidenceRef, os.O_WRONLY|os.O_TRUNC, 0o644); err == nil {
-		_ = f.Close()
-		t.Skip("evidence log is still writable; cannot exercise the failure")
+	t.Cleanup(func() { _ = os.Chmod(testsRoot, 0o755) })
+	if err := os.Mkdir(filepath.Join(testsRoot, "probe"), 0o755); err == nil {
+		_ = os.Remove(filepath.Join(testsRoot, "probe"))
+		t.Skip("evidence root is still writable; cannot exercise the failure")
 	}
 
 	if _, err := runCandidateTest(t, workspace, envelopePath); err == nil {
@@ -584,5 +588,48 @@ func TestRunResultWithoutEvidenceDoesNotCertify(t *testing.T) {
 				t.Fatal("a record that can never certify reported success")
 			}
 		})
+	}
+}
+
+// One invocation, one artifact — on the local-test leg too. Two runs of the same
+// required test must not share an evidence path, or one can overwrite the file
+// between the other's write and its digest.
+func TestConcurrentTestRunsDoNotShareAnEvidencePath(t *testing.T) {
+	workspace, _, envelopePath := candidateUnderTest(t, "chg-evidence-collision")
+
+	first, err := runCandidateTest(t, workspace, envelopePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := runCandidateTest(t, workspace, envelopePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.InvocationID == "" || first.InvocationID == second.InvocationID {
+		t.Fatalf("test runs share an invocation identity: %q / %q", first.InvocationID, second.InvocationID)
+	}
+	if first.Record.EvidenceRef == second.Record.EvidenceRef {
+		t.Fatalf("two invocations wrote the same evidence path: %s", first.Record.EvidenceRef)
+	}
+	// The earlier artifact is still intact and still hashes to what it recorded,
+	// so a concurrent sibling could not have rewritten it.
+	digest, err := DigestFiles(first.Record.EvidenceRef)
+	if err != nil {
+		t.Fatalf("earlier evidence no longer readable: %v", err)
+	}
+	if digest != first.Record.Digest {
+		t.Fatal("a later invocation overwrote an earlier invocation's evidence")
+	}
+	if second.Record.InvocationID != second.InvocationID {
+		t.Fatalf("record does not name the invocation that produced it: %+v", second.Record)
+	}
+}
+
+// The test leg must carry the same occurrence identity the scenario leg does.
+func TestTestRecordWithoutInvocationIsNotEvidence(t *testing.T) {
+	e := provenFixture(t)
+	e.Tests[0].InvocationID = ""
+	if err := e.Validate(); err == nil {
+		t.Fatal("a test record naming no invocation was accepted as evidence")
 	}
 }
