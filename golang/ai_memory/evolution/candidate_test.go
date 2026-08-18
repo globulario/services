@@ -19,9 +19,10 @@ func TestBindCandidateClearsEvidenceWhenRevisionChanges(t *testing.T) {
 
 func TestBindCandidateRefusesAfterAdmission(t *testing.T) {
 	e := NewChangeEnvelope("chg-admitted", ChangeFeature, "feature", "source", RiskHigh)
+	if err := e.BindCandidate("globulario/services", "sha-a"); err != nil {
+		t.Fatal(err)
+	}
 	e.Stage = StageAdmitted
-	e.CandidateRepository = "globulario/services"
-	e.CandidateRevision = "sha-a"
 	e.Admission = AdmissionRecord{Status: "ACCEPT", Revision: "sha-a"}
 	if err := e.BindCandidate("globulario/services", "sha-b"); err == nil {
 		t.Fatal("expected admitted candidate to be immutable")
@@ -30,11 +31,11 @@ func TestBindCandidateRefusesAfterAdmission(t *testing.T) {
 
 func TestProofStatusNamesMissingEvidenceAndAdmissionBoundary(t *testing.T) {
 	e := NewChangeEnvelope("chg-status", ChangeSimulationRepair, "repair", "source", RiskCritical)
+	e.RequiredTests = []TestRequirement{{Name: "unit", Command: []string{"go", "test"}, Required: true}}
+	e.RequiredScenarios = []ScenarioRequirement{{Name: "chaos", Required: true}}
 	if err := e.BindCandidate("globulario/services", "sha"); err != nil {
 		t.Fatal(err)
 	}
-	e.RequiredTests = []TestRequirement{{Name: "unit", Command: []string{"go", "test"}, Required: true}}
-	e.RequiredScenarios = []ScenarioRequirement{{Name: "chaos", Required: true}}
 	status := e.ProofStatus()
 	if len(status.MissingRequiredTests) != 1 || len(status.MissingScenarios) != 1 || status.ProofComplete {
 		t.Fatalf("unexpected incomplete status: %+v", status)
