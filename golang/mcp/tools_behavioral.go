@@ -230,14 +230,14 @@ func registerClusterLearningReportTool(s *server) {
 		for _, c := range cands.GetCandidates() {
 			d := c.GetDraftPrinciple()
 			queued = append(queued, map[string]interface{}{
-				"candidate_id":   c.GetId(),
-				"theme":          c.GetTheme(),
-				"repeat_count":   c.GetRepeatCount(),
-				"proposed_rule":  d.GetTitle(),
-				"applies_when":   d.GetAppliesWhen(),
-				"risk_level":     d.GetRiskLevel(),
-				"why":            c.GetRationale(),
-				"generated_by":   c.GetGeneratedBy(),
+				"candidate_id":  c.GetId(),
+				"theme":         c.GetTheme(),
+				"repeat_count":  c.GetRepeatCount(),
+				"proposed_rule": d.GetTitle(),
+				"applies_when":  d.GetAppliesWhen(),
+				"risk_level":    d.GetRiskLevel(),
+				"why":           c.GetRationale(),
+				"generated_by":  c.GetGeneratedBy(),
 				// Keyed on the CANDIDATE id, not the draft principle id: the
 				// draft does not exist as a principle until step 1 creates it.
 				"promote_with": promoteCommandFor(project, domain, c.GetId()),
@@ -248,18 +248,41 @@ func registerClusterLearningReportTool(s *server) {
 		// specific, easily-missed state where governance LOOKS wired and decides
 		// nothing — every action allowed by default because no principle is
 		// promoted. Say it in words rather than leaving it to be inferred.
-		assessment := learningAssessment(cov.GetTotal(), cov.GetGoverned(), cov.GetUngoverned(), len(queued))
+		assessment := learningAssessment(cov.GetTotal(), cov.GetGoverned(), cov.GetUngoverned(),
+			cov.GetPromotedPrincipleCount(), cov.GetProposedPrincipleCount(), len(queued))
+
+		// Proposed principles that already carry evidence — the review material
+		// closest to becoming enforcement. Surfaced separately from candidates:
+		// a candidate is a QUESTION nobody has answered, a supported proposal is
+		// a draft somebody has already substantiated.
+		supported := make([]map[string]interface{}, 0, len(cov.GetSupportedProposals()))
+		for _, sp := range cov.GetSupportedProposals() {
+			supported = append(supported, map[string]interface{}{
+				"principle_id":   sp.GetId(),
+				"title":          sp.GetTitle(),
+				"risk_level":     sp.GetRiskLevel(),
+				"evidence_count": sp.GetEvidenceCount(),
+			})
+		}
 
 		return map[string]interface{}{
 			"assessment": assessment,
+			// enforcement is reported before coverage: whether any rule can bind
+			// at all governs how every ratio below it should be read.
+			"enforcement": map[string]interface{}{
+				"promoted_principles": cov.GetPromotedPrincipleCount(),
+				"proposed_principles": cov.GetProposedPrincipleCount(),
+				"active":              cov.GetPromotedPrincipleCount() > 0,
+			},
 			"governance_coverage": map[string]interface{}{
 				"total_action_checks": cov.GetTotal(),
 				"governed":            cov.GetGoverned(),
 				"ungoverned":          cov.GetUngoverned(),
 				"coverage_ratio":      cov.GetCoverageRatio(),
 			},
-			"queued_candidates": queued,
-			"queued_count":      len(queued),
+			"supported_proposals": supported,
+			"queued_candidates":   queued,
+			"queued_count":        len(queued),
 		}, nil
 	})
 }
@@ -291,24 +314,56 @@ func promoteCommandFor(project, domain, candidateID string) string {
 
 // learningAssessment states the coverage situation in a sentence.
 //
-// The three cases are genuinely different and an operator acts differently on
-// each, so they are not collapsed into a ratio.
-func learningAssessment(total, governed, ungoverned int64, queued int) string {
+// The cases are genuinely different and an operator acts differently on each,
+// so they are not collapsed into a ratio.
+//
+// Enforcement is judged on PROMOTED PRINCIPLES, not on traffic. Keying it off
+// "governed == 0" made zero enforcement invisible whenever nothing had been
+// asked yet: a cluster with no promoted principle and no action checks reported
+// "nothing to learn from", which reads like an idle-but-healthy safety layer
+// when in fact nothing could ever bind. Absence of questions is not evidence of
+// protection.
+func learningAssessment(total, governed, ungoverned int64, promoted, proposed int64, queued int) string {
+	if promoted == 0 {
+		// The load-bearing case. Say NO ENFORCEMENT first, before any traffic
+		// numbers, because no volume of allowed checks changes it.
+		//
+		// The traffic fact is kept alongside it rather than replaced by it. With
+		// no checks AND no promoted principle, BOTH are true and they need
+		// different responses — one needs traffic, the other needs a promotion —
+		// so collapsing them into one sentence would hide half the problem.
+		if total == 0 {
+			return fmt.Sprintf(
+				"NO ENFORCEMENT: 0 promoted principle(s) in this scope, so behavioral memory is wired but binds nothing. "+
+					"Nothing has asked the governor anything yet either, so there is also nothing to learn from. "+
+					"%d proposed principle(s) and %d candidate(s) await human review; promoting one is what makes the gate start deciding.",
+				proposed, queued)
+		}
+		return fmt.Sprintf(
+			"NO ENFORCEMENT: 0 promoted principle(s) in this scope, so behavioral memory is wired but binds nothing — "+
+				"all %d action check(s) were allowed by default, and would be regardless of how many ran. "+
+				"%d proposed principle(s) and %d candidate(s) await human review. "+
+				"Promoting one is what makes the gate start deciding.",
+			total, proposed, queued)
+	}
 	switch {
 	case total == 0:
-		return "No action checks recorded yet — nothing has asked the governor anything, so there is nothing to learn from."
+		return fmt.Sprintf(
+			"%d promoted principle(s) are in force, but no action check has been recorded yet — "+
+				"enforcement exists and is untested here.", promoted)
 	case governed == 0:
 		return fmt.Sprintf(
-			"Governance is INERT: %d action check(s), all %d allowed only because no promoted principle applied. "+
-				"The gate is wired but decides nothing. %d candidate(s) await human review — promoting one is what makes the gate start binding.",
-			total, ungoverned, queued)
+			"Governance is INERT for the traffic seen: %d promoted principle(s) exist, but all %d of %d action check(s) "+
+				"were allowed because none of them applied. The rules that exist do not reach the actions being taken. "+
+				"%d candidate(s) await human review.",
+			promoted, ungoverned, total, queued)
 	case ungoverned == 0:
-		return fmt.Sprintf("All %d action check(s) were governed by at least one promoted principle.", total)
+		return fmt.Sprintf("All %d action check(s) were governed by at least one of %d promoted principle(s).", total, promoted)
 	default:
 		return fmt.Sprintf(
-			"%d of %d action check(s) were governed; %d were allowed only because no promoted principle applied. "+
+			"%d of %d action check(s) were governed by %d promoted principle(s); %d were allowed only because none applied. "+
 				"%d candidate(s) await human review.",
-			governed, total, ungoverned, queued)
+			governed, total, promoted, ungoverned, queued)
 	}
 }
 
@@ -419,8 +474,8 @@ func registerCheckActionTool(s *server) {
 		}
 		r := rsp.GetResult()
 		return map[string]interface{}{
-			"allowed":              r.GetAllowed(),
-			"status":               r.GetStatus(),
+			"allowed": r.GetAllowed(),
+			"status":  r.GetStatus(),
 			// governed distinguishes "allowed: a promoted principle was evaluated and
 			// satisfied" from "allowed: NO applicable principle, default-allow". An
 			// ungoverned allow (governed=false) is the absence of a rule, NOT an

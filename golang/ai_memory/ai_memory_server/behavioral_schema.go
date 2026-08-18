@@ -384,6 +384,7 @@ CREATE TABLE IF NOT EXISTS behavioral_memory.action_checks (
     created_at                bigint,
     metadata                  map<text, text>,
     governed                  boolean,
+    theme                     text,
     PRIMARY KEY ((project, domain, id))
 )`
 
@@ -393,6 +394,35 @@ CREATE TABLE IF NOT EXISTS behavioral_memory.action_checks (
 // the migration runs this best-effort and tolerates the "column already exists"
 // error (the idempotent re-run / fresh-install case).
 const alterActionChecksAddGovernedCQL = `ALTER TABLE behavioral_memory.action_checks ADD governed boolean`
+
+// alterActionChecksAddThemeCQL backfills the coverage-gap grouping key on
+// deployments whose action_checks table predates it. Same best-effort rule as
+// the governed backfill above.
+const alterActionChecksAddThemeCQL = `ALTER TABLE behavioral_memory.action_checks ADD theme text`
+
+// alterPromotionCandidatesAddSupportingChecksCQL backfills the citation list
+// for candidates motivated by repeated ungoverned checks rather than outcomes.
+const alterPromotionCandidatesAddSupportingChecksCQL = `ALTER TABLE behavioral_memory.promotion_candidates ADD supporting_action_check_ids list<text>`
+
+// ungoverned_checks_by_theme is the lookup for repeated coverage gaps: the
+// ungoverned CheckAction verdicts recorded under one derived theme. It mirrors
+// outcomes_by_theme deliberately — same shape, same clustering, same hydrate-
+// from-base-table read discipline — because the two feed the same review queue.
+//
+// It indexes ONLY ungoverned checks. A check that a promoted principle already
+// reached is not a coverage gap, and letting one in would inflate the support
+// for creating a principle that already exists.
+const createUngovernedChecksByThemeTableCQL = `
+CREATE TABLE IF NOT EXISTS behavioral_memory.ungoverned_checks_by_theme (
+    project      text,
+    domain       text,
+    theme        text,
+    created_at   bigint,
+    id           text,
+    action_type  text,
+    status       text,
+    PRIMARY KEY ((project, domain, theme), created_at, id)
+) WITH CLUSTERING ORDER BY (created_at DESC, id ASC)`
 
 // PR-9 added governed-observation columns (cluster_id, condition_ref, severity,
 // authority_level) to signals and evidence — but ONLY in their CREATE TABLE
@@ -505,6 +535,7 @@ CREATE TABLE IF NOT EXISTS behavioral_memory.promotion_candidates (
     rationale                text,
     supporting_outcome_ids   list<text>,
     supporting_evidence_ids  list<text>,
+    supporting_action_check_ids list<text>,
     repeat_count             int,
     draft_principle_id       text,
     draft_title              text,
@@ -572,6 +603,25 @@ CREATE TABLE IF NOT EXISTS behavioral_memory.reconciliation_reports (
 // index; theme/status/created_at are read from (and sorted on) the entity row, so
 // the index carries only the keys. There is no delete path for either entity, so
 // the index needs no maintenance beyond upsert.
+// principles_by_scope enumerates a scope's principles with their status, so
+// "how many principles are promoted here" is a single-partition read.
+//
+// principles_by_condition cannot answer that question: it indexes only PROMOTED
+// rules, and only under the conditions they declare. A scope with nothing
+// promoted is indistinguishable there from a scope nobody has queried — which
+// is exactly the ambiguity that let zero enforcement read as a healthy safety
+// layer.
+const createPrinciplesByScopeTableCQL = `
+CREATE TABLE IF NOT EXISTS behavioral_memory.principles_by_scope (
+    project    text,
+    domain     text,
+    id         text,
+    status     text,
+    title      text,
+    risk_level text,
+    PRIMARY KEY ((project, domain), id)
+) WITH CLUSTERING ORDER BY (id ASC)`
+
 const createPromotionCandidatesByScopeTableCQL = `
 CREATE TABLE IF NOT EXISTS behavioral_memory.promotion_candidates_by_scope (
     project text,
@@ -630,12 +680,16 @@ var behavioralSchemaStatements = []string{
 	createPrinciplesByConditionTableCQL,
 	createActionChecksTableCQL,
 	alterActionChecksAddGovernedCQL, // PR-13: backfill governed on pre-existing tables
+	alterActionChecksAddThemeCQL,    // #249 gap 3: backfill the coverage theme
+	createUngovernedChecksByThemeTableCQL,
 	createOutcomesTableCQL,
 	createOutcomesByThemeTableCQL,
 	createPromotionCandidatesTableCQL,
+	alterPromotionCandidatesAddSupportingChecksCQL, // #249 gap 3
 	createReconciliationReportsTableCQL,
 	// v10 list-by-scope indexes: make the List RPCs single-partition reads instead
 	// of (project,domain)-prefix scans on a composite partition key (ALLOW FILTERING).
+	createPrinciplesByScopeTableCQL,
 	createPromotionCandidatesByScopeTableCQL,
 	createReconciliationReportsByScopeTableCQL,
 	// P4 discovery indexes for list_authorities / list_conditions.

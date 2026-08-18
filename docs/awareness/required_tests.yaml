@@ -6369,3 +6369,30 @@ required_tests:
   run:
     commands:
     - go test ./golang/globularcli/ -run TestBuildUninstallPackageWorkflow
+- id: archive_safety_test.go:TestInstallPayloadRejectsTraversalOutsideEveryDestinationRoot
+  title: the real serviceInstallPayloadAction refuses a traversal entry for every mapped prefix, and nothing lands outside a node-owned root
+  protects:
+    invariants:
+    - invariant.package_archive_extraction_must_stay_within_node_owned_desti
+    failure_modes:
+    - failure.package_archive_entry_escaped_its_destination_root_and_was_w
+    files:
+    - golang/node_agent/node_agent_server/internal/actions/archive_safety.go
+    - golang/node_agent/node_agent_server/internal/actions/artifact.go
+    - golang/node_agent/node_agent_server/internal/actions/archive_safety_test.go
+  run:
+    commands:
+    - go test ./golang/node_agent/node_agent_server/internal/actions/ -run TestInstallPayloadRejectsTraversalOutsideEveryDestinationRoot
+- id: archive_safety_test.go:TestInstallPayloadWritesNothingWhenALaterEntryIsUnsafe
+  title: a rejected archive writes nothing at all, including entries that preceded the unsafe one in archive order
+  protects:
+    invariants:
+    - invariant.package_archive_extraction_must_stay_within_node_owned_desti
+    failure_modes:
+    - failure.package_archive_entry_escaped_its_destination_root_and_was_w
+    files:
+    - golang/node_agent/node_agent_server/internal/actions/archive_safety.go
+    - golang/node_agent/node_agent_server/internal/actions/archive_safety_test.go
+  run:
+    commands:
+    - go test ./golang/node_agent/node_agent_server/internal/actions/ -run TestInstallPayloadWritesNothingWhenALaterEntryIsUnsafe

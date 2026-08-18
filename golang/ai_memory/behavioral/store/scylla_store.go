@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/globulario/services/golang/ai_memory/behavioral/api"
 	"github.com/gocql/gocql"
@@ -507,7 +508,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
 	).WithContext(ctx).Exec(); err != nil {
 		return fmt.Errorf("create principle: %w", err)
 	}
-	return nil
+	return s.indexPrincipleByScope(ctx, p.Project, string(p.Domain), p.ID, p.Title, string(p.Status), p.RiskLevel)
 }
 
 func (s *ScyllaStore) GetPrinciple(ctx context.Context, project, domain, id string) (*api.Principle, error) {
@@ -540,6 +541,14 @@ func (s *ScyllaStore) UpdatePrincipleStatus(ctx context.Context, project, domain
 	const q = `UPDATE behavioral_memory.principles SET status = ?, updated_at = ? WHERE project = ? AND domain = ? AND id = ?`
 	if err := s.session.Query(q, string(status), updatedAt, project, domain, id).WithContext(ctx).Exec(); err != nil {
 		return fmt.Errorf("update principle status: %w", err)
+	}
+	// Keep the scope index's status in step with the base row. A promotion that
+	// updated only the base row would leave the index reporting PROPOSED, and
+	// the enforcement summary would keep saying nothing is promoted while a
+	// rule was actively binding actions.
+	const idx = `UPDATE behavioral_memory.principles_by_scope SET status = ? WHERE project = ? AND domain = ? AND id = ?`
+	if err := s.session.Query(idx, string(status), project, domain, id).WithContext(ctx).Exec(); err != nil {
+		return fmt.Errorf("update principle status: index: %w", err)
 	}
 	return nil
 }
@@ -653,27 +662,81 @@ WHERE project = ? AND domain = ? AND condition_id = ?`
 func (s *ScyllaStore) RecordActionCheck(ctx context.Context, a *api.ActionCheck) error {
 	const q = `INSERT INTO behavioral_memory.action_checks
 (project, domain, id, action_type, target, conditions, allowed, status, violated_principles, checked_against_principles,
- missing_evidence, unresolved_authority, forbidden_matched, recommended_steps, explanation, agent_id, created_at, metadata, governed)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+ missing_evidence, unresolved_authority, forbidden_matched, recommended_steps, explanation, agent_id, created_at, metadata, governed, theme)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	if err := s.session.Query(q,
 		a.Project, string(a.Domain), a.ID, a.ActionType, a.Target, refsToStrings(a.Conditions), a.Allowed, a.Status,
 		a.ViolatedPrinciples, a.CheckedAgainstPrinciples, refsToStrings(a.MissingEvidence), refsToStrings(a.UnresolvedAuthority),
-		refsToStrings(a.ForbiddenMatched), a.RecommendedSteps, a.Explanation, a.AgentID, a.CreatedAt, a.Metadata, a.Governed,
+		refsToStrings(a.ForbiddenMatched), a.RecommendedSteps, a.Explanation, a.AgentID, a.CreatedAt, a.Metadata, a.Governed, a.Theme,
 	).WithContext(ctx).Exec(); err != nil {
 		return fmt.Errorf("record action check: %w", err)
+	}
+	// Index ungoverned checks so a repeated coverage gap is discoverable by
+	// theme. Governed checks are deliberately not indexed.
+	if !a.Governed && strings.TrimSpace(a.Theme) != "" {
+		const idx = `INSERT INTO behavioral_memory.ungoverned_checks_by_theme
+(project, domain, theme, created_at, id, action_type, status) VALUES (?, ?, ?, ?, ?, ?, ?)`
+		if err := s.session.Query(idx,
+			a.Project, string(a.Domain), a.Theme, a.CreatedAt, a.ID, a.ActionType, a.Status,
+		).WithContext(ctx).Exec(); err != nil {
+			return fmt.Errorf("record action check: index by theme: %w", err)
+		}
 	}
 	return nil
 }
 
+// ListUngovernedActionChecksByTheme returns the FULL ungoverned checks for a
+// theme, hydrated from the base table.
+//
+// Hydrated rather than served from the index for the same reason
+// ListOutcomesByTheme is: the index carries only a few columns, and a caller
+// deciding whether a coverage gap is review-worthy needs the whole verdict.
+// Returning partial records here would repeat the 2026-08-01 bug where the
+// in-memory test double was more capable than the real store and the promotion
+// path passed unit tests while being structurally impossible on ScyllaDB.
+func (s *ScyllaStore) ListUngovernedActionChecksByTheme(ctx context.Context, project, domain, theme string) ([]api.ActionCheck, error) {
+	const q = `SELECT id FROM behavioral_memory.ungoverned_checks_by_theme
+WHERE project = ? AND domain = ? AND theme = ?`
+	iter := s.session.Query(q, project, domain, theme).WithContext(ctx).Iter()
+	var ids []string
+	var id string
+	for iter.Scan(&id) {
+		ids = append(ids, id)
+	}
+	if err := iter.Close(); err != nil {
+		return nil, fmt.Errorf("list ungoverned action checks by theme: %w", err)
+	}
+
+	out := make([]api.ActionCheck, 0, len(ids))
+	for _, cid := range ids {
+		a, err := s.GetActionCheck(ctx, project, domain, cid)
+		if err != nil {
+			// A dangling index row lowers the count rather than denying the
+			// pattern — same rule as ListOutcomesByTheme, and same as MemoryStore.
+			if errors.Is(err, ErrNotFound) {
+				continue
+			}
+			return nil, fmt.Errorf("list ungoverned action checks by theme: hydrate %s: %w", cid, err)
+		}
+		// Defensive: never let a governed check reach a coverage-gap caller,
+		// even if a stale index row points at one.
+		if a.Governed {
+			continue
+		}
+		out = append(out, *a)
+	}
+	return out, nil
+}
+
 func (s *ScyllaStore) GetActionCheck(ctx context.Context, project, domain, id string) (*api.ActionCheck, error) {
 	const q = `SELECT action_type, target, conditions, allowed, status, violated_principles, checked_against_principles,
- missing_evidence, unresolved_authority, forbidden_matched, recommended_steps, explanation, agent_id, created_at, metadata, governed
+ missing_evidence, unresolved_authority, forbidden_matched, recommended_steps, explanation, agent_id, created_at, metadata, governed, theme
 FROM behavioral_memory.action_checks WHERE project = ? AND domain = ? AND id = ?`
 	a := &api.ActionCheck{ID: id, Project: project, Domain: api.DomainRef(domain)}
 	var conditions, missing, unresolved, forbidden []string
 	if err := s.session.Query(q, project, domain, id).WithContext(ctx).Scan(
 		&a.ActionType, &a.Target, &conditions, &a.Allowed, &a.Status, &a.ViolatedPrinciples, &a.CheckedAgainstPrinciples,
-		&missing, &unresolved, &forbidden, &a.RecommendedSteps, &a.Explanation, &a.AgentID, &a.CreatedAt, &a.Metadata, &a.Governed,
+		&missing, &unresolved, &forbidden, &a.RecommendedSteps, &a.Explanation, &a.AgentID, &a.CreatedAt, &a.Metadata, &a.Governed, &a.Theme,
 	); err != nil {
 		return nil, mapNotFound(err)
 	}
@@ -796,8 +859,8 @@ func (s *ScyllaStore) UpsertPromotionCandidate(ctx context.Context, c *api.Promo
  repeat_count, draft_principle_id, draft_title, draft_applies_when, draft_authorities, draft_required_evidence,
  draft_forbidden_moves, draft_recommended_action, draft_risk_level, draft_revocation_rule, draft_promotion_reason,
  draft_status, draft_version, draft_proposed_by, draft_source_refs, draft_generated_from, generated_by, created_at,
- updated_at, materialized_principle_id, metadata)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+ updated_at, materialized_principle_id, metadata, supporting_action_check_ids)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	if err := s.session.Query(q,
 		c.Project, string(c.Domain), c.ID, c.Theme, string(c.Status), c.Title, c.Summary, c.Rationale,
 		c.SupportingOutcomeIDs, c.SupportingEvidenceIDs, c.RepeatCount, c.DraftPrinciple.ID, c.DraftPrinciple.Title,
@@ -805,7 +868,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
 		refsToStrings(c.DraftPrinciple.ForbiddenMoves), c.DraftPrinciple.RecommendedAction, c.DraftPrinciple.RiskLevel,
 		c.DraftPrinciple.RevocationRule, c.DraftPrinciple.PromotionReason, string(c.DraftPrinciple.Status),
 		c.DraftPrinciple.Version, c.DraftPrinciple.ProposedBy, c.DraftPrinciple.SourceRefs, c.DraftPrinciple.GeneratedFrom,
-		c.GeneratedBy, c.CreatedAt, c.UpdatedAt, c.MaterializedPrincipleID, c.Metadata,
+		c.GeneratedBy, c.CreatedAt, c.UpdatedAt, c.MaterializedPrincipleID, c.Metadata, c.SupportingActionCheckIDs,
 	).WithContext(ctx).Exec(); err != nil {
 		return fmt.Errorf("upsert promotion candidate: %w", err)
 	}
@@ -823,7 +886,7 @@ func (s *ScyllaStore) GetPromotionCandidate(ctx context.Context, project, domain
  repeat_count, draft_principle_id, draft_title, draft_applies_when, draft_authorities, draft_required_evidence,
  draft_forbidden_moves, draft_recommended_action, draft_risk_level, draft_revocation_rule, draft_promotion_reason,
  draft_status, draft_version, draft_proposed_by, draft_source_refs, draft_generated_from, generated_by, created_at,
- updated_at, materialized_principle_id, metadata
+ updated_at, materialized_principle_id, metadata, supporting_action_check_ids
 FROM behavioral_memory.promotion_candidates WHERE project = ? AND domain = ? AND id = ?`
 	var status string
 	var appliesWhen, authorities, requiredEvidence, forbiddenMoves []string
@@ -835,6 +898,7 @@ FROM behavioral_memory.promotion_candidates WHERE project = ? AND domain = ? AND
 		&c.DraftPrinciple.RiskLevel, &c.DraftPrinciple.RevocationRule, &c.DraftPrinciple.PromotionReason,
 		&c.DraftPrinciple.Status, &c.DraftPrinciple.Version, &c.DraftPrinciple.ProposedBy, &c.DraftPrinciple.SourceRefs,
 		&c.DraftPrinciple.GeneratedFrom, &c.GeneratedBy, &c.CreatedAt, &c.UpdatedAt, &c.MaterializedPrincipleID, &c.Metadata,
+		&c.SupportingActionCheckIDs,
 	); err != nil {
 		return nil, mapNotFound(err)
 	}
@@ -987,4 +1051,39 @@ func toForbiddenMoveRefs(in []string) []api.ForbiddenMoveRef {
 		out[i] = api.ForbiddenMoveRef(v)
 	}
 	return out
+}
+
+// indexPrincipleByScope maintains principles_by_scope. Called on create and on
+// every status change, so the index never disagrees with the base row about
+// whether a principle is promoted — a stale status here would misreport
+// enforcement, which is the one thing this index exists to get right.
+func (s *ScyllaStore) indexPrincipleByScope(ctx context.Context, project, domain, id, title, status, risk string) error {
+	const q = `INSERT INTO behavioral_memory.principles_by_scope
+(project, domain, id, status, title, risk_level) VALUES (?, ?, ?, ?, ?, ?)`
+	if err := s.session.Query(q, project, domain, id, status, title, risk).WithContext(ctx).Exec(); err != nil {
+		return fmt.Errorf("index principle by scope: %w", err)
+	}
+	return nil
+}
+
+// ListPrincipleSummaries enumerates a scope's principles from the by-scope
+// index. Served from the index rather than hydrated: a summary is exactly the
+// four columns the index carries, so hydrating would read every principle row
+// to return fields the caller does not use.
+func (s *ScyllaStore) ListPrincipleSummaries(ctx context.Context, project, domain string) ([]api.PrincipleSummary, error) {
+	const q = `SELECT id, status, title, risk_level FROM behavioral_memory.principles_by_scope
+WHERE project = ? AND domain = ?`
+	iter := s.session.Query(q, project, domain).WithContext(ctx).Iter()
+	var out []api.PrincipleSummary
+	var id, status, title, risk string
+	for iter.Scan(&id, &status, &title, &risk) {
+		out = append(out, api.PrincipleSummary{
+			ID: id, Title: title, Status: api.GovernanceStatus(status), RiskLevel: risk,
+		})
+	}
+	if err := iter.Close(); err != nil {
+		return nil, fmt.Errorf("list principle summaries: %w", err)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
 }

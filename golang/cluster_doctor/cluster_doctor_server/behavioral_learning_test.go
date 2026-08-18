@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/globulario/services/golang/ai_memory/behavioral/domain"
 	observation "github.com/globulario/services/golang/ai_memory/domains/cluster_operator/observation"
 )
 
@@ -39,11 +40,11 @@ func TestSynthesizePromotionCandidates_QueuesDraftedInvariants(t *testing.T) {
 
 	queued := s.synthesizePromotionCandidates(context.Background())
 
-	if queued != len(draftForInvariant) {
-		t.Errorf("queued = %d, want %d (one per drafted invariant)", queued, len(draftForInvariant))
+	if queued != len(conditionForInvariant) {
+		t.Errorf("queued = %d, want %d (one per mapped invariant)", queued, len(conditionForInvariant))
 	}
-	if len(gov.candidates) != len(draftForInvariant) {
-		t.Fatalf("offered %d candidates, want %d", len(gov.candidates), len(draftForInvariant))
+	if len(gov.candidates) != len(conditionForInvariant) {
+		t.Fatalf("offered %d candidates, want %d", len(gov.candidates), len(conditionForInvariant))
 	}
 	for _, c := range gov.candidates {
 		if c.MinRepeats != candidateMinRepeats {
@@ -73,9 +74,19 @@ func TestSynthesizePromotionCandidates_ThemeMatchesOutcomeWriter(t *testing.T) {
 	s := &ClusterDoctorServer{behavioralGovernor: gov}
 	s.synthesizePromotionCandidates(context.Background())
 
+	// Match on the DRAFT the domain supplies for this invariant's condition, so
+	// the assertion proves the right draft travelled under the right theme —
+	// not merely that some candidate carried the string.
+	want, ok := observation.CandidateDraftFor(domain.LearningObservation{
+		Theme:      written,
+		Conditions: []string{conditionForInvariant[invariant]},
+	})
+	if !ok {
+		t.Fatalf("no domain template for %s", invariant)
+	}
 	var read string
 	for _, c := range gov.candidates {
-		if c.Draft.Title == draftForInvariant[invariant].Title {
+		if c.Draft.Title == want.Title {
 			read = c.Theme
 		}
 	}
@@ -112,7 +123,7 @@ func TestSynthesizePromotionCandidates_InsufficientSupportIsSilent(t *testing.T)
 // theme cannot silence the others. The loop's value is that it keeps running
 // unattended, so a single fault must not end the sweep.
 func TestSynthesizePromotionCandidates_OneFailureDoesNotAbortSweep(t *testing.T) {
-	if len(draftForInvariant) < 2 {
+	if len(conditionForInvariant) < 2 {
 		t.Skip("needs at least two drafted invariants to observe a partial sweep")
 	}
 	calls := 0
@@ -127,11 +138,11 @@ func TestSynthesizePromotionCandidates_OneFailureDoesNotAbortSweep(t *testing.T)
 
 	queued := s.synthesizePromotionCandidates(context.Background())
 
-	if calls != len(draftForInvariant) {
-		t.Errorf("attempted %d themes, want %d — a failure aborted the sweep", calls, len(draftForInvariant))
+	if calls != len(conditionForInvariant) {
+		t.Errorf("attempted %d themes, want %d — a failure aborted the sweep", calls, len(conditionForInvariant))
 	}
-	if queued != len(draftForInvariant)-1 {
-		t.Errorf("queued = %d, want %d (all but the failing one)", queued, len(draftForInvariant)-1)
+	if queued != len(conditionForInvariant)-1 {
+		t.Errorf("queued = %d, want %d (all but the failing one)", queued, len(conditionForInvariant)-1)
 	}
 }
 
@@ -141,10 +152,34 @@ func TestSynthesizePromotionCandidates_OneFailureDoesNotAbortSweep(t *testing.T)
 // An incomplete draft is rejected at the far end, which surfaces as a warning
 // nobody reads and a queue that stays empty. Catching it here keeps the failure
 // at test time rather than at 3am in a cluster.
-func TestDraftForInvariant_DraftsAreComplete(t *testing.T) {
+// domainDrafts resolves what the domain pack now supplies for every invariant
+// the doctor maps. These are the drafts that actually reach a reviewer.
+func domainDrafts(t *testing.T) map[string]observation.CandidateDraft {
+	t.Helper()
+	out := map[string]observation.CandidateDraft{}
+	for invariantID, cond := range conditionForInvariant {
+		d, ok := observation.CandidateDraftFor(domain.LearningObservation{
+			Theme:      behavioralThemeForInvariant(invariantID),
+			Conditions: []string{cond},
+		})
+		if !ok {
+			t.Errorf("%s (condition %q): the domain supplies no template, so this "+
+				"invariant can never produce a candidate", invariantID, cond)
+			continue
+		}
+		out[invariantID] = d
+	}
+	return out
+}
+
+// TestDomainDraftsAreComplete carries forward the completeness contract from the
+// deleted draftForInvariant table. Moving authorship into the pack must not
+// lower the bar: a draft missing an authority or a revocation rule is not
+// reviewable, and a rule with no revocation condition cannot be un-learned.
+func TestDomainDraftsAreComplete(t *testing.T) {
 	validRisk := map[string]bool{"info": true, "low": true, "high": true, "irreversible": true}
 
-	for invariantID, d := range draftForInvariant {
+	for invariantID, d := range domainDrafts(t) {
 		if d.Title == "" {
 			t.Errorf("%s: title is required", invariantID)
 		}
@@ -170,14 +205,16 @@ func TestDraftForInvariant_DraftsAreComplete(t *testing.T) {
 	}
 }
 
-// TestDraftedInvariantsAreGovernable is the coverage-consistency check.
+// TestDomainDraftsAreGovernable is the coverage-consistency check, carried
+// forward and now more load-bearing than before.
 //
-// A drafted invariant that is not in conditionForInvariant can be promoted and
-// still never govern anything: CheckAction scopes principles by condition, so
-// the promoted rule would sit inert while the operator believes it took effect.
-// That is worse than no candidate at all.
-func TestDraftedInvariantsAreGovernable(t *testing.T) {
-	for invariantID, d := range draftForInvariant {
+// The draft's applies_when comes from the pack, while the gate's condition comes
+// from the doctor. If they diverge, the promoted principle is scoped to a
+// condition the gate never declares: it sits inert while the operator believes
+// it took effect. That is worse than no candidate at all, and the two sides can
+// now drift independently — which is exactly why this must be asserted.
+func TestDomainDraftsAreGovernable(t *testing.T) {
+	for invariantID, d := range domainDrafts(t) {
 		cond, ok := conditionForInvariant[invariantID]
 		if !ok {
 			t.Errorf("%s has a promotion draft but no conditionForInvariant mapping:\n"+
