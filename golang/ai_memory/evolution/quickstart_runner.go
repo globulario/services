@@ -168,6 +168,7 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 		SimulationRevision:  artifact.SourceRevision,
 		CandidateRepository: artifact.Change.CandidateRepository,
 		CandidateRevision:   artifact.Change.CandidateRevision,
+		PlanDigest:          artifact.Change.PlanDigest,
 		Result:              artifact.Execution.Result,
 		ProofEligible:       artifact.Execution.ProofEligible && artifact.Status == "SUPPORTED",
 		ProofRef:            proofPath,
