@@ -973,8 +973,22 @@ func (srv *server) requireLeaderEpoch(ctx context.Context) error {
 	if srv.etcdClient == nil {
 		return nil // no etcd = single-node mode, no fencing needed
 	}
-	currentEpoch := readEpoch(ctx, srv.etcdClient)
+	currentEpoch, epochErr := readEpoch(ctx, srv.etcdClient)
+	if epochErr != nil {
+		// The current epoch is unknown, so this instance cannot show it is not
+		// stale. Refusing is the only answer that does not assume the very thing
+		// being checked.
+		return status.Errorf(codes.FailedPrecondition,
+			"cannot establish fencing epoch, refusing to mutate authoritative state: %v", epochErr)
+	}
 	myEpoch := srv.leaderEpoch.Load()
+	if myEpoch == 0 && currentEpoch != 0 {
+		// An epoch exists but this instance never established one — its campaign
+		// could not write the epoch. It holds a leadership it cannot prove is
+		// current, which is exactly the state that must not mutate.
+		return status.Errorf(codes.FailedPrecondition,
+			"leader has no fencing epoch (current_epoch=%d) — re-campaigning", currentEpoch)
+	}
 	if currentEpoch != 0 && myEpoch != 0 && currentEpoch != myEpoch {
 		// Another leader has incremented the epoch — we're stale.
 		srv.setLeader(false, "", "")

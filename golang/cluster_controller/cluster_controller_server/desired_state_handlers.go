@@ -890,6 +890,17 @@ func (srv *server) UpsertDesiredService(ctx context.Context, req *cluster_contro
 		}
 		return resp, nil
 	}
+	// Believing our own isLeader boolean is not enough to write authoritative
+	// state. A stopped leader wakes with coherent local memory — isLeader still
+	// true, epoch still its own — while another controller has already won the
+	// election and incremented the fencing epoch. Between waking and the election
+	// loop observing sess.Done(), this path would mutate desired state on the
+	// authority of a leadership it no longer holds.
+	//
+	// invariant:leader.write_must_be_fenced_on_lease_expiry
+	if err := srv.requireLeaderEpoch(ctx); err != nil {
+		return nil, err
+	}
 	if err := srv.upsertOne(ctx, req.Service, req.GetAllowRegression()); err != nil {
 		// Preserve a typed status (e.g. FailedPrecondition from the regression
 		// floor or the observability blackout) so the operator sees the real
@@ -949,6 +960,17 @@ func (srv *server) RemoveDesiredService(ctx context.Context, req *cluster_contro
 			return nil, err
 		}
 		return resp, nil
+	}
+	// Believing our own isLeader boolean is not enough to write authoritative
+	// state. A stopped leader wakes with coherent local memory — isLeader still
+	// true, epoch still its own — while another controller has already won the
+	// election and incremented the fencing epoch. Between waking and the election
+	// loop observing sess.Done(), this path would mutate desired state on the
+	// authority of a leadership it no longer holds.
+	//
+	// invariant:leader.write_must_be_fenced_on_lease_expiry
+	if err := srv.requireLeaderEpoch(ctx); err != nil {
+		return nil, err
 	}
 	if srv.resources == nil {
 		return nil, status.Error(codes.FailedPrecondition, "resource store unavailable")
@@ -1427,6 +1449,17 @@ func (srv *server) SeedDesiredState(ctx context.Context, req *cluster_controller
 			return nil, err
 		}
 		return resp, nil
+	}
+	// Believing our own isLeader boolean is not enough to write authoritative
+	// state. A stopped leader wakes with coherent local memory — isLeader still
+	// true, epoch still its own — while another controller has already won the
+	// election and incremented the fencing epoch. Between waking and the election
+	// loop observing sess.Done(), this path would mutate desired state on the
+	// authority of a leadership it no longer holds.
+	//
+	// invariant:leader.write_must_be_fenced_on_lease_expiry
+	if err := srv.requireLeaderEpoch(ctx); err != nil {
+		return nil, err
 	}
 
 	// Clean up any stale domain-prefixed keys from previous seeds.
