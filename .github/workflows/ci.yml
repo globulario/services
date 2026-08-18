@@ -163,20 +163,26 @@ jobs:
       # server, no behavioral memory — so a failure is a real regression rather
       # than a missing dependency.
       #
-      # KNOWN RED, and deliberately not worked around: the last package contains
-      # observation.TestRecorder_PersistentFailureIsVisible, which fails on a
-      # clean master checkout (verified 3/3) and is owned by globulario/services#238.
-      # Its fixture passes Addr:"" expecting "unresolvable", but production reads
-      # an empty address as "discover the real AI-memory service", so the test is
-      # environmentally porous rather than proving anything about Stats.
+      # This step was KNOWN RED on globulario/services#238: the last package held
+      # observation.TestRecorder_PersistentFailureIsVisible, whose fixture passed
+      # Addr:"" expecting "unresolvable" while production reads an empty address
+      # as "discover the real AI-memory service". It was environmentally porous
+      # rather than proving anything about Stats. It was neither skipped nor
+      # excluded — narrowing the path to dodge it would also have dropped
+      # coverage of the remediation-outcome adapter in that same package, and a
+      # gate shaped around a known failure stops being a gate.
       #
-      # It is neither skipped nor excluded here. Narrowing the path to dodge it
-      # would also drop coverage of the remediation-outcome adapter in that same
-      # package — the code that decides whether an autonomous outcome qualifies
-      # as verification evidence — and a gate shaped around a known failure
-      # stops being a gate. This step therefore blocks until #238 is fixed,
-      # which matches the agreed release ordering: 1.2.295 is not cut until
-      # behavioral delivery failure and recovery are operator-visible.
+      # #238 is fixed, so the step is green and stays unnarrowed. The two
+      # packages that carry the behavioral-delivery contract are both already
+      # inside it and must remain so:
+      #   ./ai_memory/domains/cluster_operator/...  → observation.Recorder,
+      #     its deterministic delivery seam, and the bounded resolution stage.
+      #   ./cluster_doctor/cluster_doctor_server/... → the operator projection
+      #     that makes an accepted-then-lost bundle visible without a further
+      #     enqueue, and required behaviour 6 (the primary report survives a
+      #     dead learning path).
+      # No separate step is added for them: a second invocation of a path this
+      # one already covers would be a duplicate gate, not a stronger one.
       - name: Enforce autonomous remediation closure (hard gate)
         run: |
           go test -count=1 ./cluster_doctor/cluster_doctor_server/...

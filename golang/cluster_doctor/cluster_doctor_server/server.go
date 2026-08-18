@@ -102,6 +102,11 @@ type ClusterDoctorServer struct {
 	// wired and the doctor's own executor gates decide alone.
 	behavioralGovernor behavioralGovernor
 
+	// recorderHealth tracks the last observed recorder delivery class so the
+	// health projection can emit on transition rather than on every tick.
+	// Node-local like the recorder itself; never a cluster-scoped verdict.
+	recorderHealth recorderHealthState
+
 	// naDialer resolves node_agent endpoints via the cluster controller
 	// and dials them with TLS. Used by the ActionExecutor for typed
 	// remediation actions (SYSTEMCTL_*, FILE_DELETE on node agents).

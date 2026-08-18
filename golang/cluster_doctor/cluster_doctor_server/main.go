@@ -197,6 +197,11 @@ func main() {
 	// Start the periodic healer loop (leader-only, configurable).
 	srv.startHealerLoop(electionCtx)
 
+	// Start the recorder delivery-health projection. Unconditional and not
+	// leader-gated: this doctor reports on ITS OWN behavioral delivery path, and
+	// a recorder that is failing must be visible whether or not this node heals.
+	srv.startRecorderHealthLoop(electionCtx)
+
 	// Log the resolved controller endpoint (from etcd, not config default).
 	resolvedCC := config.ResolveServiceAddr("cluster_controller.ClusterControllerService", cfg.ControllerEndpoint)
 	if resolvedCC == "" {

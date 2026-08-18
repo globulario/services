@@ -7837,3 +7837,29 @@ failure_modes:
       evidence:
         - 'Confirmed by executing the real serviceInstallPayloadAction against an archive whose sole entry was data/../../../escaped.txt: the file was written outside the state root with contents PWNED.'
         - 'Predates the OCI work: artifact.go is unchanged across 07941781..998451c6.'
+    - id: observation.accepted_then_lost_bundle_invisible_when_health_read_only_on_rejection
+      title: An accepted-then-lost observation bundle is invisible when health is read only on enqueue rejection
+      severity: high
+      description: The observation Recorder counted Failed / LastFailureAt / LastError after a terminal delivery failure, but cluster_doctor called Stats() only when Enqueue ITSELF returned false. A bundle accepted into the bounded queue and later exhausted by the worker produced no operator signal at all, so 'no behavioral events occurred' and 'events were accepted and lost' were indistinguishable — the release check that depended on the behavioral loop could not tell a working loop from a silently broken one. Fixed by projecting recorder health on every healer tick, independent of any enqueue rejection, emitting on transition, node-scoped and not leader-gated.
+      protects:
+        files:
+          - golang/cluster_doctor/cluster_doctor_server/behavioral_recorder_health.go
+      related_invariants:
+        - observability.supplementary_subsystem_degradation_must_be_pollable
+      required_tests:
+        - golang/cluster_doctor/cluster_doctor_server/behavioral_recorder_health_test.go:TestRecorderHealth_AcceptedThenFailedBecomesVisibleWithoutNewEnqueue
+      evidence:
+        - 'globulario/services#238 / PR #265'
+    - id: observation.unbounded_endpoint_resolution_makes_a_stalled_path_read_as_idle
+      title: An unbounded endpoint-resolution stage makes a stalled delivery path read as idle
+      severity: high
+      description: 'Recorder.conn() called config.ResolveServiceAddr inline. That function is synchronous, takes no context and reads etcd, and it ran BEFORE the CallTimeout context is created — so it was outside every deadline the recorder had. A wedged etcd parked the delivery worker, which is the only goroutine that ever increments Failed: bundles queued, Failed stayed 0, and Health() reported ''no_delivery_attempted'', which is exactly what it reports when the cluster is quiet. Broken and invisible simultaneously. Fixed with a separate ResolveTimeout and a single-flight attempt, so a permanently wedged etcd costs one parked goroutine rather than one per bundle per retry per worker.'
+      protects:
+        files:
+          - golang/ai_memory/domains/cluster_operator/observation/recorder.go
+      related_invariants:
+        - observability.supplementary_subsystem_degradation_must_be_pollable
+      required_tests:
+        - golang/ai_memory/domains/cluster_operator/observation/recorder_test.go:TestRecorder_StuckResolutionBecomesAVisibleFailure
+      evidence:
+        - 'globulario/services#238 / PR #265'

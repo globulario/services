@@ -11640,3 +11640,18 @@ invariants:
     - archive_safety_test.go:TestInstallPayloadRejectsTraversalOutsideEveryDestinationRoot
     - archive_safety_test.go:TestInstallPayloadWritesNothingWhenALaterEntryIsUnsafe
   contract: The node agent, not the archive, chooses every host path. A package payload entry may only be written inside the destination root its archive prefix maps to, and the whole archive must be admitted before any byte is written.
+- id: observability.supplementary_subsystem_degradation_must_be_pollable
+  title: A supplementary subsystem's degradation must be pollable, not only signalled by a rejection at submission time
+  severity: high
+  status: active
+  description: 'A subsystem whose failure is reported only as a rejection to the submitter is invisible whenever the work is ACCEPTED and fails later. Silence is not health: ''no events occurred'' and ''events were accepted and lost'' must not produce the same operator signal. The health projection is scoped to the process that owns the subsystem, is emitted on transition to avoid warning storms, and is never gated on leader election — observing your own component is not an action requiring authority.'
+  protects:
+    files:
+      - golang/ai_memory/domains/cluster_operator/observation/recorder.go
+      - golang/cluster_doctor/cluster_doctor_server/behavioral_recorder_health.go
+  required_tests:
+    - golang/ai_memory/domains/cluster_operator/observation/recorder_test.go:TestRecorder_NoAttemptIsNotHealthy
+    - golang/cluster_doctor/cluster_doctor_server/behavioral_recorder_health_test.go:TestRecorderHealth_AcceptedThenFailedBecomesVisibleWithoutNewEnqueue
+  evidence:
+    - 'globulario/services#238 / PR #265'
+  contract: Health of a supplementary delivery path is a STATE the operator reads on a schedule, not an error returned to whoever happened to submit work. It must distinguish 'nothing attempted' from 'attempted and lost', and every stage on the path — endpoint resolution included — must be bounded, or a stalled stage reads exactly like an idle one.

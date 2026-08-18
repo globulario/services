@@ -80,6 +80,7 @@ High availability, failure handling, networking, and certificate management.
 - [Node Full-Reseed Recovery](operators/node-recovery.md) — Complete wipe-and-rebuild workflow: snapshot, fencing, reprovision, reseed, verify
 - [Platform Status](operators/platform-status.md) — What is implemented, partial, planned, and intentionally unsupported today
 - [Cluster Doctor](operators/cluster-doctor.md) — Invariant checking, auto-heal, remediation workflows
+- [Behavioral Recorder Verification](operators/behavioral-recorder-verification.md) — Bare-metal check that behavioral delivery failure and recovery are operator-visible
 - [Network and Routing](operators/network-and-routing.md) — Envoy gateway, xDS, DNS, service discovery, gRPC-Web
 - [Certificate Lifecycle](operators/certificate-lifecycle.md) — Provisioning, rotation, monitoring, troubleshooting
 - [DNS and PKI](operators/dns-and-pki.md) — Internal/external certificates, Let's Encrypt wildcards, DNS zones, split-horizon
