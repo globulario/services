@@ -2583,8 +2583,13 @@ type PromotionCandidate struct {
 	UpdatedAt               int64                    `protobuf:"varint,15,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	MaterializedPrincipleId string                   `protobuf:"bytes,16,opt,name=materialized_principle_id,json=materializedPrincipleId,proto3" json:"materialized_principle_id,omitempty"`
 	Metadata                map[string]string        `protobuf:"bytes,17,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields           protoimpl.UnknownFields
-	sizeCache               protoimpl.SizeCache
+	// Ungoverned action checks that motivated this candidate. Kept distinct
+	// from supporting_outcome_ids: an ActionCheck is a PRE-action verdict, an
+	// Outcome is what happened afterwards. Collapsing them would let a
+	// coverage gap masquerade as a result.
+	SupportingActionCheckIds []string `protobuf:"bytes,18,rep,name=supporting_action_check_ids,json=supportingActionCheckIds,proto3" json:"supporting_action_check_ids,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *PromotionCandidate) Reset() {
@@ -2732,6 +2737,13 @@ func (x *PromotionCandidate) GetMaterializedPrincipleId() string {
 func (x *PromotionCandidate) GetMetadata() map[string]string {
 	if x != nil {
 		return x.Metadata
+	}
+	return nil
+}
+
+func (x *PromotionCandidate) GetSupportingActionCheckIds() []string {
+	if x != nil {
+		return x.SupportingActionCheckIds
 	}
 	return nil
 }
@@ -3540,7 +3552,13 @@ type ActionCheck struct {
 	// Coverage provenance: true iff at least one applicable promoted principle was
 	// evaluated. Distinguishes "allowed: principles satisfied" (governed) from
 	// "allowed: no applicable principle" (ungoverned default-allow).
-	Governed      bool `protobuf:"varint,19,opt,name=governed,proto3" json:"governed,omitempty"`
+	Governed bool `protobuf:"varint,19,opt,name=governed,proto3" json:"governed,omitempty"`
+	// Stable grouping key for coverage-gap learning. Derived from the action
+	// type and declared conditions, so repeated ungoverned checks of the same
+	// shape accumulate under one theme and can be cited as supporting evidence
+	// by a promotion candidate. A theme groups observations; it never confers
+	// authority.
+	Theme         string `protobuf:"bytes,20,opt,name=theme,proto3" json:"theme,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3706,6 +3724,13 @@ func (x *ActionCheck) GetGoverned() bool {
 		return x.Governed
 	}
 	return false
+}
+
+func (x *ActionCheck) GetTheme() string {
+	if x != nil {
+		return x.Theme
+	}
+	return ""
 }
 
 type RecordSignalRequest struct {
@@ -6430,7 +6455,7 @@ const file_behavioral_memory_proto_rawDesc = "" +
 	"\x12weakens_principles\x18\x11 \x03(\tR\x11weakensPrinciples\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x82\x06\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xc1\x06\n" +
 	"\x12PromotionCandidate\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12\x16\n" +
@@ -6451,7 +6476,8 @@ const file_behavioral_memory_proto_rawDesc = "" +
 	"\n" +
 	"updated_at\x18\x0f \x01(\x03R\tupdatedAt\x12:\n" +
 	"\x19materialized_principle_id\x18\x10 \x01(\tR\x17materializedPrincipleId\x12O\n" +
-	"\bmetadata\x18\x11 \x03(\v23.behavioral_memory.PromotionCandidate.MetadataEntryR\bmetadata\x1a;\n" +
+	"\bmetadata\x18\x11 \x03(\v23.behavioral_memory.PromotionCandidate.MetadataEntryR\bmetadata\x12=\n" +
+	"\x1bsupporting_action_check_ids\x18\x12 \x03(\tR\x18supportingActionCheckIds\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x9e\a\n" +
@@ -6553,7 +6579,7 @@ const file_behavioral_memory_proto_rawDesc = "" +
 	"\x14recommended_behavior\x18\v \x01(\tR\x13recommendedBehavior\x12\x1e\n" +
 	"\n" +
 	"confidence\x18\f \x01(\tR\n" +
-	"confidence\"\x80\x06\n" +
+	"confidence\"\x96\x06\n" +
 	"\vActionCheck\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12\x16\n" +
@@ -6578,7 +6604,8 @@ const file_behavioral_memory_proto_rawDesc = "" +
 	"created_at\x18\x10 \x01(\x03R\tcreatedAt\x12<\n" +
 	"\x1achecked_against_principles\x18\x11 \x03(\tR\x18checkedAgainstPrinciples\x12H\n" +
 	"\bmetadata\x18\x12 \x03(\v2,.behavioral_memory.ActionCheck.MetadataEntryR\bmetadata\x12\x1a\n" +
-	"\bgoverned\x18\x13 \x01(\bR\bgoverned\x1a;\n" +
+	"\bgoverned\x18\x13 \x01(\bR\bgoverned\x12\x14\n" +
+	"\x05theme\x18\x14 \x01(\tR\x05theme\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"H\n" +

@@ -32,6 +32,7 @@ type MemoryStore struct {
 	actionChecks          map[string]*api.ActionCheck
 	outcomes              map[string]*api.Outcome
 	outcomesByTheme       map[string][]string // (project|domain|theme) -> outcome ids
+	ungovByTheme          map[string][]string // (project|domain|theme) -> ungoverned action-check ids
 	promotionCandidates   map[string]*api.PromotionCandidate
 	reconciliationReports map[string]*api.ReconciliationReport
 	coverage              map[string][2]int64 // (project|domain) -> [governed, ungoverned]
@@ -55,6 +56,7 @@ func NewMemoryStore() *MemoryStore {
 		revocationRules:       map[string]*api.RevocationRule{},
 		princByCondition:      map[string][]string{},
 		actionChecks:          map[string]*api.ActionCheck{},
+		ungovByTheme:          map[string][]string{},
 		outcomes:              map[string]*api.Outcome{},
 		outcomesByTheme:       map[string][]string{},
 		promotionCandidates:   map[string]*api.PromotionCandidate{},
@@ -492,8 +494,29 @@ func (m *MemoryStore) RecordActionCheck(_ context.Context, a *api.ActionCheck) e
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	cp := *a
-	m.actionChecks[key(a.Project, string(a.Domain), a.ID)] = &cp
+	k := key(a.Project, string(a.Domain), a.ID)
+	_, existed := m.actionChecks[k]
+	m.actionChecks[k] = &cp
+	// Index only ungoverned checks that carry a theme. Re-recording the same id
+	// must not double-count it — a replayed write is not a second observation.
+	if !existed && !cp.Governed && cp.Theme != "" {
+		tk := key(cp.Project, string(cp.Domain), cp.Theme)
+		m.ungovByTheme[tk] = append(m.ungovByTheme[tk], cp.ID)
+	}
 	return nil
+}
+
+func (m *MemoryStore) ListUngovernedActionChecksByTheme(_ context.Context, project, domain, theme string) ([]api.ActionCheck, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	ids := m.ungovByTheme[key(project, domain, theme)]
+	out := make([]api.ActionCheck, 0, len(ids))
+	for _, id := range ids {
+		if a, ok := m.actionChecks[key(project, domain, id)]; ok && !a.Governed {
+			out = append(out, *a)
+		}
+	}
+	return out, nil
 }
 
 func (m *MemoryStore) GetActionCheck(_ context.Context, project, domain, id string) (*api.ActionCheck, error) {

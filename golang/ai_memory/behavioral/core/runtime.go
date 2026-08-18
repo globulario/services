@@ -543,6 +543,10 @@ func (s *Service) CheckAction(ctx context.Context, req *api.CheckActionRequest) 
 	// rule being in scope is not governance of this action.
 	ac.Governed = len(engaged) > 0
 	if ac.Status == "allowed" && !ac.Governed {
+		// Stamp the coverage theme so this gap is groupable. Without it the
+		// row is only a counter increment, and repeated ungoverned checks can
+		// never become reviewable learning material.
+		ac.Theme = coverageTheme(req.ActionType, req.CurrentConditions)
 		ac.Explanation = fmt.Sprintf("allowed: no applicable promoted principle for %q (ungoverned default-allow)", req.ActionType)
 	} else {
 		ac.Explanation = fmt.Sprintf("checked %q against %d engaged promoted principle(s): %s",

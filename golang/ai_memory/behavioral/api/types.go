@@ -235,23 +235,28 @@ type Outcome struct {
 // repeated outcomes/evidence that made it review-worthy. It is NOT a principle
 // row and never implies auto-promotion.
 type PromotionCandidate struct {
-	ID                      string
-	Project                 string
-	Domain                  DomainRef
-	Theme                   string
-	Status                  PromotionCandidateStatus
-	Title                   string
-	Summary                 string
-	Rationale               string
-	SupportingOutcomeIDs    []string
-	SupportingEvidenceIDs   []string
-	RepeatCount             int32
-	DraftPrinciple          Principle
-	GeneratedBy             string
-	CreatedAt               int64
-	UpdatedAt               int64
-	MaterializedPrincipleID string
-	Metadata                map[string]string
+	ID                    string
+	Project               string
+	Domain                DomainRef
+	Theme                 string
+	Status                PromotionCandidateStatus
+	Title                 string
+	Summary               string
+	Rationale             string
+	SupportingOutcomeIDs  []string
+	SupportingEvidenceIDs []string
+	// SupportingActionCheckIDs cites the ungoverned ActionChecks that motivated
+	// this candidate. Deliberately separate from SupportingOutcomeIDs: an
+	// ActionCheck is a PRE-action verdict, an Outcome is what happened after.
+	// Collapsing them would let a coverage gap masquerade as a result.
+	SupportingActionCheckIDs []string
+	RepeatCount              int32
+	DraftPrinciple           Principle
+	GeneratedBy              string
+	CreatedAt                int64
+	UpdatedAt                int64
+	MaterializedPrincipleID  string
+	Metadata                 map[string]string
 }
 
 // ReconciliationReport is an advisory bridge artifact between behavioral-memory
@@ -383,6 +388,12 @@ type ActionCheck struct {
 	// default ungoverned allow ("no applicable principle") — without it the two
 	// are indistinguishable and the gate's reach cannot be measured.
 	Governed bool
+	// Theme is the stable coverage-gap grouping key, derived from the action
+	// type and declared conditions. Repeated ungoverned checks of the same
+	// shape accumulate under one theme so a coverage gap can become reviewable
+	// learning material instead of only a counter. A theme groups observations;
+	// it never confers authority.
+	Theme    string
 	Metadata map[string]string
 }
 
