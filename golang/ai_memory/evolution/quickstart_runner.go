@@ -91,12 +91,6 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 	if err := envelope.ValidateRequiredTestClosure(); err != nil {
 		return QuickstartRunResult{}, fmt.Errorf("local proof gate: %w", err)
 	}
-	// Closure above is metadata only. Re-derive the artifacts behind it before
-	// anything destructive starts, or the gate passes on paper while the evidence
-	// it names no longer exists.
-	if err := envelope.VerifyRequiredTestEvidence(); err != nil {
-		return QuickstartRunResult{}, fmt.Errorf("local proof gate: %w", err)
-	}
 
 	scenarioName := strings.TrimSpace(opts.ScenarioName)
 	if scenarioName == "" {
@@ -126,6 +120,21 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 			return runResult, fmt.Errorf("%w (and could not withdraw the prior proof claim: %v)", cause, invalidateErr)
 		}
 		return runResult, cause
+	}
+
+	// Closure above is metadata only. Re-derive the artifacts behind it before
+	// anything destructive starts, or the gate passes on paper while the evidence
+	// it names no longer exists. Refusing to launch is not enough on its own: an
+	// envelope already at PROVEN would keep reporting PROVEN from metadata while
+	// the evidence under it is gone, so the claim is withdrawn through the locked
+	// path before the gate error is returned.
+	if gateErr := envelope.VerifyRequiredTestEvidence(); gateErr != nil {
+		if err := withdrawUnreproducibleProof(opts.EnvelopePath, identity); err != nil {
+			return QuickstartRunResult{ChangeID: envelope.ID}, fmt.Errorf(
+				"local proof gate: %w (and could not withdraw the PROVEN claim: %v)", gateErr, err,
+			)
+		}
+		return QuickstartRunResult{ChangeID: envelope.ID}, fmt.Errorf("local proof gate: %w", gateErr)
 	}
 
 	// The simulator is the other half of the experiment, so it needs the same
@@ -220,12 +229,11 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 		// from. Carry its identity and verdict when the artifact is present and
 		// consistent, so the failure that stops the plan can be ingested — marked
 		// explicitly ineligible, and never recorded into the envelope.
-		if observed, obsErr := loadQuickstartProof(proofPath); obsErr == nil &&
-			observed.Invocation.ID == invocationID &&
-			observed.Scenario == scenarioName &&
-			observed.Change.ID == envelope.ID &&
-			observed.Change.CandidateRevision == envelope.CandidateRevision &&
-			observed.Change.PlanDigest == envelope.PlanDigest {
+		observed, obsErr := loadQuickstartProof(proofPath)
+		if obsErr == nil {
+			obsErr = observed.requireDescribesOccurrence(envelope, invocationID, scenarioName, simulationRevision)
+		}
+		if obsErr == nil {
 			partial.Proof = ProofRecord{
 				Scenario:            observed.Scenario,
 				Repository:          "globulario/globular-quickstart",
@@ -248,63 +256,9 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 	if err != nil {
 		return fail(partial, err)
 	}
-	if artifact.Invocation.ID != invocationID {
-		return fail(partial, fmt.Errorf(
-			"proof invocation %q does not belong to this run %q; refusing a proof this invocation did not produce",
-			artifact.Invocation.ID,
-			invocationID,
-		))
+	if err := artifact.requireDescribesOccurrence(envelope, invocationID, scenarioName, simulationRevision); err != nil {
+		return fail(partial, err)
 	}
-	if artifact.Scenario != scenarioName {
-		// A stamped, otherwise valid PASS that answers a different obligation
-		// must not be recorded: it would land under the other scenario's name
-		// and leave this scenario's earlier PASS standing, so closure would stay
-		// green on evidence this invocation never produced.
-		return fail(partial, fmt.Errorf(
-			"proof answers scenario %q, not the requested %q; a proof for another obligation cannot satisfy this one",
-			artifact.Scenario,
-			scenarioName,
-		))
-	}
-	if artifact.Change.ID != envelope.ID {
-		return fail(partial, fmt.Errorf(
-			"proof change id %q does not match envelope %q",
-			artifact.Change.ID,
-			envelope.ID,
-		))
-	}
-	if artifact.Change.CandidateRepository != envelope.CandidateRepository ||
-		artifact.Change.CandidateRevision != envelope.CandidateRevision {
-		return fail(partial, fmt.Errorf(
-			"proof candidate %s@%s does not match envelope %s@%s",
-			artifact.Change.CandidateRepository,
-			artifact.Change.CandidateRevision,
-			envelope.CandidateRepository,
-			envelope.CandidateRevision,
-		))
-	}
-	if artifact.Change.PlanDigest != envelope.PlanDigest {
-		return fail(partial, fmt.Errorf(
-			"proof plan digest %q does not match envelope %q",
-			artifact.Change.PlanDigest,
-			envelope.PlanDigest,
-		))
-	}
-	if artifact.SourceRevision != simulationRevision {
-		return fail(partial, fmt.Errorf(
-			"proof simulation revision %q is not the simulator revision this run executed %q",
-			artifact.SourceRevision,
-			simulationRevision,
-		))
-	}
-	if artifact.Change.SimulationRevision != artifact.SourceRevision {
-		return fail(partial, fmt.Errorf(
-			"proof simulation revision %q does not match proof source revision %q",
-			artifact.Change.SimulationRevision,
-			artifact.SourceRevision,
-		))
-	}
-
 	proof := ProofRecord{
 		Scenario:            artifact.Scenario,
 		Repository:          "globulario/globular-quickstart",
@@ -538,6 +492,62 @@ func requireFrozenScenarioPath(quickstartDir string, requirement ScenarioRequire
 			requirement.Name,
 			requirement.Path,
 			requested,
+		)
+	}
+	return nil
+}
+
+// requireDescribesOccurrence is the single acceptance predicate for a proof
+// artifact. Both the certifying path and the failed-occurrence path ask it, so
+// there is one definition of "this artifact describes the run we just executed".
+//
+// Two predicates drift: the failed-occurrence path was written separately and
+// omitted the candidate repository and the executed simulator revision, which
+// would have let a learning artifact be ingested under a repository or simulator
+// revision that never ran.
+func (a QuickstartProofArtifact) requireDescribesOccurrence(
+	e ChangeEnvelope, invocationID, scenarioName, simulationRevision string,
+) error {
+	if a.Invocation.ID != invocationID {
+		return fmt.Errorf(
+			"proof invocation %q does not belong to this run %q; refusing a proof this invocation did not produce",
+			a.Invocation.ID, invocationID,
+		)
+	}
+	// A stamped, otherwise valid artifact that answers a different obligation
+	// would land under the other scenario's name and leave this scenario's
+	// earlier record standing, so closure would stay green on evidence this
+	// invocation never produced.
+	if a.Scenario != scenarioName {
+		return fmt.Errorf(
+			"proof answers scenario %q, not the requested %q; a proof for another obligation cannot satisfy this one",
+			a.Scenario, scenarioName,
+		)
+	}
+	if a.Change.ID != e.ID {
+		return fmt.Errorf("proof change id %q does not match envelope %q", a.Change.ID, e.ID)
+	}
+	if a.Change.CandidateRepository != e.CandidateRepository ||
+		a.Change.CandidateRevision != e.CandidateRevision {
+		return fmt.Errorf(
+			"proof candidate %s@%s does not match envelope %s@%s",
+			a.Change.CandidateRepository, a.Change.CandidateRevision,
+			e.CandidateRepository, e.CandidateRevision,
+		)
+	}
+	if a.Change.PlanDigest != e.PlanDigest {
+		return fmt.Errorf("proof plan digest %q does not match envelope %q", a.Change.PlanDigest, e.PlanDigest)
+	}
+	if a.SourceRevision != simulationRevision {
+		return fmt.Errorf(
+			"proof simulation revision %q is not the simulator revision this run executed %q",
+			a.SourceRevision, simulationRevision,
+		)
+	}
+	if a.Change.SimulationRevision != a.SourceRevision {
+		return fmt.Errorf(
+			"proof simulation revision %q does not match proof source revision %q",
+			a.Change.SimulationRevision, a.SourceRevision,
 		)
 	}
 	return nil

@@ -346,3 +346,102 @@ func TestFailedRunKeepsItsOccurrenceIdentityForLearning(t *testing.T) {
 		t.Fatalf("a non-certifying run was recorded as proof: %+v", stored.Proofs)
 	}
 }
+
+// Refusing to launch is not enough on its own: an envelope already at PROVEN
+// would keep reporting PROVEN from metadata while its evidence is gone.
+func TestLocalGateFailureAlsoWithdrawsTheProvenClaim(t *testing.T) {
+	workspace, revision, _ := candidateUnderTest(t, "chg-gate-demote")
+	quickstart := t.TempDir()
+	writeQuickstartHarness(t, quickstart, fakeHarness{mode: "pass"})
+
+	envelopePath := filepath.Join(t.TempDir(), "change.yaml")
+	e := NewChangeEnvelope("chg-gate-demote", ChangeSimulationRepair, "repair", revision, RiskCritical)
+	e.RequiredTests = []TestRequirement{{
+		Name: "echo-contents", Command: []string{"sh", "-c", "cat README.md"}, Required: true,
+	}}
+	e.RequiredScenarios = []ScenarioRequirement{{
+		Name: "chaos", Repository: "globulario/globular-quickstart",
+		Path: "tests/scenarios/chaos.yaml", Required: true,
+	}}
+	if err := e.BindCandidate("globulario/services", revision); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveChangeEnvelope(envelopePath, e); err != nil {
+		t.Fatal(err)
+	}
+	local, err := RunDeclaredTest(context.Background(), TestRunOptions{
+		EnvelopePath: envelopePath, WorkspaceDir: workspace, TestName: "echo-contents",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runScenario(t, quickstart, envelopePath); err != nil {
+		t.Fatalf("setup scenario should pass: %v", err)
+	}
+	proven, err := LoadChangeEnvelope(envelopePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if proven.Stage != StageProven {
+		t.Fatalf("expected PROVEN setup, got %s", proven.Stage)
+	}
+
+	// The local evidence behind the standing PROVEN is altered.
+	if err := os.WriteFile(local.Record.EvidenceRef, []byte("rewritten\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runScenario(t, quickstart, envelopePath); err == nil {
+		t.Fatal("gate did not refuse")
+	}
+	after, err := LoadChangeEnvelope(envelopePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Stage == StageProven {
+		t.Fatal("PROVEN survived a local gate failure; the claim was refused but never withdrawn")
+	}
+}
+
+// Two concurrent creations must not both succeed: the second would replace the
+// first envelope's durable history.
+func TestConcurrentCreateCannotReplaceAnEnvelope(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "change.yaml")
+	first := NewChangeEnvelope("chg-create-a", ChangeFeature, "first", "sha-a", RiskLow)
+	second := NewChangeEnvelope("chg-create-b", ChangeFeature, "second", "sha-b", RiskLow)
+
+	if err := CreateChangeEnvelope(path, first); err != nil {
+		t.Fatal(err)
+	}
+	if err := CreateChangeEnvelope(path, second); err == nil {
+		t.Fatal("a second creation replaced an existing envelope")
+	}
+	stored, err := LoadChangeEnvelope(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.ID != "chg-create-a" {
+		t.Fatalf("existing envelope was overwritten: %s", stored.ID)
+	}
+}
+
+// The failed-occurrence path must apply the same identity checks as the
+// certifying path, or a learning artifact could be ingested under a repository
+// or simulator revision that never ran.
+func TestFailedOccurrenceRejectsForeignIdentity(t *testing.T) {
+	quickstart := t.TempDir()
+	writeQuickstartHarness(t, quickstart, fakeHarness{mode: "pass-then-exit-nonzero", repository: "globulario/somewhere-else"})
+	envelopePath := scenarioEnvelope(t, "chg-failed-foreign")
+
+	result, err := RunQuickstartScenario(context.Background(), QuickstartRunOptions{
+		QuickstartDir: quickstart,
+		Scenario:      filepath.Join(quickstart, "tests", "scenarios", "chaos.yaml"),
+		ScenarioName:  "chaos",
+		EnvelopePath:  envelopePath,
+	})
+	if err == nil {
+		t.Fatal("a nonzero exit must not certify")
+	}
+	if result.Proof.CandidateRepository != "" || result.Proof.InvocationID != "" {
+		t.Fatalf("a foreign-identity artifact was preserved as an occurrence: %+v", result.Proof)
+	}
+}

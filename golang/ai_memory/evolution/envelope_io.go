@@ -51,21 +51,9 @@ func SaveChangeEnvelope(path string, envelope ChangeEnvelope) error {
 	if err := envelope.Validate(); err != nil {
 		return fmt.Errorf("refuse to persist invalid change envelope: %w", err)
 	}
-	var (
-		data []byte
-		err  error
-	)
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".json":
-		data, err = json.MarshalIndent(envelope, "", "  ")
-		if err == nil {
-			data = append(data, '\n')
-		}
-	default:
-		data, err = yaml.Marshal(envelope)
-	}
+	data, err := encodeChangeEnvelope(path, envelope)
 	if err != nil {
-		return fmt.Errorf("encode change envelope: %w", err)
+		return err
 	}
 	// Write through a sibling temp file and rename, so a reader never observes a
 	// half-written envelope and a crash mid-write cannot truncate the record.
@@ -91,6 +79,46 @@ func SaveChangeEnvelope(path string, envelope ChangeEnvelope) error {
 	if err := os.Rename(tmpName, path); err != nil {
 		_ = os.Remove(tmpName)
 		return fmt.Errorf("commit change envelope: %w", err)
+	}
+	return nil
+}
+
+// CreateChangeEnvelope publishes a new envelope and fails if one already exists.
+//
+// An envelope is the durable record of one candidate's proof, admission, and
+// release history, so creating over an existing one erases that history in place
+// rather than superseding it. Checking for the file and then writing it is not
+// enough: two concurrent creations both observe the absence and the second
+// silently replaces the first. Exclusive create makes the check and the publish
+// one operation, so exactly one caller can win.
+func CreateChangeEnvelope(path string, envelope ChangeEnvelope) error {
+	envelope.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
+	if envelope.CreatedAt == "" {
+		envelope.CreatedAt = envelope.UpdatedAt
+	}
+	if err := envelope.Validate(); err != nil {
+		return fmt.Errorf("refuse to persist invalid change envelope: %w", err)
+	}
+	data, err := encodeChangeEnvelope(path, envelope)
+	if err != nil {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		if os.IsExist(err) {
+			return fmt.Errorf(
+				"%s already exists; a new change needs its own envelope, and an existing one is superseded by a new candidate rather than overwritten",
+				path,
+			)
+		}
+		return fmt.Errorf("create change envelope: %w", err)
+	}
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("write change envelope: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("flush change envelope: %w", err)
 	}
 	return nil
 }
@@ -187,6 +215,26 @@ func RebindCandidate(path string, expected EnvelopeIdentity, repository, revisio
 		return nil
 	})
 	return out, err
+}
+
+func encodeChangeEnvelope(path string, envelope ChangeEnvelope) ([]byte, error) {
+	var (
+		data []byte
+		err  error
+	)
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".json":
+		data, err = json.MarshalIndent(envelope, "", "  ")
+		if err == nil {
+			data = append(data, '\n')
+		}
+	default:
+		data, err = yaml.Marshal(envelope)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("encode change envelope: %w", err)
+	}
+	return data, nil
 }
 
 func (e *ChangeEnvelope) AddOrReplaceProof(proof ProofRecord) {

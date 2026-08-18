@@ -24,6 +24,8 @@ type fakeHarness struct {
 	mode string
 	// scenario overrides the scenario name the artifact claims to answer.
 	scenario string
+	// repository overrides the candidate repository the artifact claims.
+	repository string
 }
 
 func writeQuickstartHarness(t *testing.T, quickstartDir string, h fakeHarness) {
@@ -36,10 +38,13 @@ func writeQuickstartHarness(t *testing.T, quickstartDir string, h fakeHarness) {
 	if scenario == "" {
 		scenario = "chaos"
 	}
+	repository := h.repository
 	script := `#!/bin/sh
 set -e
 MODE="` + h.mode + `"
 SCENARIO="` + scenario + `"
+REPO_OVERRIDE="` + repository + `"
+if [ -n "$REPO_OVERRIDE" ]; then GLOBULAR_CANDIDATE_REPOSITORY="$REPO_OVERRIDE"; fi
 if [ "$MODE" = "pass-then-exit-nonzero" ]; then
   PASS_THEN_FAIL=1
 else
