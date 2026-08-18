@@ -119,6 +119,13 @@ func (s *ClusterDoctorServer) startHealerLoop(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				// Poll recorder delivery health BEFORE the leader gate.
+				// Remediation is leader-only because only one actor may act;
+				// observing your own recorder is not an action and needs no
+				// election. Gating it would make a follower's failing recorder
+				// permanently invisible — the silence #238 exists to break.
+				s.projectRecorderHealth(time.Now())
+
 				if !s.isAuthoritative.Load() {
 					continue // only leader runs
 				}

@@ -3,6 +3,7 @@ package observation
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -252,5 +253,105 @@ func TestRecorder_QueueDropAndTerminalFailureStayDistinct(t *testing.T) {
 	}
 	if got := st.Health(); got != RecorderQueuePressure {
 		t.Errorf("health = %q, want %q", got, RecorderQueuePressure)
+	}
+}
+
+// A stuck endpoint resolution must not be able to outlive every deadline the
+// recorder has (#238: "Bound any service-resolution/dial stage so a stuck
+// attempt cannot remain indefinitely invisible outside CallTimeout").
+//
+// CallTimeout does not cover this. It is created inside writeOnce, AFTER conn()
+// has returned, so before this bound existed a wedged etcd parked the worker
+// forever: bundles queued, Failed stayed 0, and Health() read
+// "no_delivery_attempted" — indistinguishable from a quiet cluster.
+func TestRecorder_StuckResolutionBecomesAVisibleFailure(t *testing.T) {
+	blocked := make(chan struct{})
+	r := NewRecorder(RecorderOptions{
+		QueueSize:      4,
+		Workers:        1,
+		MaxAttempts:    1,
+		CallTimeout:    time.Hour, // deliberately useless here — it is the wrong deadline
+		ResolveTimeout: 50 * time.Millisecond,
+	})
+	r.resolveAddrFn = func() string { <-blocked; return "" }
+	t.Cleanup(func() { close(blocked); _ = r.Close(context.Background()) })
+
+	r.Enqueue(testBundle("resolution-wedged"))
+
+	st := awaitStats(t, r, func(s Stats) bool { return s.Failed > 0 }, "a bounded resolution failure")
+	if got := st.Health(); got != RecorderFailing {
+		t.Errorf("health = %q, want %q: a wedged resolution is a delivery failure, not silence", got, RecorderFailing)
+	}
+	if !strings.Contains(st.LastError, "resolution exceeded") {
+		t.Errorf("LastError = %q, want it to name the resolution stage", st.LastError)
+	}
+}
+
+// Concurrent deliveries share one in-flight resolution. A wedged etcd must cost
+// one parked goroutine, not one per bundle per retry per worker — the
+// amplification error_path.no_unbounded_fire_and_forget_goroutine forbids.
+func TestRecorder_StuckResolutionIsSingleFlight(t *testing.T) {
+	var starts atomic.Int64
+	entered := make(chan struct{}, 1)
+	blocked := make(chan struct{})
+	r := NewRecorder(RecorderOptions{
+		QueueSize:      16,
+		Workers:        4,
+		MaxAttempts:    1,
+		ResolveTimeout: time.Hour, // no waiter may time out and re-attempt
+	})
+	r.resolveAddrFn = func() string {
+		starts.Add(1)
+		select {
+		case entered <- struct{}{}:
+		default:
+		}
+		<-blocked
+		return ""
+	}
+	t.Cleanup(func() { close(blocked); _ = r.Close(context.Background()) })
+
+	for i := 0; i < 8; i++ {
+		r.Enqueue(testBundle("concurrent"))
+	}
+
+	// Wait for the resolution stage to be REACHED rather than sleeping a fixed
+	// interval and hoping. A loaded machine can take longer than any constant
+	// worth writing, and a test that fails under load teaches people to rerun it.
+	select {
+	case <-entered:
+	case <-time.After(10 * time.Second):
+		t.Fatal("no worker reached the resolution stage")
+	}
+	// All eight bundles are now behind the one wedged attempt. Give the other
+	// three workers room to prove they joined it instead of starting their own.
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if n := starts.Load(); n != 1 {
+			t.Fatalf("%d concurrent resolution attempts, want exactly 1", n)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// Close must not be held hostage by a resolution that may never return.
+func TestRecorder_CloseIsNotBlockedByStuckResolution(t *testing.T) {
+	blocked := make(chan struct{})
+	defer close(blocked)
+
+	r := NewRecorder(RecorderOptions{
+		QueueSize:      4,
+		Workers:        1,
+		MaxAttempts:    1,
+		ResolveTimeout: time.Hour, // only r.stopped can release the waiter
+	})
+	r.resolveAddrFn = func() string { <-blocked; return "" }
+	r.Enqueue(testBundle("closing"))
+	time.Sleep(50 * time.Millisecond) // let the worker reach the resolution stage
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := r.Close(ctx); err != nil {
+		t.Fatalf("Close blocked behind a stuck resolution: %v", err)
 	}
 }
