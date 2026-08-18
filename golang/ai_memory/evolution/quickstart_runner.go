@@ -40,10 +40,8 @@ type QuickstartRunResult struct {
 }
 
 // RunQuickstartScenario executes one proof-boundary scenario against an exact
-// candidate revision and persists the resulting proof into its ChangeEnvelope.
-// Required local/static tests must already be green for the exact candidate.
-// It runs only the quickstart lab; production release/mutation is outside this
-// function's authority.
+// candidate revision and frozen proof plan, then persists the resulting proof
+// into its ChangeEnvelope. Required local/static tests must already be green.
 func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (QuickstartRunResult, error) {
 	if strings.TrimSpace(opts.QuickstartDir) == "" ||
 		strings.TrimSpace(opts.Scenario) == "" ||
@@ -60,8 +58,8 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 			envelope.Stage,
 		)
 	}
-	if envelope.CandidateRepository == "" || envelope.CandidateRevision == "" {
-		return QuickstartRunResult{}, fmt.Errorf("candidate repository/revision are required before simulation")
+	if envelope.CandidateRepository == "" || envelope.CandidateRevision == "" || envelope.PlanDigest == "" {
+		return QuickstartRunResult{}, fmt.Errorf("candidate repository/revision/plan digest are required before simulation")
 	}
 	if err := envelope.ValidateRequiredTestClosure(); err != nil {
 		return QuickstartRunResult{}, fmt.Errorf("local proof gate: %w", err)
@@ -89,6 +87,7 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 		"GLOBULAR_CHANGE_ENVELOPE_REF="+opts.EnvelopePath,
 		"GLOBULAR_CANDIDATE_REPOSITORY="+envelope.CandidateRepository,
 		"GLOBULAR_CANDIDATE_REVISION="+envelope.CandidateRevision,
+		"GLOBULAR_CHANGE_PLAN_DIGEST="+envelope.PlanDigest,
 		"GLOBULAR_REQUIRE_CHANGE_BINDING=1",
 	)
 
@@ -146,6 +145,13 @@ func RunQuickstartScenario(ctx context.Context, opts QuickstartRunOptions) (Quic
 			artifact.Change.CandidateRevision,
 			envelope.CandidateRepository,
 			envelope.CandidateRevision,
+		)
+	}
+	if artifact.Change.PlanDigest != envelope.PlanDigest {
+		return QuickstartRunResult{}, fmt.Errorf(
+			"proof plan digest %q does not match envelope %q",
+			artifact.Change.PlanDigest,
+			envelope.PlanDigest,
 		)
 	}
 	if artifact.Change.SimulationRevision != artifact.SourceRevision {
