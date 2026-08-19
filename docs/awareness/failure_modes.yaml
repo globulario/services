@@ -8005,3 +8005,16 @@ failure_modes:
       evidence:
         - '5-node sim 2026-08-18 on 1.2.325: node-5 logged ''workflow-resolver: fetch node.join.yaml from etcd: workflow "node.join.yaml" not found in etcd''; reconcile then failed with ''workflow definition node.join not found'', 7 units landed with no installed-state receipt, doctor worst=CRITICAL, and 5 of 10 upgrade scenarios failed. Replaying the old reader against the real seeded keys caches 0 of 2 definitions; the fixed reader caches 2 of 2.'
       contract: An etcd workflow key is the bare workflow name, defined by its writer; the .yaml extension belongs to the local filename only.
+    - id: failure.join_gave_a_cold_etcd_one_fifth_the_budget_day_0_gives_a_war
+      title: Join gave a cold etcd one fifth the budget Day-0 gives a warm one, and lost the receipts
+      description: node.join's verify_prerequisites allowed 6x5s=30s for etcd to become active while day0.bootstrap's verify_etcd_healthy allows 30x5s=150s for the same condition. The join path runs on a node whose etcd is starting from an empty data dir, so it is the harder case with the smaller budget. When it expires node.join FAILS, the install owner never stamps installed-state receipts, the heartbeat backfills records from the local package cache with no installed_by, and cluster-doctor fail-closes CRITICAL on every affected unit.
+      protects:
+        files:
+          - golang/workflow/definitions/node.join.yaml
+      related_invariants:
+        - install.join_path_must_complete_install_contract
+      required_tests:
+        - golang/workflow/definitions_retry_budget_test.go:TestJoinEtcdPrerequisiteBudgetIsNotSmallerThanDay0
+      evidence:
+        - '5-node sim 2026-08-19 on 1.2.326: attempt 1 at 02:30:31, FAILED after 6 attempts at 02:30:56, etcd went active at 02:31:09 — missed by 13s on a healthy node. Consequence: 7 units on node-5 with no installed_state receipt, doctor worst=CRITICAL, 5 upgrade and 2 authority scenarios failed on doctor cleanliness.'
+      contract: A step waiting for a dependency on a cold node must never be given a smaller budget than the step waiting for the same dependency on a warm one.
