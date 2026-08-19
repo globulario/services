@@ -998,6 +998,7 @@
 <https://globular.io/awareness#failureMode/failure.workflow_cache_asked_etcd_for_filenames_so_a_wiped_node_coul> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://globular.io/awareness#FailureMode> .
 <https://globular.io/awareness#failureMode/failure.workflow_cache_asked_etcd_for_filenames_so_a_wiped_node_coul> <http://www.w3.org/2000/01/rdf-schema#label> "Workflow cache asked etcd for filenames, so a wiped node could never resolve node.join" .
 <https://globular.io/awareness#failureMode/failure.workflow_cache_asked_etcd_for_filenames_so_a_wiped_node_coul> <https://globular.io/awareness#affects> <https://globular.io/awareness#invariant/identity.field_semantic_is_single_writer_defined> .
+<https://globular.io/awareness#failureMode/failure.workflow_cache_asked_etcd_for_filenames_so_a_wiped_node_coul> <https://globular.io/awareness#affects> <https://globular.io/awareness#invariant/meta.code_must_not_mirror_external_enumerations> .
 <https://globular.io/awareness#failureMode/failure.workflow_cache_asked_etcd_for_filenames_so_a_wiped_node_coul> <https://globular.io/awareness#authoredIn> "docs/awareness/failure_modes.yaml" .
 <https://globular.io/awareness#failureMode/failure.workflow_cache_asked_etcd_for_filenames_so_a_wiped_node_coul> <https://globular.io/awareness#protects> <https://globular.io/awareness#sourceFile/golang%2Fnode_agent%2Fnode_agent_server%2Fgrpc_workflow.go> .
 <https://globular.io/awareness#failureMode/failure.workflow_cache_asked_etcd_for_filenames_so_a_wiped_node_coul> <https://globular.io/awareness#requiresTest> <https://globular.io/awareness#test/golang%2Fnode_agent%2Fnode_agent_server%2Fworkflow_resolver_key_test.go:TestCacheWorkflowDefsUsesBareEtcdKeysAndYamlFilenames> .
@@ -18874,9 +18875,9 @@
 <https://globular.io/awareness#test/xds_emits_routes_for_hosted_services> <https://globular.io/awareness#affects> <https://globular.io/awareness#failureMode/gateway.cohosted_grpc_service_route_missing_returns_html> .
 <https://globular.io/awareness#test/xds_emits_routes_for_hosted_services> <https://globular.io/awareness#affects> <https://globular.io/awareness#invariant/gateway.cohosted_grpc_services_must_be_declared> .
 <https://globular.io/awareness#test/xds_emits_routes_for_hosted_services> <https://globular.io/awareness#authoredIn> "docs/awareness/required_tests.yaml" .
-<https://globular.io/awareness#seedBuild/sha256-3f4910813493cecb79ace61e2865590d2709e94ce3e79376803071061b830f49> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://globular.io/awareness#SeedBuild> .
-<https://globular.io/awareness#seedBuild/sha256-3f4910813493cecb79ace61e2865590d2709e94ce3e79376803071061b830f49> <http://www.w3.org/2000/01/rdf-schema#label> "Embedded seed sha256 3f4910813493" .
-<https://globular.io/awareness#seedBuild/sha256-3f4910813493cecb79ace61e2865590d2709e94ce3e79376803071061b830f49> <https://globular.io/awareness#seedDigestSha256> "3f4910813493cecb79ace61e2865590d2709e94ce3e79376803071061b830f49" .
-<https://globular.io/awareness#seedBuild/sha256-3f4910813493cecb79ace61e2865590d2709e94ce3e79376803071061b830f49> <https://globular.io/awareness#seedTripleCount> "18882" .
-<https://globular.io/awareness#seedBuild/sha256-3f4910813493cecb79ace61e2865590d2709e94ce3e79376803071061b830f49> <https://globular.io/awareness#seedMarkerVersion> "v2" .
-<https://globular.io/awareness#seedBuild/sha256-3f4910813493cecb79ace61e2865590d2709e94ce3e79376803071061b830f49> <https://globular.io/awareness#authoredIn> "generated:seed_marker" .
+<https://globular.io/awareness#seedBuild/sha256-ae19ce8cc4e51d82a17fc71b0efb37a6bd2090d68645862f5c764605b08fbcaa> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://globular.io/awareness#SeedBuild> .
+<https://globular.io/awareness#seedBuild/sha256-ae19ce8cc4e51d82a17fc71b0efb37a6bd2090d68645862f5c764605b08fbcaa> <http://www.w3.org/2000/01/rdf-schema#label> "Embedded seed sha256 ae19ce8cc4e5" .
+<https://globular.io/awareness#seedBuild/sha256-ae19ce8cc4e51d82a17fc71b0efb37a6bd2090d68645862f5c764605b08fbcaa> <https://globular.io/awareness#seedDigestSha256> "ae19ce8cc4e51d82a17fc71b0efb37a6bd2090d68645862f5c764605b08fbcaa" .
+<https://globular.io/awareness#seedBuild/sha256-ae19ce8cc4e51d82a17fc71b0efb37a6bd2090d68645862f5c764605b08fbcaa> <https://globular.io/awareness#seedTripleCount> "18883" .
+<https://globular.io/awareness#seedBuild/sha256-ae19ce8cc4e51d82a17fc71b0efb37a6bd2090d68645862f5c764605b08fbcaa> <https://globular.io/awareness#seedMarkerVersion> "v2" .
+<https://globular.io/awareness#seedBuild/sha256-ae19ce8cc4e51d82a17fc71b0efb37a6bd2090d68645862f5c764605b08fbcaa> <https://globular.io/awareness#authoredIn> "generated:seed_marker" .

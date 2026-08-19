@@ -7999,6 +7999,7 @@ failure_modes:
           - golang/node_agent/node_agent_server/grpc_workflow.go
       related_invariants:
         - identity.field_semantic_is_single_writer_defined
+        - meta.code_must_not_mirror_external_enumerations
       required_tests:
         - golang/node_agent/node_agent_server/workflow_resolver_key_test.go:TestCacheWorkflowDefsUsesBareEtcdKeysAndYamlFilenames
       evidence:
