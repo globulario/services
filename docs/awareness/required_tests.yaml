@@ -6414,3 +6414,8 @@ required_tests:
   run:
     commands:
     - go test ./golang/node_agent/node_agent_server/internal/actions/ -run TestInstallPayloadWritesNothingWhenALaterEntryIsUnsafe
+- id: golang/node_agent/node_agent_server/workflow_resolver_key_test.go:TestCacheWorkflowDefsUsesBareEtcdKeysAndYamlFilenames
+  title: The workflow cache addresses etcd by bare name and writes .yaml filenames
+  protects:
+    failure_modes:
+      - failure.workflow_cache_asked_etcd_for_filenames_so_a_wiped_node_coul

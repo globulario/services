@@ -7991,3 +7991,16 @@ failure_modes:
       evidence:
         - '2026-08-18 building 1.2.325 with --all: ''ERROR: no generated template for Go service ai-executor at generated/ai-executor_1.2.325_linux_amd64.tgz. regenerate-release-inputs.sh must produce one; refusing to ship a bundle missing a service.'' The template existed at its committed version ai-executor_1.2.317. Scoping to --rebuild ai-memory,cluster-controller,cluster-doctor,node-agent,mcp (the five bumped to 1.2.325) produced the bundle.'
       contract: The platform release version identifies the bundle, never its packages; every path that resolves a package artifact must read that package's committed version.
+    - id: failure.workflow_cache_asked_etcd_for_filenames_so_a_wiped_node_coul
+      title: Workflow cache asked etcd for filenames, so a wiped node could never resolve node.join
+      description: fetchWorkflowDefsFromEtcd requested each core workflow as '<name>.yaml' while SeedCoreWorkflows deliberately writes the bare '<name>' — workflow_day0.go strips the extension, commenting that keys carrying it 'produced ghost entries that ExecuteWorkflow never resolved'. Every fetch missed, so the cache whose entire purpose is to serve a node with an empty local workflow directory never wrote a file. The reader also carried its own hardcoded list of which workflows are core, a second writer of a fact day0 already owns.
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/grpc_workflow.go
+      related_invariants:
+        - identity.field_semantic_is_single_writer_defined
+      required_tests:
+        - golang/node_agent/node_agent_server/workflow_resolver_key_test.go:TestCacheWorkflowDefsUsesBareEtcdKeysAndYamlFilenames
+      evidence:
+        - '5-node sim 2026-08-18 on 1.2.325: node-5 logged ''workflow-resolver: fetch node.join.yaml from etcd: workflow "node.join.yaml" not found in etcd''; reconcile then failed with ''workflow definition node.join not found'', 7 units landed with no installed-state receipt, doctor worst=CRITICAL, and 5 of 10 upgrade scenarios failed. Replaying the old reader against the real seeded keys caches 0 of 2 definitions; the fixed reader caches 2 of 2.'
+      contract: An etcd workflow key is the bare workflow name, defined by its writer; the .yaml extension belongs to the local filename only.

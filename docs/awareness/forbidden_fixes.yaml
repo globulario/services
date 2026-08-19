@@ -4294,3 +4294,10 @@ forbidden_fixes:
   related_invariants:
     - invariant.package_archive_extraction_must_stay_within_node_owned_desti
   reason: 'Do not add a skip-and-log or compatibility mode to package archive extraction, and do not validate entries one at a time while streaming. Both leave a package partially installed while the version marker advances and the service restarts, so the installed payload no longer matches the published artifact — package identity becomes unprovable and rollback evidence ambiguous. A package is admitted in full or rejected in full. Equally forbidden: normalizing entry names with strings.TrimLeft(name, "./"), whose cutset consumes the dots of a leading ../ and launders a traversal into an innocent relative path.'
+- id: forbidden_fix.resolve_a_workflow_key_mismatch_by_trying_both_key_shapes
+  title: Resolve a workflow key mismatch by trying both key shapes
+  summary: 'Making the reader attempt ''<name>'' and then ''<name>.yaml'' (or sniffing which key exists) to work around the workflow-cache miss. It reads as robustness and is the same shape as conditional_field_semantic_by_writer: the ambiguity propagates to every new reader, drifts as writers change, and hides the next mismatch because the fallback silently succeeds. The writer defines the key semantic; readers use it.'
+  related_invariants:
+    - identity.field_semantic_is_single_writer_defined
+  reason: An etcd workflow key is the bare workflow name, defined by its writer; the .yaml extension belongs to the local filename only.
+  contract: An etcd workflow key is the bare workflow name, defined by its writer; the .yaml extension belongs to the local filename only.
