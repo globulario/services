@@ -46,10 +46,25 @@ spec:
       action: node.verify_services_active
       with:
         services: [etcd, node-agent]
+      # This budget must cover a COLD etcd start, because that is the only
+      # situation this step ever runs in: a node joining for the first time, or
+      # rejoining after a wipe, whose etcd is starting from an empty data dir.
+      #
+      # It used to be 6x5s=30s while day0.bootstrap gives the same etcd check
+      # 30x5s=150s — the join path, which is the harder case, had one fifth the
+      # budget of the easier one. Measured on the 5-node simulation 2026-08-19:
+      # first attempt 02:30:31, gave up 02:30:56, etcd went active 02:31:09.
+      # It failed by 13 seconds on a node that was working correctly.
+      #
+      # The cost of that near-miss is not a retry: node.join FAILS, so the
+      # install owner never stamps installed-state receipts, the heartbeat then
+      # backfills records from the local package cache with no installed_by,
+      # and cluster-doctor fail-closes CRITICAL on every affected unit
+      # (failure_modes.yaml:7589). Five upgrade scenarios failed from this.
       retry:
-        maxAttempts: 6
+        maxAttempts: 30
         backoff: 5s
-      timeout: 1m
+      timeout: 3m
       execution:
         idempotency: safe_retry
         resume_policy: retry
