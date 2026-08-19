@@ -169,6 +169,21 @@ check-day0-package-contract:
 check-identity-authority:
 	@bash scripts/check-identity-authority.sh
 
+# check-workflow-enumeration-mirrors: no Go slice may enumerate the workflow
+# names that golang/workflow/definitions/ owns. A hand-maintained mirror of an
+# external set diverges the moment the set grows — silently, with no compile
+# error, because the tests use the same mirror. That is exactly how the
+# node-agent's workflow cache spent months never caching anything (2026-08-18:
+# a wiped node could not resolve node.join, doctor fail-closed CRITICAL, five
+# upgrade scenarios failed). Enforces meta.code_must_not_mirror_external_enumerations
+# for the one authority where it has already cost us an outage.
+#
+# --selftest reconstructs that defect and requires the scanner to catch it: a
+# gate nobody has watched fail is a decoration.
+check-workflow-enumeration-mirrors:
+	@bash scripts/check-workflow-enumeration-mirrors.sh --selftest
+	@bash scripts/check-workflow-enumeration-mirrors.sh
+
 # ── Generated protobuf placement ─────────────────────────────────────────────
 #
 # check-no-misplaced-pb: protobuf-generated Go files must live ONLY under their
@@ -237,7 +252,7 @@ check-operator-skill:
 uncertainty-scan:
 	@cd golang && go run ./tools/uncertainty-scan -root ./
 
-check-services: check-controller-no-exec check-nodeagent-exec-boundary check-proto-authz check-no-misplaced-pb check-no-tracked-binaries check-package-kinds check-package-authority check-day0-package-contract check-identity-authority check-operator-skill
+check-services: check-controller-no-exec check-nodeagent-exec-boundary check-proto-authz check-no-misplaced-pb check-no-tracked-binaries check-package-kinds check-package-authority check-day0-package-contract check-identity-authority check-workflow-enumeration-mirrors check-operator-skill
 
 # ── Test targets ─────────────────────────────────────────────────────────────
 
