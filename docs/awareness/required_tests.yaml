@@ -6419,3 +6419,8 @@ required_tests:
   protects:
     failure_modes:
       - failure.workflow_cache_asked_etcd_for_filenames_so_a_wiped_node_coul
+- id: golang/cluster_doctor/cluster_doctor_server/rules/registry_scope_test.go:TestEvaluateForNode_ClusterScopedRulesSeeFullNodeSet
+  title: EvaluateForNode passes the full node set to cluster-scoped rules
+  protects:
+    failure_modes:
+      - failure.cluster_scoped_doctor_rules_evaluated_against_a_node_filtere

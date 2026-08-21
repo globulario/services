@@ -8018,3 +8018,14 @@ failure_modes:
       evidence:
         - '5-node sim 2026-08-19 on 1.2.326: attempt 1 at 02:30:31, FAILED after 6 attempts at 02:30:56, etcd went active at 02:31:09 — missed by 13s on a healthy node. Consequence: 7 units on node-5 with no installed_state receipt, doctor worst=CRITICAL, 5 upgrade and 2 authority scenarios failed on doctor cleanliness.'
       contract: A step waiting for a dependency on a cold node must never be given a smaller budget than the step waiting for the same dependency on a warm one.
+    - id: failure.cluster_scoped_doctor_rules_evaluated_against_a_node_filtere
+      title: Cluster-scoped doctor rules evaluated against a node-filtered snapshot emit false CRITICAL findings
+      protects:
+        files:
+          - golang/cluster_doctor/cluster_doctor_server/rules/registry.go
+      related_invariants:
+        - doctor_rule_evaluate_must_consult_snap_errors
+      required_tests:
+        - golang/cluster_doctor/cluster_doctor_server/rules/registry_scope_test.go:TestEvaluateForNode_ClusterScopedRulesSeeFullNodeSet
+      evidence:
+        - EvaluateForNode filters Snapshot.Nodes to the requested node, then evaluates cluster-scoped rules against that view. objectstore.write_quorum_lost fired CRITICAL (active_drives=1 < write_quorum=3) on a healthy 4-drive MinIO pool (4 drives online, 0 offline, EC:2, cross-node object read/write verified), naming a different sole survivor on every node report (.63/.8/.9/.102) while known_down_nodes was empty and data_incomplete=false. Verdict derived from nodes absent from a deliberately narrowed snapshot, not from observed state.
