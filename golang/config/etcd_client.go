@@ -28,7 +28,34 @@ import (
 var (
 	cliMu     sync.Mutex
 	cliShared *clientv3.Client
+
+	// Negative cache for a failed connection attempt.
+	//
+	// When etcd is unreachable no client is ever established, so cliShared
+	// stays nil and EVERY caller repeated the full cost: build a client, dial,
+	// then wait out a 2s health probe before returning the same error. Nothing
+	// remembered that the last attempt had just failed.
+	//
+	// That is why one cluster-controller persistStateLocked — an authoritative
+	// write followed by three derived publishes — took 12-28s against a down
+	// etcd instead of one dial's worth, stalling every heartbeat queued behind
+	// its lock. It is also why the affected-package release gate could not run
+	// on a workstation whose cluster was down: each test that builds a server
+	// pays the dial cost several times over, and the package blew past Go's
+	// 600s limit.
+	//
+	// A short TTL is the whole mechanism: a connection that failed 200ms ago
+	// will not succeed now, and one that failed 5s ago is worth retrying. The
+	// window is deliberately smaller than any recovery it could mask.
+	lastDialErr  error
+	lastDialFail time.Time
 )
+
+// etcdDialFailureTTL is how long a failed connection attempt suppresses
+// re-dialing. Short enough that a recovering etcd is picked up promptly,
+// long enough that a burst of calls pays for one attempt rather than all of
+// them.
+const etcdDialFailureTTL = 5 * time.Second
 
 // EtcdClusterToken is the etcd initial-cluster-token shared by every Globular
 // member. It is a fixed bootstrap constant — NOT derived from cluster_id.
@@ -70,12 +97,18 @@ func etcdClient() (*clientv3.Client, error) {
 		return cliShared, nil
 	}
 
+	// A recent failure short-circuits: re-dialing now would repeat the same
+	// probe and return the same error, only slower.
+	if lastDialErr != nil && time.Since(lastDialFail) < etcdDialFailureTTL {
+		return nil, lastDialErr
+	}
+
 	// Build endpoints (with scheme hints) from env / local config.
 	raw := etcdEndpointsFromEnv() // may contain https://
 	hostports := normalizeEndpoints(raw)
 
 	if len(hostports) == 0 {
-		return nil, fmt.Errorf("no valid etcd endpoints after normalization")
+		return nil, noteEtcdDialFailure(fmt.Errorf("no valid etcd endpoints after normalization"))
 	}
 
 	cfg := clientv3.Config{
@@ -87,23 +120,39 @@ func etcdClient() (*clientv3.Client, error) {
 	// TLS is MANDATORY for all etcd connections
 	tlsCfg, err := GetEtcdTLS()
 	if err != nil {
-		return nil, fmt.Errorf("TLS required but not available (TLS is mandatory): %w", err)
+		return nil, noteEtcdDialFailure(fmt.Errorf("TLS required but not available (TLS is mandatory): %w", err))
 	}
 	cfg.TLS = tlsCfg
 
 	c, err := clientv3.New(cfg)
 	if err != nil {
-		return nil, err
+		return nil, noteEtcdDialFailure(err)
 	}
 	if err := probeEtcdHealthy(c, 2*time.Second); err != nil {
 		_ = c.Close()
 		if errors.Is(err, ErrEtcdCorrupt) {
-			return nil, ErrEtcdCorrupt
+			return nil, noteEtcdDialFailure(ErrEtcdCorrupt)
 		}
-		return nil, err
+		return nil, noteEtcdDialFailure(err)
 	}
 	cliShared = c
+	clearEtcdDialFailure()
 	return cliShared, nil
+}
+
+// noteEtcdDialFailure records a failed connection attempt and returns the error
+// unchanged, so call sites read as `return nil, noteEtcdDialFailure(err)`.
+// Must be called with cliMu held.
+func noteEtcdDialFailure(err error) error {
+	lastDialErr = err
+	lastDialFail = time.Now()
+	return err
+}
+
+// clearEtcdDialFailure forgets the last failure. Must be called with cliMu held.
+func clearEtcdDialFailure() {
+	lastDialErr = nil
+	lastDialFail = time.Time{}
 }
 
 // GetEtcdClient returns the shared healthy etcd client.
@@ -120,6 +169,9 @@ func ResetEtcdClient() {
 		_ = cliShared.Close()
 		cliShared = nil
 	}
+	// An explicit reset is a caller saying "conditions changed, try again" —
+	// honouring the negative cache here would ignore that.
+	clearEtcdDialFailure()
 }
 
 // NewEtcdClient creates a brand-new, independent etcd client with the same

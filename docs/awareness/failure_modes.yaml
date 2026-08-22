@@ -7823,6 +7823,125 @@ failure_modes:
         - minio_nonmember_test.go:TestNonMemberIsNotJudgedAgainstPoolTopology
       evidence:
         - '2026-08-11: migrating the quickstart cluster standalone -> distributed (3 storage nodes x 2 drives, generation 1, converged and HEALTHY) immediately produced 4 CRITICAL doctor findings on the two COMPUTE nodes (35ac3821, 6400b443): minio.topology_matches_desired x2 (''desired topology is distributed (3 nodes) but the rendered MINIO_VOLUMES is standalone'') and minio.not_stalled x2. Neither node is a storage-profile node, neither is in ObjectStoreDesiredState.Nodes, and both have globular-minio held stopped by the node-agent topology gate.'
+    - id: etcd.backend_ratchets_because_nothing_defragments
+      title: etcd backend ratchets into NOSPACE because nothing defragments
+      severity: critical
+      description: 'auto-compaction (periodic, 1h) was configured and working, but nothing ever defragmented, so the backend file only ratcheted upward and the high-water mark was permanent. Measured on the 5-node simulation: 46,200 revisions/hour and ~55 MB/hour of growth against a 1.7 MB live working set; the file reached 2,146,975,744 bytes (99% of the 2 GiB default quota) after 46 hours and raised NOSPACE, making the control plane read-only. Defragmenting returned every member to 1.7 MB — about 97% of the file was free space. Any cluster reaches this on a timer (~39 hours). Misdiagnosing it as write volume is what produced cluster-controller@1.2.317 and the second outage.'
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/etcd_maintenance.go
+      related_invariants:
+        - controller.persisted_liveness_must_track_heartbeat
+      required_tests:
+        - golang/node_agent/node_agent_server/etcd_maintenance_test.go:TestEtcdMaintenance_IntervalKeepsGrowthUnderQuota
+      evidence:
+        - '5-node sim, 2026-08-17: dbSize 2146975744, dbSizeInUse 2146828288, 1018 live keys, alarm NOSPACE; post-defrag 1.7 MB on all 5 members'
+      contract: 'etcd must be able to return backend space, not only consume it: compaction bounds MVCC history but only defragmentation returns freed pages to the filesystem.'
+    - id: release.carried_forward_gateway_embeds_stale_join_script
+      title: Carried-forward gateway ships a join script older than the bundle it joins
+      severity: high
+      description: 'build-local-release.sh carries unchanged packages forward from a base bundle. The gateway binary embeds the Day-1 join script, so a carried-forward gateway executes the join procedure as of the BASE bundle''s build date, not the release being produced. On 2026-08-17 the 1.2.318 bundle correctly excluded libnss-resolve (forbidden by check-no-bundled-libnss.sh, with a resolver-witness receipt proving cluster FQDN resolution works without it), while the gateway carried forward from the 1.2.312/1.2.317 base still ran step 4.7 ''Installing libnss-resolve'' — a step deleted from Globular/internal/gateway/handlers/cluster/join_script.go on 2026-08-14 precisely because bundling it had broken Day-1 joins twice. Every joining node failed: ''FAIL: package libnss-resolve not found in /var/lib/globular/packages'' then ''FATAL: join failed''. The founding node bootstrapped fine, so the cluster looked alive at 1 node while 4 could never join. Rebuild the gateway whenever the shipped package set changes.'
+      protects:
+        files:
+          - scripts/build-local-release.sh
+      related_invariants:
+        - controller.persisted_liveness_must_track_heartbeat
+      evidence:
+        - '5-node sim, 2026-08-17: gateway_1.2.312 binary contains ''Installing libnss-resolve'' (1 match) and lacks the ''libnss-resolve install removed'' marker; nodes 2-5 all failed join at phase 4'
+      contract: Every binary a release carries forward must be consistent with the package set that release actually ships; a component that embeds a procedure must be rebuilt when that procedure's inputs change.
+    - id: cluster.node_removal_leaves_orphaned_per_node_records
+      title: Node removal leaves per-node records, so a healthy cluster reports CRITICAL
+      severity: high
+      description: 'globular cluster nodes remove <id> --force reports ''node removed from cluster'' and drops the node from the live set, but leaves its per-node keys in etcd. Measured on the 5-node simulation 2026-08-17: 63 keys remained under /globular/convergence/actions/<id>/, /globular/convergence/nodes/<id>/packages/ and siblings after removal. cluster-doctor then evaluated those orphans as live drift and reported 25 ERROR findings — 11x unit_receipt_drift.installed_state_missing_or_unproven, 11x installed_state_runtime_mismatch, 1x release.boundary_unproven — all naming a node id absent from cluster_list_nodes, taking the report to worst=CRITICAL with reduced_harvest=false on a cluster that was otherwise healthy (5 members, 5 nodes, liveness 31s, 0 stale). The offered remediations assume the node exists (''globular services apply-desired'', ''globular node reconcile'') and are no-ops for a removed node, so the findings cannot be cleared by following them. The operator-visible effect is a permanently CRITICAL cluster after any node removal or replacement.'
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/repair_node_workflow.go
+      related_invariants:
+        - controller.persisted_liveness_must_track_heartbeat
+      evidence:
+        - '5-node sim 2026-08-17: 63 etcd keys referencing removed node 35ac3821-6b90-52eb-a800-41130471770b; doctor error=25 worst=CRITICAL while cluster_list_nodes showed 5 healthy nodes with a different id set'
+      contract: Removing a node from the cluster must also retire the per-node records that node owned; a record whose owning node no longer exists must not be evaluated as live drift.
+    - id: desired_state.refusal_message_misattributes_cause
+      title: 'desired set blames an unresolvable kind when the kind resolves fine'
+      severity: warning
+      contract: 'A refusal must name the reason it actually refused; a diagnostic that misattributes its own cause sends the operator to the wrong subsystem.'
+      description: 'globular services desired set <pkg> <version> refuses some packages with: ''cannot verify <pkg> is a SERVICE package (no published version with a resolvable kind); services desired set fails closed on an unknown kind per desired.keyed_by_kind_and_name''. Failing closed is correct. The stated reason is not: for the same package and version, globular repository resolve returns a manifest whose ref.kind is 1 and whose publish_state is 3. Measured on the 5-node simulation 2026-08-17: dns and ai-watcher accepted, blog refused, while all three resolve with identical shape — publish_state 3, ref.kind 1, a systemd_unit present. The only observed discriminator is profiles: dns [''core'',''compute'',''control-plane''] accepted, blog [''core'',''compute''] refused. So the refusal appears to be about placement or lookup scope, not about kind resolvability, and the message points the operator at package identity — the one thing demonstrably fine. Root cause not confirmed: it is either a different lookup path than the resolver uses, or a profile-scoped visibility check reporting a kind error.'
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/desired_state_handlers.go
+      related_invariants:
+        - controller.persisted_liveness_must_track_heartbeat
+      evidence:
+        - '5-node sim 2026-08-17: blog refused with kind error while repository resolve --name blog --version 1.2.312 returns ref.kind=1 publish_state=3; dns and ai-watcher with identical shape accepted'
+    - id: desired_state.transient_kind_lookup_reported_as_unpublished
+      title: 'Intermittent kind lookup reports UNKNOWN as INVALID and advises a duplicate publish'
+      severity: high
+      contract: 'A check that cannot complete must report UNKNOWN, never INVALID, and must never offer remediation that would be destructive if the check was simply unable to answer.'
+      description: 'globular services desired set <pkg> <version> intermittently fails with: ''cannot verify <pkg> is a SERVICE package (no published version with a resolvable kind); services desired set fails closed on an unknown kind per desired.keyed_by_kind_and_name — publish the package first, then retry''. Measured on the 5-node simulation 2026-08-17: the SAME command on the SAME package succeeded (revision 377623), failed minutes later, then succeeded again (383156) with no change to the repository; ai-watcher succeeded while dns, authentication and log failed in the same minute; repository resolve returned a full manifest with ref.kind=1 and publish_state=3 throughout. So the artifact is published and its kind is resolvable — the lookup simply did not complete. Failing closed is correct; the diagnosis is not. Two harms follow. First, an intermittent transient is reported as a permanent identity defect, so an operator investigates package identity, the one thing demonstrably fine. Second and worse, the remediation is destructive if followed: publishing an already-published version mints a second build of it, giving one version two build_ids, which makes resolution ambiguous and stalls the rollout — the exact failure that made deploys fail roughly one run in two on 2026-08-16. A check that cannot answer must say so.'
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/desired_state_handlers.go
+      related_invariants:
+        - controller.persisted_liveness_must_track_heartbeat
+      evidence:
+        - '5-node sim 2026-08-17, freshly built cluster: 10 back-to-back pairs from the same node on the same package — repository resolve 10/10 succeeded, services desired set 5/10 succeeded. The ~50% rate is reproducible.'
+        - 'Orphaned per-node records RULED OUT as the cause: the identical 5/10 was measured before and after a full cluster reset that removed the phantom node id. The fault is localized to the desired-set handler''s own kind lookup, not the repository resolver.'
+    - id: reconcile.returning_node_infra_remediation_first_dispatch_fails
+      title: 'Infra remediation for a returning node fails its first dispatch'
+      severity: warning
+      contract: 'A remediation dispatched for a node that has just returned must succeed or be retried without surfacing a failed reconcile item; one guaranteed failure per rejoin is churn no operator can act on.'
+      description: 'When a stopped node returns, the controller dispatches infra remediation and the first dispatch FAILS, exactly once per rejoin: reconcile-workflow item FAILED type=infra_unhealthy node=ID pkg=nil reason=remediation_dispatch_failed child_status=FAILED. Measured on the 5-node simulation 2026-08-17: one occurrence per rejoin, arriving about 7 minutes AFTER the node returned rather than immediately, then clearing on its own with reconcile clean for the following eight minutes. Convergence is correct and the doctor settles to error 0, so the outcome is right; what is wrong is a failed reconcile item no operator action would have prevented or fixed, whose late arrival lands it inside any short post-rejoin assertion window. Note the nil package: the item is dispatched with no package, which may be why the child rejects it.'
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/reconcile_actions.go
+      related_invariants:
+        - reconcile.terminal_success_requires_observed_convergence
+      evidence:
+        - '5-node sim 2026-08-17: exactly one item FAILED type=infra_unhealthy in a 12-minute window covering a rejoin, at 16:51, roughly 7 minutes after node restart; reconcile clean before and after'
+    - id: failure.etcd_initial_cluster_rendered_from_the_node_registry_instead
+      title: etcd initial-cluster rendered from the node registry instead of the live ring
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/service_config.go
+      related_invariants:
+        - meta.storage_is_not_semantic_authority
+      required_tests:
+        - golang/cluster_controller/cluster_controller_server/service_config_etcd_ring_test.go:TestRenderEtcdConfig_InitialClusterCountMatchesRingNotRegistry
+      evidence:
+        - 'node-4 restart-looped 174 times on ''error validating peerURLs: member count is unequal''; ring held 4 members, its etcd.yaml listed 3; node-5 was registered but never MemberAdd''ed so the controller rendered 5. Ring ran 3-of-4 with zero fault tolerance; control-plane-majority-loss and full-cluster-blackout could not recover.'
+    - id: failure.join_token_use_charged_per_attempt_and_a_retrying_node_confl
+      title: Join token use charged per attempt, and a retrying node conflicts with itself
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/handlers_join.go
+      related_invariants:
+        - meta.half_done_must_not_look_done
+      required_tests:
+        - golang/cluster_controller/cluster_controller_server/join_token_admission_test.go:TestRequestJoinAuthorization_RetryDoesNotConsumeASecondUse
+      evidence:
+        - 'Join died at phase [2.3] Generating service certificate when sign_ca_certificate answered non-2xx. The use had already been charged at authorization time, so the retry found the budget spent; cleanupJoinStateLocked then deleted the exhausted token, so the next attempt got ''join token not found''. Preflight independently refused the retry with ''node identity conflict: hostname already present'' — the node colliding with the record its own first attempt created. Nodes 2, 3 and 5 were left permanently unjoinable; wiping node state did not help because the exhaustion lived on the controller.'
+    - id: failure.join_phase_2_3_signed_certificates_with_one_unretried_reques
+      title: Join phase 2.3 signed certificates with one unretried request and accepted any non-empty body
+      protects:
+        files:
+          - internal/gateway/handlers/cluster/join_script.go
+      related_invariants:
+        - meta.half_done_must_not_look_done
+      required_tests:
+        - internal/gateway/handlers/cluster/join_script_test.go:TestJoinScript_CertSigningRetriesOnTransientFailure
+      evidence:
+        - The gateway issuance gate proves join_id by calling the controller with a 5s fail-closed timeout, while that controller was measured at 12-28s on etcd-dependent paths. A single hiccup returned 403, the single-shot 'curl -sfL' exited 22, and the join died leaving a service.key with no service.crt — after which node-agent restart-looped on 'cert not ready'. The only success check was that the output file was non-empty, so a redirect body or a mis-issued certificate would also have been written to disk and failed later as an unexplained TLS error. Phase 5.5 had already been given a retry budget for this same failure class; 2.3 had not.
+    - id: failure.founding_node_auto_join_loops_on_a_preflight_refusal_and_dra
+      title: Founding node auto-join-loops on a preflight refusal and drains the join token
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/join_auto.go
+      related_invariants:
+        - meta.half_done_must_not_look_done
+      required_tests:
+        - golang/node_agent/node_agent_server/join_auto_retry_test.go:TestJoinErrorIsPreflightRefusal
+      evidence:
+        - 'Controller state 2026-08-18 held 100 join requests: 96 from node-1 (the founder), all blocked, spanning 09:10-11:40 UTC, plus the 4 genuine joins. Token was 100/100 exhausted. The founder holds a join token and has no JoinID, so autoInitiateJoin takes the v1 legacy path and tries to join the cluster it already leads; preflight refuses it with FailedPrecondition, which the retry switch did not list as non-retriable, so it retried at the 60s ceiling forever. Every retry consumed a token use, which is what locked node-5 and the cold-boot nodes out.'
     - id: failure.package_archive_entry_escaped_its_destination_root_and_was_w
       title: Package archive entry escaped its destination root and was written as root
       severity: critical
@@ -7863,3 +7982,50 @@ failure_modes:
         - golang/ai_memory/domains/cluster_operator/observation/recorder_test.go:TestRecorder_StuckResolutionBecomesAVisibleFailure
       evidence:
         - 'globulario/services#238 / PR #265'
+    - id: failure.release_build_refuses_every_package_whose_version_is_not_the
+      title: Release build refuses every package whose version is not the platform version
+      description: scripts/build-local-release.sh consumes generated/<pkg>_$VERSION_linux_amd64.tgz where VERSION is the platform release version, while regenerate-release-inputs.sh emits each template at the package's own committed version. Any rebuilt package not bumped to the platform version aborts the bundle. The script's own header advertises --all as the fully automated path needing no other flags, so following the documented invocation cannot produce a bundle unless every package is bumped to the platform version — which docs/design/package-identity-single-authority.md forbids.
+      protects:
+        files:
+          - scripts/build-local-release.sh
+      evidence:
+        - '2026-08-18 building 1.2.325 with --all: ''ERROR: no generated template for Go service ai-executor at generated/ai-executor_1.2.325_linux_amd64.tgz. regenerate-release-inputs.sh must produce one; refusing to ship a bundle missing a service.'' The template existed at its committed version ai-executor_1.2.317. Scoping to --rebuild ai-memory,cluster-controller,cluster-doctor,node-agent,mcp (the five bumped to 1.2.325) produced the bundle.'
+      contract: The platform release version identifies the bundle, never its packages; every path that resolves a package artifact must read that package's committed version.
+    - id: failure.workflow_cache_asked_etcd_for_filenames_so_a_wiped_node_coul
+      title: Workflow cache asked etcd for filenames, so a wiped node could never resolve node.join
+      description: fetchWorkflowDefsFromEtcd requested each core workflow as '<name>.yaml' while SeedCoreWorkflows deliberately writes the bare '<name>' — workflow_day0.go strips the extension, commenting that keys carrying it 'produced ghost entries that ExecuteWorkflow never resolved'. Every fetch missed, so the cache whose entire purpose is to serve a node with an empty local workflow directory never wrote a file. The reader also carried its own hardcoded list of which workflows are core, a second writer of a fact day0 already owns.
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/grpc_workflow.go
+      related_invariants:
+        - identity.field_semantic_is_single_writer_defined
+        - meta.code_must_not_mirror_external_enumerations
+      required_tests:
+        - golang/node_agent/node_agent_server/workflow_resolver_key_test.go:TestCacheWorkflowDefsUsesBareEtcdKeysAndYamlFilenames
+      evidence:
+        - '5-node sim 2026-08-18 on 1.2.325: node-5 logged ''workflow-resolver: fetch node.join.yaml from etcd: workflow "node.join.yaml" not found in etcd''; reconcile then failed with ''workflow definition node.join not found'', 7 units landed with no installed-state receipt, doctor worst=CRITICAL, and 5 of 10 upgrade scenarios failed. Replaying the old reader against the real seeded keys caches 0 of 2 definitions; the fixed reader caches 2 of 2.'
+      contract: An etcd workflow key is the bare workflow name, defined by its writer; the .yaml extension belongs to the local filename only.
+    - id: failure.join_gave_a_cold_etcd_one_fifth_the_budget_day_0_gives_a_war
+      title: Join gave a cold etcd one fifth the budget Day-0 gives a warm one, and lost the receipts
+      description: node.join's verify_prerequisites allowed 6x5s=30s for etcd to become active while day0.bootstrap's verify_etcd_healthy allows 30x5s=150s for the same condition. The join path runs on a node whose etcd is starting from an empty data dir, so it is the harder case with the smaller budget. When it expires node.join FAILS, the install owner never stamps installed-state receipts, the heartbeat backfills records from the local package cache with no installed_by, and cluster-doctor fail-closes CRITICAL on every affected unit.
+      protects:
+        files:
+          - golang/workflow/definitions/node.join.yaml
+      related_invariants:
+        - install.join_path_must_complete_install_contract
+      required_tests:
+        - golang/workflow/definitions_retry_budget_test.go:TestJoinEtcdPrerequisiteBudgetIsNotSmallerThanDay0
+      evidence:
+        - '5-node sim 2026-08-19 on 1.2.326: attempt 1 at 02:30:31, FAILED after 6 attempts at 02:30:56, etcd went active at 02:31:09 — missed by 13s on a healthy node. Consequence: 7 units on node-5 with no installed_state receipt, doctor worst=CRITICAL, 5 upgrade and 2 authority scenarios failed on doctor cleanliness.'
+      contract: A step waiting for a dependency on a cold node must never be given a smaller budget than the step waiting for the same dependency on a warm one.
+    - id: failure.cluster_scoped_doctor_rules_evaluated_against_a_node_filtere
+      title: Cluster-scoped doctor rules evaluated against a node-filtered snapshot emit false CRITICAL findings
+      protects:
+        files:
+          - golang/cluster_doctor/cluster_doctor_server/rules/registry.go
+      related_invariants:
+        - doctor_rule_evaluate_must_consult_snap_errors
+      required_tests:
+        - golang/cluster_doctor/cluster_doctor_server/rules/registry_scope_test.go:TestEvaluateForNode_ClusterScopedRulesSeeFullNodeSet
+      evidence:
+        - EvaluateForNode filters Snapshot.Nodes to the requested node, then evaluates cluster-scoped rules against that view. objectstore.write_quorum_lost fired CRITICAL (active_drives=1 < write_quorum=3) on a healthy 4-drive MinIO pool (4 drives online, 0 offline, EC:2, cross-node object read/write verified), naming a different sole survivor on every node report (.63/.8/.9/.102) while known_down_nodes was empty and data_incomplete=false. Verdict derived from nodes absent from a deliberately narrowed snapshot, not from observed state.

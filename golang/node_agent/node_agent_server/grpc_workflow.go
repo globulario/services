@@ -893,33 +893,57 @@ func resolveWorkflowPath(name string) string {
 // fetchWorkflowDefsFromEtcd caches workflow definitions from etcd to
 // /var/lib/globular/workflows/ so the local disk fallback in LoadFile works
 // on nodes that joined before SeedCoreWorkflows ran.
+// An etcd workflow KEY is the bare workflow name; the ".yaml" belongs to the
+// local filename only. Those are two different things, and this function is
+// where they meet — so this is where they were confused. It asked etcd for
+// "node.join.yaml" while SeedCoreWorkflows deliberately writes "node.join"
+// (workflow_day0.go strips the extension precisely because keys carrying it
+// "produced ghost entries that ExecuteWorkflow never resolved"). Every fetch
+// missed, so this cache never populated, and a node whose local workflow
+// directory was empty — a freshly wiped node, the exact case this function
+// exists for — could not resolve node.join at all. Its compute workloads then
+// landed as units with no installed-state receipt and cluster-doctor
+// fail-closed at CRITICAL.
+//
+// Do NOT repair a recurrence by trying both key forms or sniffing which one
+// exists: one field, one declared semantic, defined by its writer
+// (identity.field_semantic_is_single_writer_defined; the sniffing repair is
+// forbidden_fix conditional_field_semantic_by_writer).
 func fetchWorkflowDefsFromEtcd() {
-	if v1alpha1.EtcdFetcher == nil {
-		log.Printf("workflow-resolver: etcd fetcher not configured — skipping cache")
-		return
+	cacheWorkflowDefsFromEtcd(workflowCacheDir)
+}
+
+// workflowCacheDir is the local disk cache resolveWorkflowPath reads first.
+const workflowCacheDir = "/var/lib/globular/workflows"
+
+// cacheWorkflowDefsFromEtcd is the testable body of fetchWorkflowDefsFromEtcd.
+// It returns how many definitions it wrote.
+func cacheWorkflowDefsFromEtcd(destDir string) int {
+	if v1alpha1.EtcdWorkflowLister == nil {
+		log.Printf("workflow-resolver: etcd workflow lister not configured — skipping cache")
+		return 0
 	}
-	destDir := "/var/lib/globular/workflows"
 	os.MkdirAll(destDir, 0o755)
 
-	knownDefs := []string{
-		"day0.bootstrap.yaml",
-		"node.bootstrap.yaml",
-		"node.join.yaml",
-		"node.repair.yaml",
-		"cluster.reconcile.yaml",
-		"release.apply.package.yaml",
-		"release.apply.infrastructure.yaml",
-		"release.remove.package.yaml",
+	// Ask etcd which workflows exist instead of carrying a local list of which
+	// ones are "core". That list was a second writer of the same fact: day0
+	// seeds every definition it finds on disk, so a hardcoded list silently
+	// stops caching whatever is added after the list was written.
+	definitions, err := v1alpha1.EtcdWorkflowLister()
+	if err != nil {
+		log.Printf("workflow-resolver: list workflow definitions from etcd: %v", err)
+		return 0
 	}
 
 	fetched := 0
-	for _, name := range knownDefs {
-		data, err := v1alpha1.EtcdFetcher(name)
-		if err != nil {
-			log.Printf("workflow-resolver: fetch %s from etcd: %v", name, err)
+	for name, data := range definitions {
+		if len(data) == 0 {
+			log.Printf("workflow-resolver: skipping empty definition %q", name)
 			continue
 		}
-		dest := filepath.Join(destDir, name)
+		// resolveWorkflowPath looks for "<name>.yaml" on disk, so the
+		// extension is appended to the FILENAME here — never to the etcd key.
+		dest := filepath.Join(destDir, name+".yaml")
 		if err := os.WriteFile(dest, data, 0o644); err != nil {
 			log.Printf("workflow-resolver: write %s: %v", dest, err)
 			continue
@@ -931,4 +955,5 @@ func fetchWorkflowDefsFromEtcd() {
 	} else {
 		log.Printf("workflow-resolver: no workflow definitions found in etcd")
 	}
+	return fetched
 }

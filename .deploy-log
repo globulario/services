@@ -81,3 +81,5 @@
 2026-04-09T03:51:23Z | event | v0.0.2+3 | client circuit breaker + log rate-limiting
 2026-04-09T04:44:22Z | cluster_controller | v0.0.2+15 | fix describe Id with build number
 2026-04-10T19:55:26Z | ai_memory | v0.0.2+2 | metrics bind 0.0.0.0
+2026-08-16T22:03:09Z | ai_memory | v1.2.317+1 | register the programming domain pack
+2026-08-17T00:24:27Z | cluster_controller | v1.2.317+1 | etcd state-blob churn fix + workflow client failover

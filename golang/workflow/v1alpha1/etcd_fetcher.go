@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/globulario/services/golang/config"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 // EtcdWorkflowPrefix is the etcd key prefix under which all workflow YAML
@@ -16,10 +18,43 @@ const EtcdWorkflowPrefix = "/globular/workflows/"
 // keep unexported alias for internal use within this file
 const etcdWorkflowPrefix = EtcdWorkflowPrefix
 
-// EnableEtcdFetcher configures the package-level EtcdFetcher to read workflow
-// definitions from etcd. Core workflows live in etcd so they're available even
-// when MinIO is down — etcd is on every node and is always the first thing up.
+// EtcdWorkflowLister is an optional callback that returns every workflow
+// definition currently in etcd, keyed by the SAME bare workflow name
+// EtcdFetcher takes and SeedCoreWorkflows writes — never a filename.
+//
+// It exists so a caller that wants "all core workflows" asks etcd instead of
+// carrying its own list of which workflows are core. A second list is a second
+// writer of that fact, and the two drift.
+var EtcdWorkflowLister func() (map[string][]byte, error)
+
+// EnableEtcdFetcher configures the package-level EtcdFetcher and
+// EtcdWorkflowLister to read workflow definitions from etcd. Core workflows
+// live in etcd so they're available even when MinIO is down — etcd is on every
+// node and is always the first thing up.
 func EnableEtcdFetcher() {
+	EtcdWorkflowLister = func() (map[string][]byte, error) {
+		cli, err := config.GetEtcdClient()
+		if err != nil {
+			return nil, fmt.Errorf("etcd client: %w", err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		resp, err := cli.Get(ctx, etcdWorkflowPrefix, clientv3.WithPrefix())
+		if err != nil {
+			return nil, fmt.Errorf("etcd list %s: %w", etcdWorkflowPrefix, err)
+		}
+		definitions := make(map[string][]byte, len(resp.Kvs))
+		for _, kv := range resp.Kvs {
+			name := strings.TrimPrefix(string(kv.Key), etcdWorkflowPrefix)
+			if name == "" {
+				continue
+			}
+			definitions[name] = kv.Value
+		}
+		return definitions, nil
+	}
+
 	EtcdFetcher = func(name string) ([]byte, error) {
 		if name == "" {
 			return nil, fmt.Errorf("workflow name is empty")

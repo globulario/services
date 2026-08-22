@@ -590,3 +590,59 @@ func TestApplyPatchToSvcStatus_PhasePath_DoesNotClobberProofStatus(t *testing.T)
 		t.Errorf("phase patch clobbered Findings: %v", s.Findings)
 	}
 }
+
+// TestDecideNodeRolloutProof_BinaryHashInChecksumIsNotConvergenceDrift pins the
+// live shape that stranded resource@1.2.312 on 2026-08-18.
+//
+// The node-agent writes the binary SHA into InstalledPackage.Checksum on
+// purpose -- the proto calls that field "SHA256 of installed archive" and the
+// install path says so at the write site. The binary leg above returns only on
+// MISMATCH, so a package whose binary identity matched perfectly fell through
+// to the convergence leg, where that same binary SHA was compared against the
+// release-identity desired_hash. Two hash schemas, guaranteed drift: the node
+// went DEGRADED, its release went DEFERRED, and DEFERRED re-defers on every
+// 2-minute retry, so it never converged.
+//
+// Values are the real ones observed on node-5.
+func TestDecideNodeRolloutProof_BinaryHashInChecksumIsNotConvergenceDrift(t *testing.T) {
+	const (
+		binarySHA       = "70dee39bb211f4b10e582afdeb2f292ae50ef433fddad0b6dabe6350bed41d40"
+		releaseIdentity = "7b14db468617896f3973588a3e194de84404a7e170ee92b1afe5754e4fff83be"
+		buildID         = "01a012a3-16dd-7e8b-a30f-cc8a025cb9b4"
+		version         = "1.2.312"
+	)
+	// Checksum == metadata.entrypoint_checksum == the binary SHA, exactly as the
+	// node-agent writes it; desiredConvergence is the release identity.
+	pkg := ipMeta(version, binarySHA, buildID, binarySHA)
+	v := decideNodeRolloutProof(version, releaseIdentity, buildID, binarySHA, pkg, true, true)
+
+	if v.FindingID == FindingRolloutInstalledHashMismatch {
+		t.Fatalf("binary SHA in Checksum must not be read as convergence drift; got %s reason=%q",
+			v.FindingID, v.Reason)
+	}
+	if v.ProofStatus != RolloutProofInstalledVerified {
+		t.Fatalf("ProofStatus=%q want=%q (reason=%q)",
+			v.ProofStatus, RolloutProofInstalledVerified, v.Reason)
+	}
+}
+
+// A writer that really does put a non-binary value in Checksum must still be
+// caught -- the guard keys on "Checksum equals this record's own
+// entrypoint_checksum", not on "skip the convergence leg".
+func TestDecideNodeRolloutProof_GenuineConvergenceDriftStillFiresWithEntrypointPresent(t *testing.T) {
+	pkg := ipMeta("1.2.59",
+		"installed_convergence_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"bid",
+		"binary_matches_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+	v := decideNodeRolloutProof(
+		"1.2.59",
+		"desired_convergence_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+		"bid",
+		"binary_matches_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		pkg, true, true,
+	)
+	if v.FindingID != FindingRolloutInstalledHashMismatch {
+		t.Fatalf("Checksum differing from entrypoint_checksum is real drift and must fire %s; got %q reason=%q",
+			FindingRolloutInstalledHashMismatch, v.FindingID, v.Reason)
+	}
+}

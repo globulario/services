@@ -11627,6 +11627,17 @@ invariants:
   required_tests:
     - golang/cmd/affectedtests/census_test.go:TestScarOne_NodeAgentPlacementSuiteIsDiscoveredAndRun
   contract: no path may exist from a changed package with a failing suite to a released artifact
+- id: controller.persisted_liveness_must_track_heartbeat
+  title: Persisted node liveness must track heartbeat
+  severity: critical
+  status: active
+  description: cluster-controller@1.2.317 excluded last_seen/reported_at from the state write-trigger hash and added a 5-minute floor. Persisted liveness ran up to 300s stale and 3 of 5 healthy, serving nodes were reported UNREACHABLE/CRITICAL. A content-hash dedup, rate limit, or write floor over this record is admissible only after Layer-4 heartbeat moves to a small per-node key (infra.heartbeat_not_desired_authority).
+  protects:
+    files:
+      - golang/cluster_controller/cluster_controller_server/state.go
+  required_tests:
+    - golang/cluster_controller/cluster_controller_server/state_persist_liveness_test.go:TestSaveToEtcd_HeartbeatReachesEtcdEveryCycle
+  contract: The controller's persisted state record is the liveness source readers judge node reachability from; every heartbeat must reach etcd, so no write-suppression may treat last_seen as non-semantic while it lives in that record.
 - id: invariant.package_archive_extraction_must_stay_within_node_owned_desti
   title: Package archive extraction must stay within node-owned destination roots
   severity: critical
@@ -11655,3 +11666,13 @@ invariants:
   evidence:
     - 'globulario/services#238 / PR #265'
   contract: Health of a supplementary delivery path is a STATE the operator reads on a schedule, not an error returned to whoever happened to submit work. It must distinguish 'nothing attempted' from 'attempted and lost', and every stage on the path — endpoint resolution included — must be bounded, or a stalled stage reads exactly like an idle one.
+- id: invariant.a_release_build_resolves_each_package_s_artifact_by_that_pac
+  title: A release build resolves each package's artifact by that package's committed version
+  status: active
+  description: Every path that names a package artifact — template lookup, payload copy, BOM entry — must read the version from the package's own committed authority (golang/build/package-versions.txt, materialized from zz_version_generated.go), never from the platform release version being built. The platform version identifies the bundle; using it to name a package artifact silently couples the two and forces untouched packages to be bumped, which misrepresents what a release changed.
+  protects:
+    files:
+      - scripts/build-local-release.sh
+  related_failure_modes:
+    - failure.release_build_refuses_every_package_whose_version_is_not_the
+  contract: The platform release version identifies the bundle, never its packages; every path that resolves a package artifact must read that package's committed version.

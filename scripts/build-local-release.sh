@@ -336,9 +336,26 @@ for name,info in d.items():
 fi
 
 # ── Build Go version files ────────────────────────────────────────────────────
-step "Generate version files (v${VERSION})"
+#
+# Pass the committed authority as the override set. gen-version.sh applies its
+# first argument as the DEFAULT, so calling it with the platform version alone
+# rewrote every package to that version — which is precisely what gen-version.sh's
+# own header forbids ("NEVER stamp the platform release version into package
+# versions: Platform release 1.2.52 != every package is version 1.2.52"). It also
+# rewrote 32 committed zz_version_generated.go files in the working tree as a
+# side effect of running a build.
+#
+# The visible damage is that every package looks new to the cluster, so an
+# upgrade reinstalls all ~34 services instead of the ones that changed; the
+# quieter damage is that the bundle then misrepresents which packages changed,
+# and the release-index records that misrepresentation as history.
+#
+# With package-versions.txt supplied as overrides, each package keeps its
+# committed version and only genuinely bumped packages move. VERSION stays what
+# it should be: the platform release identity for the bundle and its index.
+step "Generate version files (platform v${VERSION}, per-package versions from committed authority)"
 cd "$SERVICES_ROOT/golang"
-bash build/gen-version.sh "$VERSION"
+bash build/gen-version.sh "$VERSION" "$SERVICES_ROOT/golang/build/package-versions.txt"
 
 # ── Platform floor: compile ON the floor, don't just check for it afterwards ──
 # The host toolchain's glibc silently becomes a RUNTIME requirement of every cgo
@@ -693,6 +710,15 @@ print(m.group(1) if m else fname)
     oxigraph|awareness-graph)
       log "SKIP (extracted dev sidecar, not a cluster package): $pkg_name"
       continue ;;
+    libnss-resolve)
+      # A Globular-supplied libnss-resolve is forbidden in a release; the
+      # bundled-deb gate (scripts/release/check-no-bundled-libnss.sh) rejects
+      # any bundle containing one. Base bundles up to and including 1.2.317
+      # still carry it, so carrying packages forward blindly reintroduces
+      # exactly what the gate exists to keep out — and the rejection lands at
+      # the very end of the build, after everything else has been assembled.
+      log "SKIP (forbidden in a release, see check-no-bundled-libnss.sh): $pkg_name"
+      continue ;;
   esac
   if echo "$CHANGED_SET" | grep -qx "$pkg_name"; then
     log "SKIP (rebuilt): $pkg_name"
@@ -1004,7 +1030,16 @@ echo "── Verifying host resolver witness ──"
   echo "  ✗ RELEASE REJECTED — resolver-witness checker missing or not executable: $WITNESS_CHECK" >&2
   exit 1
 }
-if ! "$WITNESS_CHECK" "$WITNESS_BASELINE"; then
+# Pass the receipt path explicitly. check-resolver-witness.sh defaults it to the
+# RELATIVE "scripts/release/resolver-witness-receipt.json", and by this point the
+# build is not running from the repo root — so a perfectly valid receipt was
+# reported as missing and the release rejected. The script itself distinguishes
+# "no receipt" from "witness failed" and refuses either way, which is right; but
+# resolving the path against the caller's cwd made a good release fail for a
+# reason that has nothing to do with resolver behaviour, and a gate that rejects
+# correct work is one people learn to route around.
+WITNESS_RECEIPT="$SERVICES_ROOT/scripts/release/resolver-witness-receipt.json"
+if ! "$WITNESS_CHECK" "$WITNESS_BASELINE" "$WITNESS_RECEIPT"; then
   echo ""
   echo "  ✗ RELEASE REJECTED — host-level resolver behaviour is unproven for this baseline." >&2
   echo "    Staged bundle left at $DIST_DIR." >&2

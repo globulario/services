@@ -6,6 +6,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/globulario/services/golang/nodeid"
 )
@@ -234,8 +235,7 @@ func SanitizeNodeName(hostname string) string {
 //
 // If no suitable MAC is found, falls back to hostname + sorted IPs.
 func StableNodeID() (string, error) {
-	mac, err := SelectBestMAC()
-	if err == nil && mac != "" {
+	if mac := IdentityBasisMAC(); mac != "" {
 		return nodeid.FromMAC(mac), nil
 	}
 
@@ -249,6 +249,58 @@ func StableNodeID() (string, error) {
 		return "", fmt.Errorf("stable node ID: no MAC, hostname, or IP available")
 	}
 	return nodeid.FromHostAndIPs(hostname, ips), nil
+}
+
+var (
+	identityBasisOnce sync.Once
+	identityBasisMAC  string
+)
+
+// IdentityBasisMAC returns the MAC this process derives its node identity from,
+// or "" when no MAC was available and the identity therefore derives from
+// hostname+IPs instead.
+//
+// RESOLVED EXACTLY ONCE PER PROCESS, and that is the whole point.
+//
+// node_id has two lawful computations — nodeid.FromMAC and, when no MAC exists,
+// nodeid.FromHostAndIPs — and TWO parties compute it: this node (StableNodeID,
+// used until the controller assigns one) and the cluster controller
+// (deterministicNodeID, which takes the MAC from the join label "node.mac" and
+// otherwise falls back to hostname+IPs). Both derive through the shared nodeid
+// package precisely so a node maps to ONE id everywhere.
+//
+// They diverged anyway, because SelectBestMAC was called separately by each
+// consumer at different moments and it is not time-invariant: it requires an
+// interface that is UP with an IPv4 already assigned, so during boot it fails
+// and later succeeds. One consumer got a MAC, the other did not, and the node
+// ended up with two identities at once. Observed 2026-08-17 on the 5-node
+// simulation: etcd held 7 node records for 5 nodes, the extras being exactly
+// the MAC-derived ids of nodes registered under their hostname+IP ids, and a
+// rejoined node wrote its heartbeat under one id while its own state.json
+// carried the other. Downstream, install receipts orphaned, release rollouts
+// targeted identities no node answered for, and cluster.nodes over-counted.
+// Two cold boots produced DIFFERENT ghost sets — the signature of a race, not
+// of a bad constant.
+//
+// Caching the answer makes the choice of computation a property of the process
+// rather than of the instant it was asked, so every consumer reports the same
+// basis and both parties land on the same id. This deliberately does NOT touch
+// the derivation grammar: nodeid.Namespace, "mac:" and "host:" are baked into
+// every persisted /globular/nodes/{id} key and every signed JoinPlan
+// AssignedNodeID, and changing them would require a node-identity migration.
+//
+// It is also not identity recovery from a secondary source: nothing here
+// reconstructs a missing canonical id from an observation. When the basis is
+// hostname+IPs the caller must advertise NO MAC, so the controller is held to
+// the same fallback rather than being handed a second, better input that would
+// make it compute a different answer.
+func IdentityBasisMAC() string {
+	identityBasisOnce.Do(func() {
+		if mac, err := SelectBestMAC(); err == nil {
+			identityBasisMAC = strings.TrimSpace(mac)
+		}
+	})
+	return identityBasisMAC
 }
 
 // SelectBestMAC picks the MAC address from the best available interface.

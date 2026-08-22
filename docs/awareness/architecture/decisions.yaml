@@ -1,0 +1,12 @@
+decisions:
+  - id: decision.enforce_the_mirror_principle_for_workflow_definitions_and_re
+    title: Enforce the mirror principle for workflow definitions, and require gates to prove they can fire
+    status: accepted
+    architectural_plane: desired
+    rationale: Added scripts/check-workflow-enumeration-mirrors.sh to make check-services. It refuses a Go slice literal holding two or more names owned by golang/workflow/definitions/, and self-tests against a reconstruction of the 2026-08-18 defect before every real scan. Run against the real pre-fix source it flags grpc_workflow.go:904 with all eight names.
+    context: meta.code_must_not_mirror_external_enumerations described the node-agent workflow-cache defect before it happened — its summary names the symptom, 'workflow not found', as its worked example — and prevented nothing, because the principle sat at status=candidate and was never made decidable for any authority.
+    consequences: 'The principle is enforced for one authority rather than all, deliberately: a repo-wide mirror scanner is not mechanically decidable and would report zero findings whether the tree is clean or the rule is dead. Extending enforcement means naming the next authority explicitly. Every gate added this way ships with a self-test, because a scanner that cannot fire is indistinguishable from clean code.'
+    mitigates:
+      - failure.workflow_cache_asked_etcd_for_filenames_so_a_wiped_node_coul
+    source_files:
+      - scripts/check-workflow-enumeration-mirrors.sh

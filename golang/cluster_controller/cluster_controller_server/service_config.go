@@ -37,6 +37,17 @@ type etcdMemberState struct {
 	Bootstrapped bool
 	// MemberPeerURLs maps etcd member name → peer URL for existing members.
 	MemberPeerURLs map[string]string
+	// RingPeerURLs is the peer URL of EVERY member the live cluster reports,
+	// in member-list order, including members that were added but have never
+	// started (which carry no name yet).
+	//
+	// This is the authoritative answer to "who is in the ring". MemberPeerURLs
+	// cannot answer it: keyed by name, an unstarted member — exactly the member
+	// a join is waiting on — has no key and vanishes from the map. etcd
+	// validates a joining member's initial-cluster by COUNT against this set,
+	// so a renderer that omits unstarted members emits a config etcd rejects
+	// with "member count is unequal".
+	RingPeerURLs []string
 }
 
 // serviceConfigContext contains everything needed to render a service config for a specific node.
@@ -137,6 +148,99 @@ const (
 	etcdServerKey  = "/var/lib/globular/pki/issued/services/service.key"
 )
 
+// etcdInitialClusterFromRing renders one "name=peerURL" entry for every member
+// the live etcd cluster reports, in member-list order.
+//
+// AUTHORITY SPLIT — the reason this function exists at all:
+//   - etcd owns MEMBERSHIP. Which peer URLs are in the ring comes from
+//     ctx.EtcdState.RingPeerURLs and from nothing else. Entries are never
+//     added because the registry expects a node to be there, and never dropped
+//     because the registry has not heard of it.
+//   - The registry owns NAMING. etcd reports no name for a member that has
+//     been added but has never started, and initial-cluster needs one, so the
+//     name is looked up by peer IP among the nodes the registry knows.
+//
+// A member etcd reports but the registry cannot name still has to appear, or
+// the count no longer matches and every joining member is rejected. Such an
+// entry falls back to a host-derived name, which is enough to satisfy
+// validation for peers (etcd matches a peer by URL; only the local member's
+// own name has to be exact, and that member is always registry-known because
+// it is the node being rendered for).
+func etcdInitialClusterFromRing(ctx *serviceConfigContext, etcdNodes []memberNode) []string {
+	nameByPeerIP := make(map[string]string, len(etcdNodes))
+	for _, node := range etcdNodes {
+		if node.IP == "" {
+			continue
+		}
+		name := sanitizeEtcdName(node.Hostname)
+		if name == "" {
+			name = sanitizeEtcdName(node.NodeID)
+		}
+		if name != "" {
+			nameByPeerIP[node.IP] = name
+		}
+	}
+
+	// etcd's own name for a member outranks the registry's hostname. They can
+	// legitimately differ — the founding member is named "globular-etcd" while
+	// the registry calls that node "node-1" — and renaming a started member in
+	// initial-cluster makes the rendered config disagree with the cluster it
+	// describes.
+	nameByPeerURL := make(map[string]string, len(ctx.EtcdState.MemberPeerURLs))
+	for name, peerURL := range ctx.EtcdState.MemberPeerURLs {
+		nameByPeerURL[peerURL] = name
+	}
+
+	parts := make([]string, 0, len(ctx.EtcdState.RingPeerURLs))
+	for _, peerURL := range ctx.EtcdState.RingPeerURLs {
+		host := peerHostFromURL(peerURL)
+		name := nameByPeerURL[peerURL]
+		if name == "" {
+			// etcd has no name for it — an unstarted member. The registry is
+			// the only place a name can come from.
+			name = nameByPeerIP[host]
+		}
+		if name == "" {
+			// etcd vouches for this member but the registry cannot name it.
+			// Dropping it would break the count and wedge every join, so keep
+			// it under a derived name.
+			name = sanitizeEtcdName(host)
+			log.Printf("renderEtcdConfig: etcd member %s is not in the node registry — "+
+				"keeping it in initial-cluster as %q so the member count stays truthful", peerURL, name)
+		}
+		parts = append(parts, fmt.Sprintf("%s=%s", name, peerURL))
+	}
+	return parts
+}
+
+// ringContainsPeerIP reports whether any member of the live ring advertises
+// this peer IP.
+func ringContainsPeerIP(ringPeerURLs []string, ip string) bool {
+	if ip == "" {
+		return false
+	}
+	for _, peerURL := range ringPeerURLs {
+		if peerHostFromURL(peerURL) == ip {
+			return true
+		}
+	}
+	return false
+}
+
+// peerHostFromURL extracts the host portion of an etcd peer URL
+// ("https://10.10.0.14:2380" → "10.10.0.14"). It returns "" when the URL is
+// not in that shape rather than guessing.
+func peerHostFromURL(peerURL string) string {
+	rest := peerURL
+	if i := strings.Index(rest, "://"); i >= 0 {
+		rest = rest[i+3:]
+	}
+	if i := strings.LastIndex(rest, ":"); i >= 0 {
+		rest = rest[:i]
+	}
+	return strings.Trim(rest, "[]")
+}
+
 // renderEtcdConfig generates the etcd configuration YAML for a node.
 // File path: /var/lib/globular/config/etcd.yaml
 //
@@ -173,19 +277,78 @@ func renderEtcdConfig(ctx *serviceConfigContext) (string, bool) {
 		nodeName = sanitizeEtcdName(ctx.CurrentNode.NodeID)
 	}
 
-	// Build initial-cluster string with HTTPS peer URLs.
+	// initial-cluster-state: "new" only for first bootstrap, "existing" for all
+	// subsequent operations (expansion, restart). The controller sets EtcdState
+	// based on querying the live etcd cluster.
+	clusterState := "existing"
+	if ctx.EtcdState == nil || !ctx.EtcdState.Bootstrapped {
+		clusterState = "new"
+	}
+
+	// Build the initial-cluster string.
+	//
+	// WHICH SET THIS MUST BE — this is the whole correctness question here.
+	//
+	// The node registry answers "which nodes SHOULD run etcd" (desired
+	// placement). etcd's own member list answers "which members ARE in the
+	// ring" (observed membership). They are different questions with different
+	// owners, and initial-cluster is validated against the second one:
+	// a member booting with initial-cluster-state=existing has etcd compare
+	// its initial-cluster against the live member list and abort with
+	//
+	//     error validating peerURLs ...: member count is unequal
+	//
+	// if the counts differ. Rendering from the registry therefore produces a
+	// config that is wrong for exactly as long as the two sets disagree — the
+	// join window, when a node is registered but MemberAdd has not run yet, or
+	// has run for some other node since.
+	//
+	// The failure is permanent, not transient. Once a member has initialized,
+	// etcd reads membership from its own WAL and ignores initial-cluster
+	// entirely, so a stale value is harmless there. A member that has NEVER
+	// initialized has only this file, re-reads it on every restart, and can
+	// never get past validation — it restart-loops forever while the ring runs
+	// one member short of what the operator believes it has. Observed
+	// 2026-08-18: node-4 wedged at restart counter 174 against a three-member
+	// initial-cluster while the ring held four.
+	//
+	// So: when the ring exists, render from the ring. Registry data supplies
+	// only the NAME for a peer URL etcd already vouches for — never the
+	// membership itself.
 	var initialClusterParts []string
-	for _, node := range etcdNodes {
-		peerName := sanitizeEtcdName(node.Hostname)
-		if peerName == "" {
-			peerName = sanitizeEtcdName(node.NodeID)
+	if clusterState == "existing" && len(ctx.EtcdState.RingPeerURLs) > 0 {
+		// A node that is not yet a member has nothing lawful to render here.
+		// initial-cluster must contain the local member's own entry AND match
+		// the ring's count, and for a non-member those two demands contradict
+		// each other — any file written now is wrong the moment etcd reads it.
+		//
+		// The node is mid-join: MemberAdd (reconcileEtcdJoinPhases) is the step
+		// that resolves this, and until it runs the join script's own etcd.yaml
+		// — written from the authoritative MemberAdd output — is the better
+		// file. Overwriting it with a guess is how a joining node ends up
+		// wedged, so leave it alone and say why.
+		if !ringContainsPeerIP(ctx.EtcdState.RingPeerURLs, currentIP) {
+			log.Printf("renderEtcdConfig: node %s (%s) is not an etcd member yet — "+
+				"skipping etcd.yaml render until MemberAdd puts it in the ring",
+				ctx.CurrentNode.NodeID, currentIP)
+			return "", false
 		}
-		peerIP := node.IP
-		if peerIP == "" || peerIP == "127.0.0.1" || peerIP == "::1" {
-			log.Printf("renderEtcdConfig: peer node %s has no routable IP, skipping from initial-cluster", node.NodeID)
-			continue
+		initialClusterParts = etcdInitialClusterFromRing(ctx, etcdNodes)
+	} else {
+		// No ring yet — this IS the bootstrap that creates it, so desired
+		// placement is the only membership that exists.
+		for _, node := range etcdNodes {
+			peerName := sanitizeEtcdName(node.Hostname)
+			if peerName == "" {
+				peerName = sanitizeEtcdName(node.NodeID)
+			}
+			peerIP := node.IP
+			if peerIP == "" || peerIP == "127.0.0.1" || peerIP == "::1" {
+				log.Printf("renderEtcdConfig: peer node %s has no routable IP, skipping from initial-cluster", node.NodeID)
+				continue
+			}
+			initialClusterParts = append(initialClusterParts, fmt.Sprintf("%s=https://%s:2380", peerName, peerIP))
 		}
-		initialClusterParts = append(initialClusterParts, fmt.Sprintf("%s=https://%s:2380", peerName, peerIP))
 	}
 	initialCluster := strings.Join(initialClusterParts, ",")
 
@@ -195,14 +358,6 @@ func renderEtcdConfig(ctx *serviceConfigContext) (string, bool) {
 	// cluster_id forks the rendered config away from the running cluster's real
 	// token the moment cluster_id drifts (see config.EtcdClusterToken).
 	clusterToken := configpkg.EtcdClusterToken
-
-	// initial-cluster-state: "new" only for first bootstrap, "existing" for all
-	// subsequent operations (expansion, restart). The controller sets EtcdState
-	// based on querying the live etcd cluster.
-	clusterState := "existing"
-	if ctx.EtcdState == nil || !ctx.EtcdState.Bootstrapped {
-		clusterState = "new"
-	}
 
 	// Client listen URL: routable IP only.
 	// Joining nodes must reach etcd over the advertised cluster network.

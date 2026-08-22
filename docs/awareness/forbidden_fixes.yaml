@@ -4250,9 +4250,54 @@ forbidden_fixes:
   related_invariants:
     - infrastructure.etcd.quorum_backed_config_authority
   reason: 'GetEtcdClient returns the process-wide SHARED etcd singleton; NewEtcdClient returns a caller-owned client. Writing the idiomatic ''cli, err := config.GetEtcdClient(); defer cli.Close()'' therefore destroys etcd access for every other caller in the process. Observed 2026-08-11 on 1.2.310: a per-minute invariant path did exactly this, and the controller spun continuously on ''grpc: the client connection is closing'' while every cluster RPC failed DeadlineExceeded and the cluster never reached ready. The defer looks correct in isolation and is the habit every Go reviewer has; the hazard is invisible at the call site because the function name does not say ''shared''. Either take the shared client and do not close it, or call NewEtcdClient and own the lifecycle. A short-lived CLI closing it at exit is harmless; a long-running service doing so is an outage.'
+- id: suppress_state_write_by_treating_liveness_as_observation
+  title: Suppress controller state writes by classifying liveness as non-semantic
+  summary: 'Excluding last_seen/reported_at (or any field a reader uses for liveness) from a content-hash write trigger, or bounding such writes with a time floor, while that field still lives in the controller state record. Shipped as cluster-controller@1.2.317 and took the cluster down: 3 of 5 healthy nodes read as UNREACHABLE. Reduce write volume by defragmenting (etcd.backend_ratchets_because_nothing_defragments) or by moving heartbeat to a per-node key first — never by suppressing the signal.'
+  related_invariants:
+    - controller.persisted_liveness_must_track_heartbeat
+  reason: Reducing etcd write volume must never be achieved by making the control plane stop reporting node liveness.
+  contract: Reducing etcd write volume must never be achieved by making the control plane stop reporting node liveness.
+- id: publish_success_inferred_from_log_text
+  title: Decide publish success by grepping CLI log text
+  summary: deploy-service.sh discarded the publish exit code with a trailing '|| true' and then grepped the log for a bundle_id field and for the phrase 'verify uploaded manifest'. Both patterns also match FAILURE output — the phrase only ever appears inside 'failed to verify uploaded manifest' — so a publish whose read-back verification failed was recorded as a successful deploy, and desired state was then advanced to an artifact that might have no retrievable blob. Gate on exit status plus a parsed status field; an unparseable result is not a success.
+  related_invariants:
+    - controller.persisted_liveness_must_track_heartbeat
+  reason: A pipeline step succeeds only when its exit status and structured result say so; success is never inferred from prose.
+  contract: A pipeline step succeeds only when its exit status and structured result say so; success is never inferred from prose.
+- id: forbidden_fix.derive_etcd_initial_cluster_from_desired_placement_instead_o
+  title: Derive etcd initial-cluster from desired placement instead of the live member list
+  summary: 'Building initial-cluster from the node registry (which nodes SHOULD run etcd), or from any snapshot taken before the node''s etcd first starts. etcd validates initial-cluster by count against its own member list, and the two sets disagree for the whole join window. For a member that has never initialized the mismatch is permanent — it has no WAL to fall back on, so it re-reads the same wrong file and restart-loops forever. Also forbidden: dropping an unstarted (unnamed) member from the render, which breaks the count the same way.'
+  related_invariants:
+    - meta.storage_is_not_semantic_authority
+  reason: 'Building initial-cluster from the node registry (which nodes SHOULD run etcd), or from any snapshot taken before the node''s etcd first starts. etcd validates initial-cluster by count against its own member list, and the two sets disagree for the whole join window. For a member that has never initialized the mismatch is permanent — it has no WAL to fall back on, so it re-reads the same wrong file and restart-loops forever. Also forbidden: dropping an unstarted (unnamed) member from the render, which breaks the count the same way.'
+- id: forbidden_fix.raise_maxuses_or_recreate_the_token_to_get_a_stranded_node_t
+  title: Raise MaxUses or recreate the token to get a stranded node to rejoin
+  summary: 'Bumping a join token''s MaxUses, minting a replacement token, or decrementing Uses on failure to work around a node that cannot rejoin. These treat the budget as the problem when the defect is that the budget counts ATTEMPTS instead of NODE ADMISSIONS — the workaround scales with how flaky the network is and silently widens how many distinct nodes the token admits. Also forbidden: dropping the preflight hostname/IP conflict check to let a retry through; the check is correct, it just has to exempt the node from colliding with its own record (same hostname AND a shared routable IP).'
+  related_invariants:
+    - meta.half_done_must_not_look_done
+  reason: 'Bumping a join token''s MaxUses, minting a replacement token, or decrementing Uses on failure to work around a node that cannot rejoin. These treat the budget as the problem when the defect is that the budget counts ATTEMPTS instead of NODE ADMISSIONS — the workaround scales with how flaky the network is and silently widens how many distinct nodes the token admits. Also forbidden: dropping the preflight hostname/IP conflict check to let a retry through; the check is correct, it just has to exempt the node from colliding with its own record (same hostname AND a shared routable IP).'
+- id: forbidden_fix.treat_a_non_empty_response_body_as_proof_a_certificate_was_i
+  title: Treat a non-empty response body as proof a certificate was issued
+  summary: 'Accepting the output of a signing request because the file is non-empty, or because the HTTP status was 2xx, without parsing it as a certificate and confirming its public key matches the private key the node just generated. A redirect body, an error page, or a mis-issued certificate all satisfy ''non-empty'' and then fail much later as an unexplained TLS handshake error, far from the cause. Also forbidden: leaving the private key on disk when signing fails — a key with no certificate is what makes node-agent restart-loop on ''cert not ready'' instead of the join failing visibly at the point of failure.'
+  related_invariants:
+    - meta.half_done_must_not_look_done
+  reason: 'Accepting the output of a signing request because the file is non-empty, or because the HTTP status was 2xx, without parsing it as a certificate and confirming its public key matches the private key the node just generated. A redirect body, an error page, or a mis-issued certificate all satisfy ''non-empty'' and then fail much later as an unexplained TLS handshake error, far from the cause. Also forbidden: leaving the private key on disk when signing fails — a key with no certificate is what makes node-agent restart-loop on ''cert not ready'' instead of the join failing visibly at the point of failure.'
+- id: forbidden_fix.let_an_already_established_member_back_through_join_prefligh
+  title: Let an already-established member back through join preflight
+  summary: Exempting a node from the join preflight identity-conflict scan whenever it matches an existing record, without checking that the existing record is still bootstrapping. approveJoinRecordLocked overwrites state.Nodes with a fresh converging/BootstrapAdmitted nodeState, so admitting an already-active member discards its placement generation, bootstrap phase and runtime progress — turning a cheap refusal into a reset of a healthy node. The exemption exists only so a node mid-join can retry past the record its own previous attempt created.
+  related_invariants:
+    - meta.half_done_must_not_look_done
+  reason: Exempting a node from the join preflight identity-conflict scan whenever it matches an existing record, without checking that the existing record is still bootstrapping. approveJoinRecordLocked overwrites state.Nodes with a fresh converging/BootstrapAdmitted nodeState, so admitting an already-active member discards its placement generation, bootstrap phase and runtime progress — turning a cheap refusal into a reset of a healthy node. The exemption exists only so a node mid-join can retry past the record its own previous attempt created.
 - id: forbidden_fix.skip_an_unsafe_archive_entry_and_continue_installing_the_res
   title: Skip an unsafe archive entry and continue installing the rest of the package
   summary: 'Do not add a skip-and-log or compatibility mode to package archive extraction, and do not validate entries one at a time while streaming. Both leave a package partially installed while the version marker advances and the service restarts, so the installed payload no longer matches the published artifact — package identity becomes unprovable and rollback evidence ambiguous. A package is admitted in full or rejected in full. Equally forbidden: normalizing entry names with strings.TrimLeft(name, "./"), whose cutset consumes the dots of a leading ../ and launders a traversal into an innocent relative path.'
   related_invariants:
     - invariant.package_archive_extraction_must_stay_within_node_owned_desti
   reason: 'Do not add a skip-and-log or compatibility mode to package archive extraction, and do not validate entries one at a time while streaming. Both leave a package partially installed while the version marker advances and the service restarts, so the installed payload no longer matches the published artifact — package identity becomes unprovable and rollback evidence ambiguous. A package is admitted in full or rejected in full. Equally forbidden: normalizing entry names with strings.TrimLeft(name, "./"), whose cutset consumes the dots of a leading ../ and launders a traversal into an innocent relative path.'
+- id: forbidden_fix.resolve_a_workflow_key_mismatch_by_trying_both_key_shapes
+  title: Resolve a workflow key mismatch by trying both key shapes
+  summary: 'Making the reader attempt ''<name>'' and then ''<name>.yaml'' (or sniffing which key exists) to work around the workflow-cache miss. It reads as robustness and is the same shape as conditional_field_semantic_by_writer: the ambiguity propagates to every new reader, drifts as writers change, and hides the next mismatch because the fallback silently succeeds. The writer defines the key semantic; readers use it.'
+  related_invariants:
+    - identity.field_semantic_is_single_writer_defined
+  reason: An etcd workflow key is the bare workflow name, defined by its writer; the .yaml extension belongs to the local filename only.
+  contract: An etcd workflow key is the bare workflow name, defined by its writer; the .yaml extension belongs to the local filename only.

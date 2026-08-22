@@ -6369,6 +6369,24 @@ required_tests:
   run:
     commands:
     - go test ./golang/globularcli/ -run TestBuildUninstallPackageWorkflow
+- id: golang/ai_memory/ai_memory_server/behavioral_durability_test.go:TestPromotionDurabilityGate_RebuildLosesPromotionButReconciliationFlagsIt
+  title: A promotion lost to a store rebuild is flagged, never silently ungoverned
+  related_invariants:
+    - behavioral.promotion_must_survive_rebuild_or_be_flagged
+  related_failures:
+    - behavioral.runtime_promotion_evaporates_on_store_reset
+  contract: >-
+    The durability contract is an OR: either a governed promotion survives a
+    behavioral-store rebuild, or reconciliation flags its loss. An evaporated
+    promotion must never read as still-enforcing.
+  description: >-
+    The invariant carried no required_tests, so it read as unmechanized and the
+    enforcement looked absent. The gate exists and passes: it rebuilds the store,
+    loses a promotion, and asserts GenerateReconciliationReport fires
+    AWG_RUNTIME_RELEVANT_WITHOUT_BEHAVIORAL_CANDIDATE. Re-verified 2026-08-17
+    after a full cluster wipe, which is exactly the event this covers - the
+    behavioral store is ScyllaDB-backed, so the wipe dropped every promotion
+    while the seed catalog survived.
 - id: archive_safety_test.go:TestInstallPayloadRejectsTraversalOutsideEveryDestinationRoot
   title: the real serviceInstallPayloadAction refuses a traversal entry for every mapped prefix, and nothing lands outside a node-owned root
   protects:
@@ -6396,3 +6414,13 @@ required_tests:
   run:
     commands:
     - go test ./golang/node_agent/node_agent_server/internal/actions/ -run TestInstallPayloadWritesNothingWhenALaterEntryIsUnsafe
+- id: golang/node_agent/node_agent_server/workflow_resolver_key_test.go:TestCacheWorkflowDefsUsesBareEtcdKeysAndYamlFilenames
+  title: The workflow cache addresses etcd by bare name and writes .yaml filenames
+  protects:
+    failure_modes:
+      - failure.workflow_cache_asked_etcd_for_filenames_so_a_wiped_node_coul
+- id: golang/cluster_doctor/cluster_doctor_server/rules/registry_scope_test.go:TestEvaluateForNode_ClusterScopedRulesSeeFullNodeSet
+  title: EvaluateForNode passes the full node set to cluster-scoped rules
+  protects:
+    failure_modes:
+      - failure.cluster_scoped_doctor_rules_evaluated_against_a_node_filtere

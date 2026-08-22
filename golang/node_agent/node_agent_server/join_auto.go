@@ -77,6 +77,26 @@ func (srv *NodeAgentServer) autoInitiateJoin(ctx context.Context) {
 	backoff := 5 * time.Second
 	const maxBackoff = 60 * time.Second
 
+	// A preflight refusal (FailedPrecondition) is retried, but not forever.
+	//
+	// Two very different things arrive as FailedPrecondition: "routable
+	// non-loopback IP is required", which clears on its own moments after boot,
+	// and "node identity conflict: hostname already present", which never
+	// clears. The switch below listed PermissionDenied, NotFound and
+	// InvalidArgument as non-retriable and omitted FailedPrecondition entirely,
+	// so the permanent case retried at the 60s ceiling indefinitely.
+	//
+	// That is how the founding node — which holds a join token, has no JoinID,
+	// and therefore takes this legacy path to join the cluster it already leads
+	// — produced 96 blocked join requests in 2.5 hours on 2026-08-18, exhausting
+	// a 100-use token and locking every genuine joiner out of the cluster.
+	//
+	// A bounded budget serves both cases: a not-ready node still gets several
+	// minutes to acquire its address, and a permanently-refused one stops and
+	// says so instead of hammering the controller until something else breaks.
+	preconditionFailures := 0
+	const maxPreconditionFailures = 10
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -112,10 +132,15 @@ func (srv *NodeAgentServer) autoInitiateJoin(ctx context.Context) {
 			Capabilities: buildNodeCapabilities(),
 		})
 		if err != nil {
-			if st, ok := status.FromError(err); ok {
-				switch st.Code() {
-				case codes.PermissionDenied, codes.NotFound, codes.InvalidArgument:
-					log.Printf("join: v1 legacy path: non-retriable rejection from controller: %v", err)
+			if joinErrorIsPermanentRejection(err) {
+				log.Printf("join: v1 legacy path: non-retriable rejection from controller: %v", err)
+				return
+			}
+			if joinErrorIsPreflightRefusal(err) {
+				preconditionFailures++
+				if preconditionFailures >= maxPreconditionFailures {
+					log.Printf("join: v1 legacy path: giving up after %d preflight refusals — "+
+						"this node cannot join as configured: %v", preconditionFailures, err)
 					return
 				}
 			}
@@ -160,6 +185,40 @@ func (srv *NodeAgentServer) autoInitiateJoin(ctx context.Context) {
 // join plan verification. When false, signature verification is skipped and
 // the plan is accepted on structural validity alone — expected during early
 // bootstrapping before the security package is initialized.
+// joinErrorIsPermanentRejection reports whether a controller error from the
+// legacy join path can never succeed on retry. These are refusals of the
+// request itself — a bad token, an unknown resource, a malformed identity —
+// none of which change by asking again.
+func joinErrorIsPermanentRejection(err error) bool {
+	st, ok := status.FromError(err)
+	if !ok {
+		return false
+	}
+	switch st.Code() {
+	case codes.PermissionDenied, codes.NotFound, codes.InvalidArgument:
+		return true
+	default:
+		return false
+	}
+}
+
+// joinErrorIsPreflightRefusal reports whether the error is the controller
+// refusing this node at join preflight.
+//
+// Deliberately NOT permanent: the same code covers "routable non-loopback IP is
+// required", which a node clears seconds after boot, and "node identity
+// conflict: hostname already present", which it never clears. The caller
+// retries these within a bounded budget rather than treating either extreme as
+// the rule — retrying forever is what exhausted a 100-use join token on
+// 2026-08-18 and locked real joiners out of the cluster.
+func joinErrorIsPreflightRefusal(err error) bool {
+	st, ok := status.FromError(err)
+	if !ok {
+		return false
+	}
+	return st.Code() == codes.FailedPrecondition
+}
+
 func joinPlanKeystoreReady() bool {
 	return security.GetPeerPublicKey != nil
 }
