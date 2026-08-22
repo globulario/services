@@ -62,7 +62,7 @@ section() { echo ""; echo -e "${BOLD}━━━ $* ━━━${NC}"; echo ""; }
 usage() {
   cat <<'EOF'
 Usage:
-  bash scripts/build-release.sh [version] [--bump patch|minor|major] [--full-regenerate] [--allow-extracted-bundle-sources <bundle-or-packages-dir> ...]
+  bash scripts/build-release.sh [version] [--bump patch|minor|major] [--full-regenerate] [--allow-unproven-deb-provenance] [--allow-extracted-bundle-sources <bundle-or-packages-dir> ...]
 
 Release mode defaults to controlled package sources only:
   - services/generated (generated workspace only)
@@ -159,6 +159,14 @@ while [[ $# -gt 0 ]]; do
         *) die "unsupported bump kind '$2' — expected patch, minor, or major" ;;
       esac
       shift 2
+      ;;
+    --allow-unproven-deb-provenance)
+      # Explicit opt-in for a LOCAL build whose bundled debs are not yet
+      # vendored into the pinned package source. An official release must
+      # not use this: it downgrades the release-input provenance refusal to
+      # a warning. Currently reached only by sql (libodbc.so.2).
+      ALLOW_UNPROVEN_DEBS=1
+      shift
       ;;
     --full-regenerate)
       FULL_REGENERATE=1
@@ -1001,7 +1009,7 @@ mkdir -p "${BIN_STAGE_DIR}" "${PKG_STAGE_DIR}"
 if (( FULL_REGENERATE )); then
   stage_release_binaries
   info "Running full regeneration for services/generated release inputs..."
-  bash "${SERVICES_ROOT}/scripts/regenerate-release-inputs.sh" --version "${VERSION}" --bin-dir "${BIN_STAGE_DIR}"
+  bash "${SERVICES_ROOT}/scripts/regenerate-release-inputs.sh" --version "${VERSION}" --bin-dir "${BIN_STAGE_DIR}" ${ALLOW_UNPROVEN_DEBS:+--allow-unproven-deb-provenance}
   REUSE_GENERATED_RELEASE_INPUTS=1
 fi
 

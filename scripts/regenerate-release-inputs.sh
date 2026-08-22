@@ -49,6 +49,11 @@ while [[ $# -gt 0 ]]; do
       STAGE_BIN="$2"
       shift 2
       ;;
+    --allow-unproven-deb-provenance)
+      # Opt-in only, and threaded rather than defaulted: see pkggen.sh.
+      ALLOW_UNPROVEN_DEBS=1
+      shift
+      ;;
     *)
       die "unknown argument: $1"
       ;;
@@ -187,7 +192,8 @@ regenerate_service_templates() {
     --version "0.0.0-dev" \
     --versions-file "${PACKAGE_VERSIONS_FILE}" \
     --publisher "core@globular.io" \
-    --platform "linux_amd64"
+    --platform "linux_amd64" \
+    ${ALLOW_UNPROVEN_DEBS:+--allow-unproven-deb-provenance}
 
   build_extra_template "globular-cli" "${STAGE_BIN}/globularcli"
   build_extra_template "mcp" "${STAGE_BIN}/mcp"
