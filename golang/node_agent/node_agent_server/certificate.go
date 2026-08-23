@@ -111,22 +111,13 @@ func (srv *NodeAgentServer) ensureRuntimeTLSConvergence(ctx context.Context) {
 	keyPath := config.GetLocalServerKeyPath()
 	caPath := config.GetLocalCACertificate()
 
+	requiredIPs := srv.requiredCertIPs()
+
 	// Check chain validity first.
 	err := validateLeafSignedByCA(certPath, keyPath, caPath)
 	if err == nil {
 		// Chain is valid — also check IP SAN coverage so that new IPs
 		// (secondary interfaces, VIP changes) trigger cert re-issuance.
-		requiredIPs := make([]net.IP, 0)
-		for _, s := range gatherIPs() {
-			if ip := net.ParseIP(s); ip != nil {
-				requiredIPs = append(requiredIPs, ip)
-			}
-		}
-		if vip := srv.lookupIngressVIP(); vip != "" {
-			if ip := net.ParseIP(vip); ip != nil {
-				requiredIPs = append(requiredIPs, ip)
-			}
-		}
 		needRegen, reason := security.NeedsCertRegeneration(certPath, keyPath, caPath, nil, requiredIPs, 30*24*time.Hour)
 		if !needRegen {
 			return
@@ -149,11 +140,48 @@ func (srv *NodeAgentServer) ensureRuntimeTLSConvergence(ctx context.Context) {
 	// Re-validate: ensureNetworkCerts returning nil is not by itself proof the
 	// material on disk is now usable, and claiming a repair that did not happen
 	// is the defect this whole path exists to avoid.
-	if regen, why := security.NeedsCertRegeneration(certPath, keyPath, caPath, nil, nil, 0); regen {
+	// Verify the property the repair was supposed to establish, not merely that
+	// SOME certificate is now present and chains to the CA.
+	//
+	// This passed nil for requiredIPs, so it checked the chain and nothing else
+	// — and the one thing that had actually gone wrong was SAN coverage. On
+	// 2026-08-23 a re-issue handed back a generic mesh certificate
+	// (CN=globular.internal, SAN DNS:globular.internal only, no IP SANs); this
+	// check saw a validly-signed leaf, logged "repaired runtime TLS
+	// certificate", and the node was unreachable by every peer that dials it by
+	// IP — which is how the controller dials node agents. The controller's infra
+	// probes then failed with "cannot validate certificate for <ip> because it
+	// doesn't contain any IP SANs" until the process was restarted, while the
+	// cluster reported the node ready and cluster-doctor reported no errors.
+	// A verification that cannot fail for the defect it follows is decoration
+	// (diagnostics.must_measure_reality).
+	if regen, why := security.NeedsCertRegeneration(certPath, keyPath, caPath, nil, requiredIPs, 0); regen {
 		log.Printf("tls-convergence: repair reported success but certificate is still unusable: %s", why)
 		return
 	}
 	log.Printf("tls-convergence: repaired runtime TLS certificate")
+}
+
+// requiredCertIPs returns every IP this node's leaf certificate must cover:
+// its own routable addresses plus the ingress VIP when one is assigned.
+//
+// It exists so the decision to regenerate and the verification that the
+// regeneration WORKED are made against the same requirement. They were not:
+// the decision passed the node's IPs, the verification passed nil, and a
+// re-issue that dropped every IP SAN therefore verified clean.
+func (srv *NodeAgentServer) requiredCertIPs() []net.IP {
+	ips := make([]net.IP, 0)
+	for _, s := range gatherIPs() {
+		if ip := net.ParseIP(s); ip != nil {
+			ips = append(ips, ip)
+		}
+	}
+	if vip := srv.lookupIngressVIP(); vip != "" {
+		if ip := net.ParseIP(vip); ip != nil {
+			ips = append(ips, ip)
+		}
+	}
+	return ips
 }
 
 func (srv *NodeAgentServer) caKeySyncLoop(ctx context.Context) {
@@ -515,6 +543,14 @@ func (srv *NodeAgentServer) ensureNetworkCerts(spec *cluster_controllerpb.Cluste
 		// invalid. Re-issue through the CSR -> CA-gateway path instead, which
 		// works without the CA private key, and report a real error if the
 		// certificate is still unusable afterwards.
+		// Deliberately unchanged: this decides whether the leaf is usable AT ALL
+		// (present, parseable, chains to the current CA). Making it also demand
+		// IP SAN coverage would change WHEN re-issues fire — a node whose cert
+		// legitimately lacks some transient interface address would start
+		// re-issuing on every pass. The defect this file was changed for is not
+		// that re-issue fires too rarely; it is that the caller CLAIMS success
+		// afterwards without checking SAN coverage. That claim is fixed in
+		// certConvergenceLoop, where the requirement is already known.
 		if regen, reason := security.NeedsCertRegeneration(fullchainDst, keyDst, caDst, nil, nil, 0); regen {
 			log.Printf("tls-convergence: local certificate unusable on non-issuer node (%s) — requesting re-issue", reason)
 			if err := srv.reissueLeafViaCAGateway(spec); err != nil {
