@@ -21,16 +21,17 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
+	globular_client "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/interceptors"
-	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/netutil"
 	"github.com/globulario/services/golang/resource/resourcepb"
-	globular_client "github.com/globulario/services/golang/globular_client"
+	"github.com/globulario/services/golang/security"
 	Utility "github.com/globulario/utility"
 	"github.com/kardianos/osext"
 	"google.golang.org/grpc/keepalive"
@@ -472,6 +473,64 @@ func GetPlatform() string {
 // It logs errors with slog and returns nil on failure.
 //
 // CALLERS MUST nil-check the return value before use.  A nil return means
+// certReloader serves a keypair from disk, reloading when the files change.
+//
+// TLS material outlives no process by accident: it is rotated proactively
+// (pki.leaf_cert_rotation_is_proactive_not_reactive) and re-issued by the
+// repair path. A server that read it once at startup keeps presenting the old
+// certificate until something restarts it, which turns a completed rotation
+// into a silent outage for every peer that validates the new identity.
+type certReloader struct {
+	certPath string
+	keyPath  string
+
+	mu      sync.Mutex
+	cached  *tls.Certificate
+	certMod time.Time
+	keyMod  time.Time
+}
+
+func newCertReloader(certPath, keyPath string) *certReloader {
+	return &certReloader{certPath: certPath, keyPath: keyPath}
+}
+
+// getCertificate returns the current keypair, reloading it when either file's
+// modification time has moved. On a reload error it keeps serving the last
+// good certificate: a half-written rotation must not take the listener down.
+func (r *certReloader) getCertificate(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	certInfo, certErr := os.Stat(r.certPath)
+	keyInfo, keyErr := os.Stat(r.keyPath)
+	unchanged := certErr == nil && keyErr == nil &&
+		certInfo.ModTime().Equal(r.certMod) && keyInfo.ModTime().Equal(r.keyMod)
+	if r.cached != nil && unchanged {
+		return r.cached, nil
+	}
+
+	pair, err := tls.LoadX509KeyPair(r.certPath, r.keyPath)
+	if err != nil {
+		if r.cached != nil {
+			slog.Warn("certReloader: reload failed, serving previous certificate",
+				"cert", r.certPath, "err", err)
+			return r.cached, nil
+		}
+		return nil, err
+	}
+	if certErr == nil {
+		r.certMod = certInfo.ModTime()
+	}
+	if keyErr == nil {
+		r.keyMod = keyInfo.ModTime()
+	}
+	if r.cached != nil {
+		slog.Info("certReloader: certificate reloaded from disk", "cert", r.certPath)
+	}
+	r.cached = &pair
+	return r.cached, nil
+}
+
 // TLS setup failed (cert/key load error, CA read error, or pool append
 // error); the error has already been logged at ERROR level.  Starting a
 // gRPC server with a nil tls.Config will panic — guard with:
@@ -484,11 +543,13 @@ func GetPlatform() string {
 // Signature is preserved for binary compatibility with existing callers.
 func GetTLSConfig(key string, cert string, ca string) *tls.Config {
 
-	tlsCer, err := tls.LoadX509KeyPair(cert, key)
-	if err != nil {
+	// Load once to fail fast on unusable material, then serve through a
+	// reloader so a replaced certificate is actually picked up.
+	if _, err := tls.LoadX509KeyPair(cert, key); err != nil {
 		slog.Error("GetTLSConfig: load keypair failed", "cert", cert, "key", key, "err", err)
 		return nil
 	}
+	reloader := newCertReloader(cert, key)
 
 	caBytes, err := os.ReadFile(ca)
 	if err != nil {
@@ -505,7 +566,21 @@ func GetTLSConfig(key string, cert string, ca string) *tls.Config {
 	hostname, _ := config.GetHostname()
 	return &tls.Config{
 		ServerName: hostname, // no SNI
-		Certificates: []tls.Certificate{tlsCer},
+		// GetCertificate, not a Certificates snapshot.
+		//
+		// A snapshot binds the process to whatever material existed at startup.
+		// When the certificate on disk is replaced — rotation, or the repair
+		// path re-issuing a leaf — the running process keeps presenting the old
+		// one until it restarts. Observed 2026-08-23: node-3's on-disk cert was
+		// CN=node-3 with IP:10.10.0.13, while :11000 served a CN=globular.internal
+		// cert with no IP SANs that the repair path had re-issued minutes
+		// earlier. Every controller probe to that node failed with "cannot
+		// validate certificate for 10.10.0.13 because it doesn't contain any IP
+		// SANs", the reconcile workflow logged remediation_no_progress 44 times
+		// in an hour, and cluster-doctor reported zero errors throughout. The
+		// correct certificate was on disk the whole time; only the process was
+		// wrong, and a restart fixed it instantly.
+		GetCertificate: reloader.getCertificate,
 		// RequestClientCert: request a client cert but do not require it.
 		// When a cert is provided it is verified against the cluster CA (below).
 		// When no cert is provided the connection is allowed; authentication
@@ -910,15 +985,15 @@ func startMetricsServer(s Service) {
 		return
 	}
 
-    // Pre-bind so we detect conflicts immediately instead of in a goroutine.
-    // Bind on all interfaces to allow service-mesh sidecars and remote scrapers
-    // to reach /metrics without host-network port forwarding.
-    addr := "0.0.0.0:" + strconv.Itoa(port)
+	// Pre-bind so we detect conflicts immediately instead of in a goroutine.
+	// Bind on all interfaces to allow service-mesh sidecars and remote scrapers
+	// to reach /metrics without host-network port forwarding.
+	addr := "0.0.0.0:" + strconv.Itoa(port)
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		if isAddrInUse(err) {
-            // Port is taken — allocate a free one on all interfaces.
-            ln, err = net.Listen("tcp", "0.0.0.0:0")
+			// Port is taken — allocate a free one on all interfaces.
+			ln, err = net.Listen("tcp", "0.0.0.0:0")
 			if err != nil {
 				slog.Warn("metrics: cannot allocate port", "service", s.GetName(), "err", err)
 				return
@@ -947,8 +1022,8 @@ func startMetricsServer(s Service) {
 		}
 	}()
 
-    // Register with Prometheus file-based service discovery.
-    writePromTargetFile(s.GetName(), port)
+	// Register with Prometheus file-based service discovery.
+	writePromTargetFile(s.GetName(), port)
 }
 
 // promTargetsDir is the directory where Prometheus file_sd target files are written.
@@ -964,18 +1039,18 @@ func writePromTargetFile(serviceName string, port int) {
 	}
 	job = strings.ToLower(job)
 
-    // Metrics now bind on 0.0.0.0, so advertise the routable node IP as target
-    // to keep Prometheus scraping over the network (or via service mesh) with
-    // distinct per-node instances.
-    nodeIP, ipErr := config.GetRoutableIP()
-    if ipErr != nil || nodeIP == "" {
-        // If we truly cannot detect a routable IP, skip metrics registration
-        // rather than poisoning the scrape config with a loopback address.
-        return
-    }
-    hostname, _ := os.Hostname()
+	// Metrics now bind on 0.0.0.0, so advertise the routable node IP as target
+	// to keep Prometheus scraping over the network (or via service mesh) with
+	// distinct per-node instances.
+	nodeIP, ipErr := config.GetRoutableIP()
+	if ipErr != nil || nodeIP == "" {
+		// If we truly cannot detect a routable IP, skip metrics registration
+		// rather than poisoning the scrape config with a loopback address.
+		return
+	}
+	hostname, _ := os.Hostname()
 
-    content := fmt.Sprintf(`- targets: ["%s:%d"]
+	content := fmt.Sprintf(`- targets: ["%s:%d"]
   labels:
     job: %s
     instance: %s:%d
