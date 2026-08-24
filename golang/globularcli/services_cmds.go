@@ -571,6 +571,26 @@ func runDesiredSet(cmd *cobra.Command, args []string) error {
 // rather than silently passed through. There is deliberately no --force bypass —
 // the xds incident was `globular services desired set xds --force`.
 func serviceDesiredKindGate(name string, kind repositorypb.ArtifactKind, lookupErr error) error {
+	return serviceDesiredKindGateAt(name, kind, lookupErr, svcApplyRepoAddr)
+}
+
+// serviceDesiredKindGateAt is serviceDesiredKindGate with the repository
+// endpoint that answered, so an UNSPECIFIED kind can be attributed correctly.
+//
+// "publish the package first" is the wrong advice when the package IS
+// published: kind resolution goes to whichever repository instance discovery
+// selects, and an instance on a freshly-joined node registers before it has
+// synced its artifact index. Observed 2026-08-23 — three `desired set` calls
+// were refused with "no published version with a resolvable kind" for dns,
+// ai-watcher and authentication while `pkg info dns` reported kind SERVICE,
+// publisher core@globular.io, version 1.2.317, installed on all five nodes.
+// Six consecutive lookups auto-discovered six different endpoints and all
+// resolved SERVICE once the cluster settled.
+//
+// The gate still fails closed — that part is right. Only the attribution
+// changes: name the instance that answered and give the operator the second
+// possible cause instead of only the one that is usually wrong.
+func serviceDesiredKindGateAt(name string, kind repositorypb.ArtifactKind, lookupErr error, repoAddr string) error {
 	switch {
 	case kind == repositorypb.ArtifactKind_SERVICE:
 		return nil // verified SERVICE — proceed
@@ -581,7 +601,16 @@ func serviceDesiredKindGate(name string, kind repositorypb.ArtifactKind, lookupE
 	case lookupErr != nil:
 		return fmt.Errorf("cannot verify the kind of %s (repository unreachable: %v); `services desired set` fails closed on an unverifiable kind per desired.keyed_by_kind_and_name — retry when the repository is reachable", name, lookupErr)
 	default: // ArtifactKind_UNSPECIFIED — reachable, but no published version with a resolvable kind
-		return fmt.Errorf("cannot verify %s is a SERVICE package (no published version with a resolvable kind); `services desired set` fails closed on an unknown kind per desired.keyed_by_kind_and_name — publish the package first, then retry", name)
+		where := "the repository"
+		if repoAddr != "" {
+			where = "repository instance " + repoAddr
+		}
+		return fmt.Errorf("cannot verify %s is a SERVICE package: %s reported no published version with a resolvable kind. "+
+			"`services desired set` fails closed on an unknown kind per desired.keyed_by_kind_and_name. "+
+			"Either the package is genuinely unpublished (publish it, then retry), or that instance has not finished "+
+			"syncing its artifact index — a repository on a recently joined node registers before it is populated. "+
+			"Check with `globular pkg info %s`, which prints the instance it asked; if that shows the package, retry",
+			name, where, name)
 	}
 }
 

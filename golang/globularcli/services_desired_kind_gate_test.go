@@ -61,3 +61,49 @@ func TestServiceDesiredKindGate_RepoUnreachableFailsClosed(t *testing.T) {
 		t.Fatalf("message should name the repo-unreachable cause; got %v", err)
 	}
 }
+
+// TestKindGateUnspecifiedNamesTheInstanceAndBothCauses pins the attribution of
+// an UNSPECIFIED kind.
+//
+// The message used to say only "publish the package first", which is the wrong
+// advice whenever the package IS published. Kind resolution goes to whichever
+// repository instance discovery selects, and an instance on a freshly-joined
+// node registers before it has synced its artifact index. Observed 2026-08-23:
+// three `desired set` calls were refused for dns, ai-watcher and authentication
+// while `pkg info dns` reported kind SERVICE, publisher core@globular.io,
+// version 1.2.317, installed on all five nodes. Six consecutive lookups
+// auto-discovered six different endpoints and every one resolved SERVICE once
+// the cluster settled.
+//
+// The gate must still fail closed — only the attribution changes.
+func TestKindGateUnspecifiedNamesTheInstanceAndBothCauses(t *testing.T) {
+	err := serviceDesiredKindGateAt("dns",
+		repositorypb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED, nil, "10.10.0.15:443")
+	if err == nil {
+		t.Fatal("an unresolvable kind must still be refused — the gate fails closed")
+	}
+	msg := err.Error()
+
+	if !strings.Contains(msg, "10.10.0.15:443") {
+		t.Errorf("must name the instance that answered so the operator can check it; got: %s", msg)
+	}
+	if !strings.Contains(msg, "syncing") {
+		t.Errorf("must offer the not-yet-synced cause, not only 'unpublished'; got: %s", msg)
+	}
+	if !strings.Contains(msg, "pkg info dns") {
+		t.Errorf("must tell the operator how to distinguish the two causes; got: %s", msg)
+	}
+}
+
+// An empty endpoint must degrade to prose, never to a dangling "instance ".
+func TestKindGateUnspecifiedWithoutEndpointStaysReadable(t *testing.T) {
+	err := serviceDesiredKindGateAt("dns",
+		repositorypb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED, nil, "")
+	if err == nil {
+		t.Fatal("must still refuse")
+	}
+	if strings.Contains(err.Error(), "instance :") ||
+		strings.Contains(err.Error(), "instance  ") {
+		t.Errorf("empty endpoint must not produce a dangling instance reference; got: %s", err.Error())
+	}
+}
