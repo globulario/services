@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -51,6 +52,23 @@ func newExecutorLeaseManager(srv *server) *executorLeaseManager {
 	}
 }
 
+// isConsensusUnavailable reports whether an error is ScyllaDB refusing a
+// lightweight transaction because too few replicas are alive to form the
+// SERIAL quorum an LWT requires.
+//
+// Matched on message text because the driver surfaces it as an untyped
+// RequestError; the substrings are the stable parts of Scylla's and
+// Cassandra's unavailable-for-consistency messages.
+func isConsensusUnavailable(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "cannot achieve consistency level") ||
+		strings.Contains(msg, "not enough replicas available") ||
+		(strings.Contains(msg, "serial") && strings.Contains(msg, "unavailable"))
+}
+
 // ClaimRun attempts to claim ownership of a run via ScyllaDB LWT.
 // Returns true if the claim succeeded (this executor now owns the run).
 // Returns false if another executor already owns it.
@@ -78,6 +96,37 @@ func (m *executorLeaseManager) ClaimRun(ctx context.Context, runID string) (bool
 	).ScanCAS(nil, nil, nil, nil)
 
 	if err != nil {
+		// Name the condition when the LWT cannot reach consensus.
+		//
+		// The bare driver error is "Cannot achieve consistency level for cl
+		// SERIAL. Requires 2, alive 1", which surfaces to an operator as an
+		// unexplained refusal of the command they are running. It is not a
+		// workflow fault and no amount of retrying the command helps: the lease
+		// table is on ScyllaDB, the LWT needs a SERIAL quorum, and a node being
+		// down is exactly what removes it.
+		//
+		// This bites hardest in recovery: `cluster nodes remove --force` is
+		// documented as working on an unreachable node, but it dispatches
+		// node.remove, which claims a lease, which needs the quorum the outage
+		// took away. Observed 2026-08-23 — the removal was refused, the node's
+		// record survived, and its clean rejoin was then denied with "node
+		// identity conflict: hostname already present", leaving the node out of
+		// the cluster until storage recovered.
+		//
+		// Diagnosis only: the fence still holds and the run is still refused.
+		// Whether recovery-class workflows should be allowed to proceed
+		// degraded — as the nil-session path above already does — is a
+		// fencing-semantics decision, not something to slip in behind a log
+		// message.
+		if isConsensusUnavailable(err) {
+			return false, fmt.Errorf(
+				"claim run %s: workflow lease store cannot reach consensus — "+
+					"the lease table needs a ScyllaDB SERIAL quorum and too few "+
+					"replicas are alive; this blocks EVERY workflow, including "+
+					"recovery ones, until storage regains quorum "+
+					"(check `nodetool status` on the storage nodes): %w",
+				runID, err)
+		}
 		return false, fmt.Errorf("claim run %s: %w", runID, err)
 	}
 
