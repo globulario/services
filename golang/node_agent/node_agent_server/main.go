@@ -301,7 +301,9 @@ func main() {
 	// Start Prometheus metrics server.  Binds a stable port across restarts
 	// when possible so Prometheus file_sd and xDS routing don't flap every
 	// time the process restarts (see startMetricsServer for details).
-	go startMetricsServer(srv.nodeID)
+	// Pass a reader, not a snapshot: srv.nodeID can still change after this
+	// point (see startMetricsServer).
+	go startMetricsServer(func() string { return srv.nodeID })
 
 	// Sync ACME certificates from etcd to local disk so every gateway node
 	// can serve Let's Encrypt certs via Envoy, regardless of which node
@@ -402,10 +404,11 @@ func metricsPortEtcdKey(nodeID string) string {
 // Whichever port is finally bound is written back to etcd so the next
 // restart picks the same one, avoiding scrape-target flapping, stale xDS
 // routes, and alert noise on up{job="node_agent"}.
-func startMetricsServer(nodeID string) {
+func startMetricsServer(currentNodeID func() string) {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
 
+	nodeID := currentNodeID()
 	savedPort := loadSavedMetricsPort(nodeID)
 	ln, chosen := bindMetricsListener(savedPort)
 	if ln == nil {
@@ -414,6 +417,24 @@ func startMetricsServer(nodeID string) {
 	if savedPort != chosen {
 		persistMetricsPort(nodeID, chosen)
 	}
+	// Re-key if the node's canonical id settles after this point.
+	//
+	// The port was persisted under whatever id the agent held when the
+	// listener bound. On a node that starts BEFORE it has joined — every
+	// wipe-and-rejoin — that is a pre-join id, and the key was never written
+	// again, so the node's canonical subtree had no metrics port while an
+	// orphan key sat under an id belonging to nothing. Observed 2026-08-23:
+	// node-5's state.json carried 35ac3821-..., its metrics-port key sat under
+	// 2da500c8-... (its id from an earlier incarnation), and the entire
+	// subtree under that stale id was that one key. Anything treating the key
+	// as the node's registration or scrape target saw the node as absent.
+	// One identity value, one canonical source
+	// (identity.has_single_canonical_source_and_is_immutable).
+	//
+	// Bounded on purpose: a join that has not settled within this window is a
+	// different problem, and an unbounded watcher here would violate
+	// error_path.no_unbounded_fire_and_forget_goroutine.
+	go rekeyMetricsPortWhenIdentitySettles(currentNodeID, nodeID, chosen)
 
 	log.Printf("metrics listening on 0.0.0.0:%d (saved=%d, default=%d)",
 		chosen, savedPort, metricsPortDefault)
@@ -424,6 +445,35 @@ func startMetricsServer(nodeID string) {
 		log.Printf("metrics server error: %v", err)
 	}
 }
+
+// rekeyMetricsPortWhenIdentitySettles re-persists the metrics port if the
+// node's canonical id changes shortly after the listener bound. Bounded: it
+// gives up after metricsRekeyAttempts checks and never runs forever.
+func rekeyMetricsPortWhenIdentitySettles(currentNodeID func() string, boundWith string, port int) {
+	for i := 0; i < metricsRekeyAttempts; i++ {
+		time.Sleep(metricsRekeyInterval)
+		id := currentNodeID()
+		if id == "" || id == boundWith {
+			continue
+		}
+		log.Printf("metrics: node id settled %s -> %s; re-keying persisted port %d",
+			boundWith, id, port)
+		persistMetricsPortFn(id, port)
+		return
+	}
+}
+
+// Long enough to cover a join completing after the agent started, short enough
+// that a node which never settles stops being watched. Vars, not consts, so the
+// test can exercise the loop instead of asserting on numbers.
+var (
+	metricsRekeyAttempts = 30
+	metricsRekeyInterval = 10 * time.Second
+)
+
+// persistMetricsPortFn is the seam the re-key watcher writes through, so a test
+// can observe WHICH id the port was re-keyed under.
+var persistMetricsPortFn = persistMetricsPort
 
 // bindMetricsListener tries saved → default → ephemeral and returns the
 // listener plus the actually-bound port. Returns (nil, 0) on total failure.
