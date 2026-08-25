@@ -8080,3 +8080,13 @@ failure_modes:
         - profile.intent_is_controller_owned_placement_contract
       evidence:
         - 'Live 5-node sim, controller log: ''release-workflow: core@globular.io/ai-memory finalized DEFERRED (no targets)'' recurring, alongside ''drift-reconciler: node=node-5 pkg=ai-memory — orphaned install; node profiles [compute core] do not satisfy catalog placement''. etcd ServiceRelease tally: 12 AVAILABLE, 10 FAILED, 2 DEFERRED (ai-memory, file) with per-node status AVAILABLE. Scenario upgrade/platform-upgrade-release-boundary failed its release.audit assertion ''pending: expected 0, got 1'' after waiting out a full 600s let_in_flight_releases_settle window (30 poll attempts). Catalog diff: ai-executor, ai-memory, ai-watcher, backup-manager, blog, catalog, conversation, dns, echo, ldap, mail, mcp, resource, sql, storage, workflow — e.g. ai-memory yaml=[compute core] vs go=[control-plane database scylla].'
+    - id: failure.a_cobra_usage_dump_masquerades_as_the_error_in_scenario_evid
+      title: A cobra usage dump masquerades as the error in scenario evidence
+      description: The globular CLI does not set SilenceUsage, so a RUNTIME error prints the error line followed by the full usage block. The quickstart harness records the combined output and its console summary line samples from that combined text, so a failed ops.set_desired step reports 'expected accepted, got refused —   --output string       Output format (table|json|yaml)'. Read literally that says the command was malformed, which sends an investigator looking for a bad flag or a wrong arity. The real cause was recorded correctly in evidence.json's error field — a repository kind lookup returning UNSPECIFIED — but only the misleading line reaches the log an operator reads first.
+      protects:
+        files:
+          - golang/globularcli/services_cmds.go
+      related_invariants:
+        - diagnostics.must_measure_reality
+      evidence:
+        - 'authority/rejoin-after-missed-generations on 1.2.334: console shows ''advance_generation_1: expected accepted, got refused —   --output string       Output format (table|json|yaml) (default "table")''. evidence.json for the same step records the truth: ''Error: cannot verify dns is a SERVICE package: repository instance 10.10.0.15:443 reported no published version with a resolvable kind'', exit_code 1, attempts 6. Reproduced live: ''globular pkg info dns'' prints ''Error: DescribePackage: rpc error: code = Unauthenticated'' immediately followed by ''Usage:'' and the flag list.'
