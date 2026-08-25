@@ -301,6 +301,38 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 		log.Printf("nodeagent: sync skipped — node ID not yet assigned")
 		return
 	}
+	// A guess about our own identity is not something to publish observations
+	// under.
+	//
+	// This guard already refused an EMPTY id. It did not refuse a DERIVED one,
+	// and a derived id is a guess: when the controller later assigns the real
+	// id, everything written under the guess is orphaned. installed_state is a
+	// split-authority model — the controller commits authoritative records, the
+	// node-agent reports observations about ITSELF
+	// (installed_state.owned_by_node_agent, node_agent.is_executor_not_cluster_brain).
+	// An observation filed under an identity the cluster never granted is not an
+	// observation about ourselves; it is a record about a node that does not
+	// exist, which is precisely what
+	// identity.has_single_canonical_source_and_is_immutable forbids.
+	//
+	// Observed across releases 1.2.330 to 1.2.334: a restart storm left the
+	// controller reporting six and then seven members for a five-node cluster,
+	// and the phantom subtree carried real Layer-3 content —
+	// packages/COMMAND/etcdctl, packages/INFRASTRUCTURE/envoy,
+	// node_agent_metrics_port. Two admission-side guards (services 865ea7f8,
+	// 05f5eeae) cut the count but could not reach five, because THIS write path
+	// is not admission-gated. The derivation is deterministic, so the same
+	// partial basis recreates the SAME orphan every time rather than
+	// accumulating new ones.
+	//
+	// Suppressing costs nothing durable: installed state is re-derived from disk
+	// on the next sync, and by then the controller has assigned the canonical id.
+	if srv.nodeIDProvisional {
+		log.Printf("nodeagent: sync skipped — node ID %s is provisional (derived locally, "+
+			"not assigned by the controller); observations would be orphaned under an "+
+			"identity the cluster has not granted", srv.nodeID)
+		return
+	}
 
 	now := time.Now().Unix()
 	platform := runtime.GOOS + "_" + runtime.GOARCH

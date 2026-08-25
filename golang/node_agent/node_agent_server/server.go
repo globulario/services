@@ -120,16 +120,23 @@ const (
 type NodeAgentServer struct {
 	node_agentpb.UnimplementedNodeAgentServiceServer
 
-	mu                       sync.Mutex
-	stateMu                  sync.Mutex
-	controllerConnMu         sync.Mutex
-	operations               map[string]*operation
-	joinToken                string
-	bootstrapToken           string
-	controllerEndpoint       string
-	agentVersion             string
-	bootstrapPlan            []string
-	nodeID                   string
+	mu                 sync.Mutex
+	stateMu            sync.Mutex
+	controllerConnMu   sync.Mutex
+	operations         map[string]*operation
+	joinToken          string
+	bootstrapToken     string
+	controllerEndpoint string
+	agentVersion       string
+	bootstrapPlan      []string
+	nodeID             string
+	// nodeIDProvisional is true when nodeID was DERIVED locally rather than
+	// restored from stored state or assigned by the controller in a JoinPlan.
+	// A derived id is this node's GUESS about its own identity; the controller
+	// is the authority (installed_state.owned_by_node_agent is a split-authority
+	// model, and node_agent.is_executor_not_cluster_brain). Observations written
+	// under a guess become orphans the moment the real id arrives.
+	nodeIDProvisional        bool
 	controllerConn           *grpc.ClientConn
 	controllerClient         cluster_controllerpb.ClusterControllerServiceClient
 	statePath                string
@@ -323,11 +330,14 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState, cfg NodeAgentCo
 	// Do NOT override a controller-assigned ID — even if it differs from the
 	// stable ID. The controller may have derived the ID from hostname+IPs
 	// when the MAC wasn't available in the join request.
+	nodeIDProvisional := false
 	if nodeID == "" {
 		if stableID, err := identity.StableNodeID(); err == nil {
-			log.Printf("node-agent: no node ID stored; using stable ID %s", stableID)
+			log.Printf("node-agent: no node ID stored; using stable ID %s (PROVISIONAL — "+
+				"installed-state reporting is suppressed until the controller assigns an id)", stableID)
 			nodeID = stableID
 			state.NodeID = stableID
+			nodeIDProvisional = true
 		}
 	}
 
@@ -361,6 +371,7 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState, cfg NodeAgentCo
 		agentVersion:             cfg.AgentVersion,
 		bootstrapPlan:            nil,
 		nodeID:                   nodeID,
+		nodeIDProvisional:        nodeIDProvisional,
 		statePath:                statePath,
 		state:                    state,
 		joinRequestID:            state.RequestID,
