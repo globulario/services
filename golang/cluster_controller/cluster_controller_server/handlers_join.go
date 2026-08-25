@@ -87,6 +87,44 @@ func (srv *server) RequestJoin(ctx context.Context, req *cluster_controllerpb.Re
 	// A node already admitted under this token is retrying, so it is not charged
 	// again and is not blocked by an exhausted budget it is already inside.
 	identity := protoToStoredIdentity(req.GetIdentity())
+
+	// A node must state a complete identity basis before it is granted an id.
+	//
+	// The assigned node id is DERIVED (deterministicNodeID): MAC when the node
+	// reports one, otherwise hostname + sorted IPs. Deriving from a hostname
+	// with an empty IP list yields an id the same node can never reproduce once
+	// its interfaces are up — nodeid.FromHostAndIPs keys on BOTH halves — so the
+	// cluster gains a member that will never heartbeat again under that id while
+	// the real node arrives separately under its canonical one.
+	//
+	// Observed on releases 1.2.330, 1.2.332 and 1.2.333: a restart storm left
+	// the controller reporting six, then seven members for a five-node cluster.
+	// The phantoms were not inert — /globular/nodes/{phantom}/ carried
+	// cluster-controller, etcd, repository and scylladb records. Because the
+	// derivation is deterministic, the same partial basis reproduces the SAME
+	// phantom id every time (12944a1b-..., 2da500c8-...), so the orphans recur
+	// instead of being one-offs.
+	//
+	// Placed BEFORE priorJoinAdmissionLocked and before jt.Uses++ deliberately:
+	// a refusal must not charge a token use, or a node retrying until its
+	// interfaces come up would exhaust its own join token
+	// (failure.join_token_use_charged_per_attempt_and_a_retrying_node_conflicts).
+	//
+	// Mirrors the node-agent's StableNodeID guard so both parties refuse the
+	// same input (intent:node_identity.hostname_ip_for_membership_domain_mac_for_other_axes).
+	if strings.TrimSpace(req.GetLabels()["node.mac"]) == "" {
+		if strings.TrimSpace(identity.Hostname) == "" || len(identity.Ips) == 0 {
+			srv.unlock()
+			return nil, status.Errorf(codes.FailedPrecondition,
+				"incomplete node identity: no node.mac label, and the hostname+IPs "+
+					"basis is partial (hostname=%q ips=%d) — an id derived from half "+
+					"this basis could never be reproduced once interfaces are up; "+
+					"retry when the node can report its addresses (no join-token use "+
+					"was charged)",
+				identity.Hostname, len(identity.Ips))
+		}
+	}
+
 	priorAdmission := srv.priorJoinAdmissionLocked(token, identity)
 	if priorAdmission == nil && jt.Uses >= jt.MaxUses {
 		srv.unlock()
