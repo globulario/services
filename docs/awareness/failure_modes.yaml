@@ -8055,3 +8055,16 @@ failure_modes:
         - golang/cluster_controller/cluster_controller_server/minio_not_a_pillar_test.go:TestObjectstoreOutageDoesNotFreezeServiceConvergence
       evidence:
         - 'Pre-fix gate, pool member (MinioJoinPhase=verified) with globular-minio.service the only unit down: evaluateNodeStatus returns converging, node.Status=converging, and reconciler.go''s ''node.Status != ready'' check skips the node for every package. The same node with globular-etcd.service down instead is correctly skipped, so the gate could not tell a commodity tier from a pillar.'
+    - id: failure.an_unreachable_node_agent_is_reported_as_an_unhealthy_infra
+      title: An unreachable node agent is reported as an unhealthy infra component
+      description: Infra health probes are asked through the node agent, and probeInfraHealth returned a bare bool, so a dial failure, an RPC error and an empty endpoint were indistinguishable from a component answering unhealthy. The drift scan raised infra_unhealthy against healthy components whenever the agent was momentarily unreachable, and the remediation could never resolve because the resolution re-probe used the same unreachable path — latching to FAILED with backoff.
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/infra_probes.go
+          - golang/cluster_controller/cluster_controller_server/reconcile_actions.go
+      related_invariants:
+        - diagnostics.must_measure_reality
+      required_tests:
+        - golang/cluster_controller/cluster_controller_server/reconcile_actions_test.go:TestInfraUnhealthy_UnansweredProbeDoesNotLatchRemediation
+      evidence:
+        - 'Controller log on node-3: ''remediation not resolved for etcd@a166b992-b66d-53cb-b7c7-61dfa4dd5a36 (infra_unhealthy) — child_status=SUCCEEDED, no-progress 3/3'' followed by ''item FAILED: type=infra_unhealthy ... reason=remediation_no_progress'', while etcd itself was healthy. Reproduced in a unit test: with an unreachable endpoint the pre-fix predicate returns unhealthy and charges a no-progress strike per pass.'
