@@ -1137,6 +1137,45 @@ func (srv *server) attemptNodeRecovery(ctx context.Context, node *nodeState) err
 }
 
 func (srv *server) evaluateNodeStatus(node *nodeState, units []unitStatusRecord) (string, string) {
+	return srv.evaluateNodeStatusWithPolicy(node, units, false)
+}
+
+// nodeReadyForServiceConvergence answers a narrower question than
+// evaluateNodeStatus: may unrelated services converge on this node right now?
+//
+// The two questions were the same verdict for a long time, and that is how a
+// commodity tier came to freeze primary work. evaluateNodeStatus reports node
+// HEALTH, and a pool member whose MinIO is down is honestly degraded — that
+// reporting is deliberate (see TestEvaluateNodeStatus_MinioMember_RequiresMinio)
+// and it stays. But the drift reconciler consumed that same verdict to decide
+// whether to converge ANY service on the node, so a MinIO outage silently
+// stopped every unrelated rollout there. That is precisely what
+// invariant:minio.is_commodity_not_a_pillar forbids — "it must not gate a
+// primary service's health nor block node convergence" — and the shape
+// invariant:derived_state.must_not_block_authority warns about: a derived
+// verdict withholding authoritative work.
+//
+// So node health keeps telling the whole truth, and convergence stops listening
+// to the object-store tier. Anything else that is unhealthy — etcd, envoy, xds,
+// scylladb, the node being unreachable — still withholds convergence.
+func (srv *server) nodeReadyForServiceConvergence(node *nodeState) bool {
+	if node == nil {
+		return false
+	}
+	// Fast path: a ready node needs no second evaluation. This also keeps the
+	// extra work off the reconciler's hot path (critical_queries.must_be_bounded)
+	// — only an already-unhealthy node pays for the re-check.
+	if node.Status == "ready" {
+		return true
+	}
+	status, _ := srv.evaluateNodeStatusWithPolicy(node, node.Units, true)
+	return status == "ready"
+}
+
+// evaluateNodeStatusWithPolicy is evaluateNodeStatus with one knob:
+// ignoreObjectstore drops the commodity object-store units from the required
+// set. Only the convergence gate passes true; health reporting never does.
+func (srv *server) evaluateNodeStatusWithPolicy(node *nodeState, units []unitStatusRecord, ignoreObjectstore bool) (string, string) {
 	if node == nil {
 		return "degraded", "missing node record"
 	}
@@ -1157,6 +1196,12 @@ func (srv *server) evaluateNodeStatus(node *nodeState, units []unitStatusRecord)
 	// converge on the node.
 	if node.MinioJoinPhase == MinioJoinNonMember {
 		dropMinioCommodityUnitsForNonMember(required, node)
+		if len(required) == 0 {
+			return "ready", ""
+		}
+	}
+	if ignoreObjectstore {
+		dropMinioCommodityUnits(required)
 		if len(required) == 0 {
 			return "ready", ""
 		}
@@ -1280,6 +1325,15 @@ func dropMinioCommodityUnitsForNonMember(required map[string]struct{}, node *nod
 	if node == nil || node.MinioJoinPhase != MinioJoinNonMember {
 		return
 	}
+	dropMinioCommodityUnits(required)
+}
+
+// dropMinioCommodityUnits removes the object-store tier from a required-unit
+// set. minio and sidekick travel together: sidekick is MinIO's front door and
+// declares it as a RuntimeLocalDependency, so it cannot be up when MinIO is
+// down. Both callers share this list so they cannot disagree later about what
+// counts as the commodity tier.
+func dropMinioCommodityUnits(required map[string]struct{}) {
 	delete(required, "globular-minio.service")
 	delete(required, "globular-sidekick.service")
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -223,4 +224,128 @@ func TestStorageGateNeedsALiveDeadline(t *testing.T) {
 	if !storageGateSatisfied(node, time.Now()) {
 		t.Fatal("with a recorded phase start the MinIO budget must expire")
 	}
+}
+
+// poolMemberUnits reports every unit the node's own plan requires as active,
+// except the ones the caller names. Deriving it from the plan rather than
+// hand-listing keeps the test honest when the catalog changes.
+func poolMemberUnits(t *testing.T, srv *server, node *nodeState, down ...string) []unitStatusRecord {
+	t.Helper()
+	plan, _ := srv.computeNodePlan(node)
+	required := requiredUnitsFromPlan(plan)
+	if len(required) == 0 {
+		t.Fatal("test setup: node plan requires no units")
+	}
+	downSet := make(map[string]bool, len(down))
+	for _, d := range down {
+		if _, ok := required[d]; !ok {
+			t.Fatalf("test setup: %q is not in this node's required set", d)
+		}
+		downSet[d] = true
+	}
+	units := make([]unitStatusRecord, 0, len(required))
+	for name := range required {
+		if downSet[name] {
+			continue
+		}
+		units = append(units, unitStatusRecord{Name: name, State: "active"})
+	}
+	return units
+}
+
+func poolMemberNode() *nodeState {
+	return &nodeState{
+		NodeID:         "member",
+		Status:         "ready",
+		BootstrapPhase: BootstrapWorkloadReady,
+		MinioJoinPhase: MinioJoinVerified,
+		LastSeen:       time.Now(),
+		ReportedAt:     time.Now(),
+		Profiles:       []string{"core", "storage", "control-plane", "gateway"},
+		Identity:       storedIdentity{Hostname: "globule-member", Ips: []string{"10.0.0.63"}},
+	}
+}
+
+// newMemberServer returns a server holding one healthy pool-member node.
+func newMemberServer(t *testing.T) (*server, *nodeState) {
+	t.Helper()
+	node := poolMemberNode()
+	return newTestServer(t, &controllerState{Nodes: map[string]*nodeState{"member": node}}), node
+}
+
+// settle records the health verdict the reconciler would later read, exactly as
+// the live path does (handlers_status.go writes node.Status from
+// evaluateNodeStatus).
+func settle(t *testing.T, srv *server, node *nodeState, units []unitStatusRecord) {
+	t.Helper()
+	node.Status, _ = srv.evaluateNodeStatus(node, units)
+	node.Units = units
+}
+
+// TestObjectstoreOutageDoesNotFreezeServiceConvergence pins the split between
+// "is this node healthy" and "may services converge here".
+//
+// They used to be one verdict. evaluateNodeStatus marks a pool member non-ready
+// when globular-minio.service is down (deliberately — see
+// TestEvaluateNodeStatus_MinioMember_RequiresMinio), and the drift reconciler
+// skipped every node whose Status != "ready". So a MinIO outage silently stopped
+// convergence for every unrelated service on that node — a commodity tier gating
+// primary work, which invariant:minio.is_commodity_not_a_pillar forbids.
+func TestObjectstoreOutageDoesNotFreezeServiceConvergence(t *testing.T) {
+	t.Run("health still reports the object store honestly", func(t *testing.T) {
+		srv, node := newMemberServer(t)
+		units := poolMemberUnits(t, srv, node, "globular-minio.service")
+
+		status, reason := srv.evaluateNodeStatus(node, units)
+		if status == "ready" {
+			t.Fatal("a pool member with MinIO down must not report ready — that " +
+				"reporting is deliberate and must survive this change")
+		}
+		if !strings.Contains(reason, "minio") {
+			t.Errorf("expected the reason to name minio, got %q", reason)
+		}
+	})
+
+	t.Run("convergence proceeds anyway", func(t *testing.T) {
+		srv, node := newMemberServer(t)
+		settle(t, srv, node, poolMemberUnits(t, srv, node, "globular-minio.service"))
+
+		if !srv.nodeReadyForServiceConvergence(node) {
+			t.Fatalf("a MinIO outage froze convergence for every unrelated service "+
+				"on this node (node.Status=%q)", node.Status)
+		}
+	})
+
+	t.Run("sidekick down alone also does not freeze convergence", func(t *testing.T) {
+		// sidekick is MinIO's front door and declares it as a runtime dependency,
+		// so it goes down with MinIO. It belongs to the same commodity tier.
+		srv, node := newMemberServer(t)
+		settle(t, srv, node, poolMemberUnits(t, srv, node, "globular-sidekick.service"))
+
+		if !srv.nodeReadyForServiceConvergence(node) {
+			t.Fatalf("sidekick is commodity tier too (node.Status=%q)", node.Status)
+		}
+	})
+
+	t.Run("a real pillar still withholds convergence", func(t *testing.T) {
+		// The gate must stay narrow. etcd down is not an object-store problem.
+		srv, node := newMemberServer(t)
+		settle(t, srv, node, poolMemberUnits(t, srv, node, "globular-etcd.service"))
+
+		if srv.nodeReadyForServiceConvergence(node) {
+			t.Fatal("etcd down must still withhold convergence — this gate is " +
+				"about the object store, not about ignoring unhealthy nodes")
+		}
+	})
+
+	t.Run("an unreachable node still withholds convergence", func(t *testing.T) {
+		srv, node := newMemberServer(t)
+		node.Units = poolMemberUnits(t, srv, node)
+		node.Status = "unreachable"
+		node.LastSeen = time.Now().Add(-24 * time.Hour)
+
+		if srv.nodeReadyForServiceConvergence(node) {
+			t.Fatal("a node with no heartbeat must not be converged onto")
+		}
+	})
 }
