@@ -624,6 +624,45 @@ func serviceDesiredKindGateAt(name string, kind repositorypb.ArtifactKind, looku
 //     typically uses '-' (e.g. "yt-dlp").
 //   - Platform-any packages exist, but some only publish per-OS/arch.
 func lookupArtifactKind(cmd *cobra.Command, name string) (repositorypb.ArtifactKind, error) {
+	// Ask more than one repository instance before concluding the kind is
+	// unknown.
+	//
+	// Discovery selects ONE instance per resolution, and consecutive
+	// resolutions rotate across the registered set. An instance on a
+	// freshly-joined node registers before it has synced its artifact index,
+	// so a lookup routed there sees nothing and the caller fails closed on a
+	// package that is published everywhere else. Observed 2026-08-23: three
+	// `desired set` calls refused dns, ai-watcher and authentication while
+	// `pkg info dns` reported kind SERVICE on every one of six consecutively
+	// resolved endpoints.
+	//
+	// A genuinely unpublished package still returns UNSPECIFIED from every
+	// attempt, so the gate's fail-closed behaviour is unchanged — this only
+	// stops one lagging replica from speaking for the whole repository.
+	var lastErr error
+	for attempt := 0; attempt < artifactKindLookupAttempts; attempt++ {
+		kind, err := lookupArtifactKindOnce(cmd, name)
+		if err == nil && kind != repositorypb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED {
+			return kind, nil
+		}
+		if err != nil {
+			lastErr = err
+		}
+		// No need to clear svcApplyRepoAddr: resolveRepositoryAddr re-resolves
+		// on every call, and discovery hands back a different instance. Clearing
+		// it would be actively wrong — when the operator passed --repository
+		// explicitly, resolveRepositoryAddr returns early and the cleared value
+		// would never be restored, silently retargeting the lookup away from the
+		// repository they named.
+	}
+	return repositorypb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED, lastErr
+}
+
+// artifactKindLookupAttempts bounds how many repository instances are asked
+// before an unknown kind is accepted as unknown.
+const artifactKindLookupAttempts = 3
+
+func lookupArtifactKindOnce(cmd *cobra.Command, name string) (repositorypb.ArtifactKind, error) {
 	resolveRepositoryAddr(cmd)
 	conn, err := dialRepository()
 	if err != nil {

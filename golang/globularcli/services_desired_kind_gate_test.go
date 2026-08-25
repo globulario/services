@@ -107,3 +107,27 @@ func TestKindGateUnspecifiedWithoutEndpointStaysReadable(t *testing.T) {
 		t.Errorf("empty endpoint must not produce a dangling instance reference; got: %s", err.Error())
 	}
 }
+
+// TestArtifactKindLookupAsksMoreThanOneInstance pins that an unknown kind is
+// not accepted on the word of a single repository instance.
+//
+// Discovery selects ONE instance per resolution and consecutive resolutions
+// rotate across the registered set. An instance on a freshly-joined node
+// registers before it has synced its artifact index, so a lookup routed there
+// sees nothing. Observed 2026-08-23: `desired set` refused dns, ai-watcher and
+// authentication as having "no published version with a resolvable kind" while
+// `pkg info dns` reported kind SERVICE on every one of six consecutively
+// resolved endpoints.
+//
+// The bound matters as much as the retry: a genuinely unpublished package must
+// still be refused, so the loop is finite and the gate still fails closed.
+func TestArtifactKindLookupAsksMoreThanOneInstance(t *testing.T) {
+	if artifactKindLookupAttempts < 2 {
+		t.Fatalf("a single instance must not settle the question; attempts=%d",
+			artifactKindLookupAttempts)
+	}
+	if artifactKindLookupAttempts > 5 {
+		t.Errorf("the retry must stay bounded so an unpublished package is still "+
+			"refused promptly; attempts=%d", artifactKindLookupAttempts)
+	}
+}
