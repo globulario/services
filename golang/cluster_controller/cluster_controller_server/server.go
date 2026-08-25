@@ -153,36 +153,36 @@ type kvClient interface {
 type server struct {
 	cluster_controllerpb.UnimplementedClusterControllerServiceServer
 
-	cfg                        *clusterControllerConfig
-	cfgPath                    string
-	statePath                  string
-	state                      *controllerState
-	mu                         sync.Mutex
-	muHeldSince                atomic.Int64
-	muHeldBy                   atomic.Value
-	kv                         kvClient
-	agentMu                    sync.Mutex
-	agentClients               map[string]*agentClient
-	agentInsecure              bool
-	agentIdleTimeout           time.Duration
-	agentCAPath                string
-	lastStateSave              time.Time
-	agentServerName            string
-	opMu                       sync.Mutex
-	operations                 map[string]*operationState
-	watchMu                    sync.Mutex
-	watchers                   map[*operationWatcher]struct{}
-	serviceBlock               map[string]time.Time
-	enableServiceRemoval       bool
-	leader                     atomic.Bool
-	leaderID                   atomic.Value
-	leaderAddr                 atomic.Value
+	cfg                  *clusterControllerConfig
+	cfgPath              string
+	statePath            string
+	state                *controllerState
+	mu                   sync.Mutex
+	muHeldSince          atomic.Int64
+	muHeldBy             atomic.Value
+	kv                   kvClient
+	agentMu              sync.Mutex
+	agentClients         map[string]*agentClient
+	agentInsecure        bool
+	agentIdleTimeout     time.Duration
+	agentCAPath          string
+	lastStateSave        time.Time
+	agentServerName      string
+	opMu                 sync.Mutex
+	operations           map[string]*operationState
+	watchMu              sync.Mutex
+	watchers             map[*operationWatcher]struct{}
+	serviceBlock         map[string]time.Time
+	enableServiceRemoval bool
+	leader               atomic.Bool
+	leaderID             atomic.Value
+	leaderAddr           atomic.Value
 	// leaderSinceUnix is when this process most recently BECAME leader (0 when
 	// not leader). Heartbeat staleness must be judged relative to it: a fresh
 	// leader loads LastSeen from persisted state, which is stale by
 	// construction, so without this it concludes healthy nodes are unreachable
 	// before it has ever had a chance to hear from them.
-	leaderSinceUnix atomic.Int64
+	leaderSinceUnix            atomic.Int64
 	leaderEpoch                atomic.Int64
 	leaderCtx                  context.Context    // cancelled when leadership is lost
 	leaderCancel               context.CancelFunc // called by setLeader(false, ...)
@@ -294,9 +294,14 @@ type server struct {
 	// repository build) stops being re-attempted every reconcile cycle forever.
 	// Both maps are leader-local, in-memory, and reset on failover — same accepted
 	// tradeoff as the pre-existing no-progress counter.
-	reconcileNoProgMu     sync.Mutex
-	reconcileNoProgress   map[string]int
-	reconcileBackoffUntil map[string]time.Time
+	reconcileNoProgMu   sync.Mutex
+	reconcileNoProgress map[string]int
+	// reconcileIndeterminate counts consecutive rounds in which a remediation's
+	// outcome could not be observed AT ALL (node agent unreachable), as distinct
+	// from observed non-convergence. Bounds the benefit of the doubt so an
+	// unobservable item still reaches a terminal state.
+	reconcileIndeterminate map[string]int
+	reconcileBackoffUntil  map[string]time.Time
 
 	// workflowClient is an EXPLICIT OVERRIDE for the WorkflowService client and
 	// is left nil in production. Reach the workflow service through

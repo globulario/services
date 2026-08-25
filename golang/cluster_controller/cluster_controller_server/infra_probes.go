@@ -18,9 +18,51 @@ func (srv *server) probeInfraHealth(ctx context.Context, endpoint, probeName str
 	return srv.probeInfraHealthForNode(ctx, "", endpoint, probeName)
 }
 
+// infraProbeResult separates the two things a failed probe used to mean.
+//
+// Every infra health probe is asked THROUGH the node agent: the controller dials
+// the agent and has it run probe-<component>-health locally. So when the agent is
+// unreachable — down, restarting, mid-upgrade, partitioned — the controller
+// learns nothing about the component. Collapsing that into "unhealthy" reports an
+// absence of signal as a definite negative, which is how a perfectly healthy etcd
+// gets an infra_unhealthy drift raised against it
+// (invariant:diagnostics.must_measure_reality, and the sibling rule
+// invariant:deadline_exceeded_must_not_drive_definitive_node_state — a timeout
+// must not be the sole evidence for a definitive verdict about a remote node).
+type infraProbeResult int
+
+const (
+	// infraProbeHealthy — the agent answered and the component is healthy.
+	infraProbeHealthy infraProbeResult = iota
+	// infraProbeUnhealthy — the agent answered and the component is NOT healthy.
+	// This is the only result that justifies raising drift or remediating.
+	infraProbeUnhealthy
+	// infraProbeUnreachable — the agent could not be asked. Says nothing about the
+	// component. Node reachability is the heartbeat path's job, not this one's.
+	infraProbeUnreachable
+)
+
+func (r infraProbeResult) String() string {
+	switch r {
+	case infraProbeHealthy:
+		return "healthy"
+	case infraProbeUnhealthy:
+		return "unhealthy"
+	default:
+		return "unreachable"
+	}
+}
+
+// probeInfraHealthForNode keeps the boolean contract for callers that only care
+// whether the component is provably healthy. Callers that must not act on an
+// unreachable agent use probeInfraResultForNode instead.
 func (srv *server) probeInfraHealthForNode(ctx context.Context, nodeID, endpoint, probeName string) bool {
+	return srv.probeInfraResultForNode(ctx, nodeID, endpoint, probeName) == infraProbeHealthy
+}
+
+func (srv *server) probeInfraResultForNode(ctx context.Context, nodeID, endpoint, probeName string) infraProbeResult {
 	if endpoint == "" {
-		return false
+		return infraProbeUnreachable
 	}
 
 	probeCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
@@ -28,8 +70,8 @@ func (srv *server) probeInfraHealthForNode(ctx context.Context, nodeID, endpoint
 
 	conn, _, err := srv.dialNodeAgentForNode(nodeID, endpoint)
 	if err != nil {
-		log.Printf("infra-probe: failed to connect to %s for probe %s: %v", endpoint, probeName, err)
-		return false
+		log.Printf("infra-probe: failed to connect to %s for probe %s: %v — component state UNKNOWN, not unhealthy", endpoint, probeName, err)
+		return infraProbeUnreachable
 	}
 	defer conn.Close()
 
@@ -38,16 +80,34 @@ func (srv *server) probeInfraHealthForNode(ctx context.Context, nodeID, endpoint
 		WorkflowName: probeName,
 	})
 	if err != nil {
-		log.Printf("infra-probe: %s on %s failed: %v", probeName, endpoint, err)
-		return false
+		// The agent did not answer. We did not learn that the component is down;
+		// we learned that we could not ask.
+		log.Printf("infra-probe: %s on %s failed: %v — component state UNKNOWN, not unhealthy", probeName, endpoint, err)
+		return infraProbeUnreachable
 	}
 
-	healthy := resp.GetStatus() == "SUCCEEDED"
-	if !healthy {
-		log.Printf("infra-probe: %s on %s returned status=%s error=%s",
-			probeName, endpoint, resp.GetStatus(), resp.GetError())
+	if resp.GetStatus() == "SUCCEEDED" {
+		return infraProbeHealthy
 	}
-	return healthy
+	log.Printf("infra-probe: %s on %s returned status=%s error=%s",
+		probeName, endpoint, resp.GetStatus(), resp.GetError())
+	return infraProbeUnhealthy
+}
+
+// probeInfraComponentResult probes one component by catalog name and reports the
+// three-way result. Drift raising and remediation resolution both go through it
+// so they cannot disagree about what a silent agent means.
+func (srv *server) probeInfraComponentResult(ctx context.Context, nodeID, endpoint, component string) infraProbeResult {
+	switch component {
+	case "etcd":
+		return srv.probeInfraResultForNode(ctx, nodeID, endpoint, "probe-etcd-health")
+	case "scylladb":
+		return srv.probeInfraResultForNode(ctx, nodeID, endpoint, "probe-scylla-health")
+	case "minio":
+		return srv.probeInfraResultForNode(ctx, nodeID, endpoint, "probe-minio-health")
+	default:
+		return infraProbeUnreachable
+	}
 }
 
 // probeScyllaHealth probes ScyllaDB health on the given node agent endpoint.
