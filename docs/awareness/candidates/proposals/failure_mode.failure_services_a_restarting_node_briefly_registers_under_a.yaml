@@ -1,0 +1,23 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: failure_mode
+    id: failure.services.a_restarting_node_briefly_registers_under_a_provisional_id_s
+    title: A restarting node briefly registers under a provisional id, so the controller reports a phantom extra member
+    description: 'During a restart storm the controller''s node list returned SIX members for a five-node cluster. The extra entry was b68457f5-bfb6-5452-bccc-cc36f29d1bbc — not the canonical id of any node — alongside the five real ones. It self-heals: minutes later the list returned exactly the five canonical ids and the phantom''s etcd subtree was empty. This is the registration-side twin of the metrics-port defect (failure.services.node_agent_metrics_port_is_persisted_under_a_provisional_nod): the same provisional pre-join id, but here it reaches the cluster node registry rather than a single key. Because it is transient and self-healing it will not be noticed by a human watching a dashboard, while any RF or topology computation that samples node count inside the window sees a member that does not exist.'
+    severity: high
+    source_files:
+        - golang/node_agent/node_agent_server/join_auto.go
+    related_invariants:
+        - identity.has_single_canonical_source_and_is_immutable
+    evidence:
+        - 'globular-quickstart 5-node sim, release 1.2.330, 2026-08-24: training/restart-storm-awareness failed its all-nodes-present assertion with count=6, node_ids = [35ac3821, 6400b443, a166b992, b68457f5, c777633e, c8a09d9e] — five canonical plus b68457f5'
+        - The same b68457f5 id had previously appeared as the owner of an orphaned node_agent_metrics_port key while node-5's canonical id was 35ac3821, tying both symptoms to one provisional-id source
+        - 'Checked after the storm settled: `cluster nodes list` returned exactly the five canonical ids and etcdctl showed no keys under b68457f5 — the phantom had disappeared on its own'
+        - The scenario PASSED on the previous release, so the appearance is timing-dependent, not deterministic
+    domain: github.com/globulario/services
+    contract: 'Cluster membership is keyed by canonical node id. A node must not appear in the registry under any id other than its canonical one, even transiently: node count is an input to RF, topology and workflow scheduling decisions (controller.join_lifecycle_fsm_gates_cluster_decisions), so a phantom member is a wrong input, not a cosmetic blemish.'

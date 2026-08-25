@@ -1,0 +1,26 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: contract_unknown
+    id: contract_unknown.services.who_may_write_installed_state_and_what_validates_the_node_id
+    title: Who may write installed_state, and what validates the node_id it is keyed by?
+    description: 'The installed_state package doc states the authority split explicitly: "Cluster Controller: authoritative writer via CommitInstalledPackage" and "Node Agent: reads state and emits convergence evidence (no direct authoritative writes)". The code does not hold that line — every caller of installed_state.WriteInstalledPackage is in node_agent (installed_services.go, self_hosted_runtime_proof_writer.go, minio_systemd_reconcile.go, apply_package_release.go at several sites). Separately, WriteInstalledPackage validates that node_id is NON-EMPTY but never that it is the writing node''s canonical id, so a node holding a provisional id during a restart writes Layer-3 records under an identity that is not a cluster member. WHAT IS UNKNOWN: whether the documented split is the intended contract (in which case those call sites are the defect), or whether direct node-agent writes are legitimate and the doc is stale (in which case the missing piece is id validation at the writer). This was NOT patched: the guard cannot simply be added inside installed_state, which has no access to node identity, and moving the writes behind CommitInstalledPackage is an authority change affecting every install path. Two admission-side guards already shipped (services 865ea7f8, 05f5eeae) and reduced the observed phantom from seven members to six, but could not reach five because this third write path is not admission-gated.'
+    severity: high
+    source_files:
+        - golang/installed_state/installed_state.go
+        - golang/node_agent/node_agent_server/apply_package_release.go
+    related_invariants:
+        - four_layer.layer_has_single_writing_actor
+    evidence:
+        - 'globular-quickstart 5-node sim, release 1.2.334 with both identity admission guards verified present in the shipped binaries: training/restart-storm-awareness reported count=6 for a five-node cluster, phantom b68457f5-bfb6-5452-bccc-cc36f29d1bbc'
+        - 'The phantom''s etcd subtree contains ONLY Layer-3 content: /globular/nodes/b68457f5-.../packages/COMMAND/etcdctl, /packages/INFRASTRUCTURE/envoy, node_agent_metrics_port — no join or membership record, identifying the installed-state writer rather than admission as the source'
+        - installed_state.go WriteInstalledPackage checks only pkg.GetNodeId() == "" and never compares it to the node's canonical identity
+        - 'grep of WriteInstalledPackage callers returns node_agent files exclusively, contradicting the package doc line ''Node Agent: reads state and emits convergence evidence (no direct authoritative writes)'''
+        - 'Phantom count by release: 1.2.330 six, 1.2.332 six, 1.2.333 seven, 1.2.334 six — admission guards reduced but did not eliminate it'
+    domain: github.com/globulario/services
+    proposed_contract: installed_state.WriteInstalledPackage accepts a node_id only when it equals the writing process's canonical node id, verified by the caller passing an identity the package can check, and node-agent emits convergence evidence through CommitInstalledPackage rather than writing the registry directly — restoring the split the package doc already describes.
+    revision_request: Decide which half of the package doc is authoritative. If the controller is the only authoritative writer, the node_agent call sites need routing through CommitInstalledPackage. If node-agent writes are legitimate, WriteInstalledPackage needs a canonical-id check, and the doc should stop claiming otherwise.

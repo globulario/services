@@ -1,0 +1,21 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: forbidden_fix
+    id: forbidden_fix.services.declare_a_precondition_field_that_no_code_path_reads
+    title: Declare a precondition field that no code path reads
+    description: 'Do not add (or leave) a declarative gate in a config schema unless a code path acts on it. The quickstart scenario schema had cluster.require_healthy_before_start, set in 78 of 78 scenarios, and the runner never read it. Suites were settled against each other but scenarios inside a suite were not, so a destructive scenario handed the next one a cluster still converging. On 2026-08-24 the upgrade suite began from a verified-settled cluster (5 nodes, stale_nodes 0, reconcile clean) and still failed six of twelve scenarios on doctor errors and reconcile errors that belonged to the scenario before them. Every one of those scenarios declared require_healthy_before_start: true. The failures looked like six platform defects and were one unenforced field. Same family as failure.certificate_subsystem_gated_on_a_field_only_tests_ever_set_s — a flag whose only effect was to make readers believe something was happening.'
+    source_files:
+        - tests/harness/bin/globular-scenario
+    related_invariants:
+        - diagnostics.must_measure_reality
+    evidence:
+        - grep -rn require_healthy_before_start tests/scenarios/*/*.yaml returns 78 declarations; grep of tests/harness/bin/globular-scenario returned no reads at all
+        - 'upgrade suite on release 1.2.331 started with settle gate output ''nodes: 5, stale_nodes: 0, reconcile clean'' and produced 6 FAIL / 1 PARTIAL; the failing assertions were doctor.report_severity and cluster.reconcile_clean, both cluster-state judgements rather than scenario-specific behaviour'
+        - deploy-publish-then-converge PASSED first in the same suite, then desired-state-refuses-what-it-cannot-resolve failed on reconcile_clean immediately after — the ordering signature of inherited state, not of an independent defect
+    domain: github.com/globulario/services
+    contract: 'A declared precondition must be enforced by the code that consumes the declaration, or it must not be declarable. A field that every caller sets and nothing reads gives false assurance: readers of the config believe a guarantee is in force, and the failures it was meant to prevent are attributed to whatever ran next.'

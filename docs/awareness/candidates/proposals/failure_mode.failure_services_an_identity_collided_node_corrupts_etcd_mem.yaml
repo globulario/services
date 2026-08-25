@@ -1,0 +1,21 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: failure_mode
+    id: failure.services.an_identity_collided_node_corrupts_etcd_membership_for_the_n
+    title: An identity-collided node corrupts etcd membership for the node it impersonates
+    description: 'When node B is started carrying node A''s cloned state (same node_id, same etcd member identity, different IP), the cluster correctly refuses the impostor at the controller layer — A stays registered, A''s agent keeps serving, and no identity finding is raised. But etcd membership is damaged as a side effect: after the collision, the impersonated node A''s member entry was left ''unstarted'' and the impostor node B''s own member entry was removed outright, taking the cluster from 5 members / 5 healthy endpoints to 4 members / 3 healthy endpoints. Restoring B''s own state and restarting it did NOT restore membership within 120s. The controller-layer defence is therefore not sufficient on its own: identity admission is enforced, etcd membership is not. Consequence for operators: a cloned VM or a restored-from-wrong-snapshot node silently degrades etcd quorum headroom on a cluster that reports every node registered and healthy.'
+    severity: high
+    source_files:
+        - golang/node_agent/node_agent_server/join_plan_gate.go
+    related_invariants:
+        - node_identity.hostname_ip_for_membership_domain_mac_for_other_axes
+    evidence:
+        - 'globular-quickstart authority/node-clone-identity-collision on release 1.2.328, 2026-08-22: all scenario assertions PASSED (source_node_still_registered, source_node_agent_serving, cluster_still_healthy, etcd_members_healthy, no_identity_findings) while the baseline postcondition failed with ''etcd_healthy_endpoints: baseline=5 now=3'' and ''etcd_member_count: baseline=5 now=4'''
+        - 'etcdctl member list after the run: node-4 (10.10.0.14) status ''unstarted'' with an empty NAME and no CLIENT ADDRS; node-5 (10.10.0.15) absent from the member list entirely'
+        - The scenario's own cleanup restored the victim's state and restarted it, and node.etcd_registered passed for the victim, so the controller record recovered while etcd membership did not
+    domain: github.com/globulario/services

@@ -1,0 +1,22 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: failure_mode
+    id: failure.services.day_1_join_script_writes_node_agent_state_to_the_legacy_path
+    title: Day-1 join script writes node-agent state to the legacy path the node-agent retires on startup
+    description: 'The gateway-served Day-1 join script writes the node-agent seed state to ${STATE_DIR}/nodeagent/state.json (the pre-Project-O legacy alias). The node-agent runs CanonicalizeRuntimeDirsOnce(defaultStateRoot) on EVERY startup, which folds `nodeagent` into the canonical `node-agent` and removes the legacy dir. If a node-agent start lands between the join script''s phase-2 mkdir of nodeagent/ and its phase-3.6 write of state.json, the write fails ENOENT and the join aborts during ''PHASE 3 — Connectivity'' with a compensating rollback. The window is wide on any node whose systemd units survive a state wipe: node-agent restart-loops against the empty state root, canonicalizing on each attempt. Same class as failure.controllergatewayhost_reads_only_the_legacy_node_agent_state, but on the WRITE side. Fix direction: the join script should write the canonical node-agent/state.json and read legacy only as fallback.'
+    severity: high
+    source_files:
+        - golang/node_agent/node_agent_server/main.go
+        - golang/node_agent/node_agent_server/runtime_dir_canonicalize.go
+    related_invariants:
+        - migration.state_path_upgrade_must_be_idempotent
+    evidence:
+        - 'node-5, 2026-08-23 00:53:53, globular-quickstart 5-node sim on release 1.2.328: ''bash: line 725: /var/lib/globular/nodeagent/state.json: No such file or directory'' then "WARN: join aborted during phase ''3 — Connectivity'' (exit 1) — compensating" and ''[bootstrap] FATAL: join failed'''
+        - 'Post-mortem on the node: /var/lib/globular/nodeagent absent; /var/lib/globular/node-agent present containing join_authorize.json (written earlier in the same run through the then-live alias) and join_interrupted.json (the compensation receipt)'
+        - etcd member list showed 4 members — node-5 never became a member — while the controller still listed node-5 as status ready, so the failed join presented as a healthy node
+    domain: github.com/globulario/services

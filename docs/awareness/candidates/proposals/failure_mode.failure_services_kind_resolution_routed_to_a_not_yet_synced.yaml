@@ -1,0 +1,23 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: failure_mode
+    id: failure.services.kind_resolution_routed_to_a_not_yet_synced_repository_instan
+    title: Kind resolution routed to a not-yet-synced repository instance fails closed and blames the package
+    description: '`globular services desired set` resolves a package''s kind through repository discovery, which picks any registered repository instance. A node that has just joined (or rejoined after a wipe) registers its repository instance before that instance has synced its artifact index, so a kind query routed there sees no published versions. The control plane then fails closed with: "cannot verify <pkg> is a SERVICE package (no published version with a resolvable kind); `services desired set` fails closed on an unknown kind per desired.keyed_by_kind_and_name — publish the package first, then retry". Failing closed is correct; the attribution is not. The package IS published, with a resolvable kind, and installed on every node — the instance that answered simply did not know yet. The operator is told to publish a package that is already published, and a retry only helps if discovery happens to pick a different instance.'
+    severity: high
+    source_files:
+        - golang/repository/repository_server/repository_server.go
+    related_invariants:
+        - diagnostics.must_measure_reality
+    evidence:
+        - 'globular-quickstart 5-node sim, release 1.2.329, 2026-08-23: authority/rejoin-after-missed-generations failed all three of its ops.set_desired steps (dns, ai-watcher, authentication) with ''no published version with a resolvable kind'' after 6 retries each; it ran immediately after node-clone-identity-collision, which wipes and rejoins node-5'
+        - Minutes later, `pkg info dns` reported kind SERVICE, publisher core@globular.io, versions (repo) 1.2.317, desired 1.2.317, installed_on 5 nodes
+        - Six consecutive `pkg info dns` calls auto-discovered six different repository endpoints (10.10.0.11, .15, .12, .13, .15, .14) and ALL resolved kind SERVICE once the cluster had settled — confirming the earlier refusal was a not-yet-synced instance, not a missing publication
+        - 'The CLI prints the discovered endpoint (''Auto-discovered repository: 10.10.0.15:443 (etcd service discovery)''), so the routing is observable but the refusal message does not mention which instance answered'
+    domain: github.com/globulario/services
+    contract: A refusal must name the condition that actually caused it. `desired set` fails closed on unknown kind (desired.keyed_by_kind_and_name) — correct — but the kind is resolved through whichever repository instance discovery selects, and a not-yet-synced instance is indistinguishable, in the message, from an unpublished package. The diagnosis must reflect measured reality (which instance answered and what it knew), not an inference that the package is missing.
