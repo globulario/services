@@ -8042,3 +8042,16 @@ failure_modes:
         - golang/cluster_controller/cluster_controller_server/minio_not_a_pillar_test.go:TestMinioMayNotBlockNodeConvergence
       evidence:
         - 'Pre-fix tree, node with the core profile and MinioJoinPhase unset at phase timeout: BootstrapPhase=bootstrap_failed, BootstrapError="timeout waiting for storage service: globular-minio.service (join phase: )". ScyllaDB was not involved.'
+    - id: failure.a_minio_outage_freezes_service_convergence_on_the_whole_node
+      title: A MinIO outage freezes service convergence on the whole node
+      description: evaluateNodeStatus counts globular-minio.service among a MinIO pool member's required units, handlers_status.go persists that verdict to node.Status, and the drift reconciler skipped every node whose Status != ready. A MinIO outage therefore stopped all service convergence on that node — installs, upgrades and drift remediation for services with no relation to the object store — until MinIO came back. Steady-state only; no join or bootstrap needed to trigger it.
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/reconciler.go
+          - golang/cluster_controller/cluster_controller_server/handlers_health.go
+      related_invariants:
+        - minio.is_commodity_not_a_pillar
+      required_tests:
+        - golang/cluster_controller/cluster_controller_server/minio_not_a_pillar_test.go:TestObjectstoreOutageDoesNotFreezeServiceConvergence
+      evidence:
+        - 'Pre-fix gate, pool member (MinioJoinPhase=verified) with globular-minio.service the only unit down: evaluateNodeStatus returns converging, node.Status=converging, and reconciler.go''s ''node.Status != ready'' check skips the node for every package. The same node with globular-etcd.service down instead is correctly skipped, so the gate could not tell a commodity tier from a pillar.'
