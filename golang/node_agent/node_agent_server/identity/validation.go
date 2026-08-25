@@ -245,8 +245,34 @@ func StableNodeID() (string, error) {
 		hostname = h
 	}
 	ips, _ := gatherNonLoopbackIPs()
-	if hostname == "" && len(ips) == 0 {
-		return "", fmt.Errorf("stable node ID: no MAC, hostname, or IP available")
+
+	// Both halves are required, not either half.
+	//
+	// The guard used to be `hostname == "" && len(ips) == 0`, so a node with a
+	// hostname but no enumerated IPs derived an id from hostname alone. That id
+	// is guaranteed-transient: FromHostAndIPs keys on hostname + sorted IPs, so
+	// the moment an interface comes up the SAME node computes a DIFFERENT id.
+	// Identity for membership is hostname AND IPs
+	// (intent:node_identity.hostname_ip_for_membership_domain_mac_for_other_axes);
+	// half of that basis is not a weaker identity, it is a different one.
+	//
+	// What it cost, observed across releases 1.2.330 and 1.2.332: during a
+	// restart storm a node registered under such an id, the controller reported
+	// SIX members for a five-node cluster, and the phantom wrote real Layer-3
+	// records — /globular/nodes/{phantom}/ held cluster-controller, etcd,
+	// repository, scylladb entries. The id differed between occurrences
+	// (b68457f5-..., then 12944a1b-...) precisely because the IP set differed,
+	// so each event minted a NEW orphan rather than reusing one.
+	//
+	// Failing here is the right outcome: the caller retries once the interface
+	// is up and gets the canonical id. A node with no usable identity basis must
+	// wait for one, not invent one.
+	if hostname == "" || len(ips) == 0 {
+		return "", fmt.Errorf(
+			"stable node ID: no MAC, and the hostname+IPs basis is incomplete "+
+				"(hostname=%q ips=%d) — refusing to derive a transient identity "+
+				"from a partial basis; retry once network interfaces are up",
+			hostname, len(ips))
 	}
 	return nodeid.FromHostAndIPs(hostname, ips), nil
 }
