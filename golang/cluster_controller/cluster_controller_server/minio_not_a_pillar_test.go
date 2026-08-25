@@ -116,3 +116,111 @@ func TestMinioMayNotBlockNodeConvergence(t *testing.T) {
 		}
 	})
 }
+
+// TestStorageGateSatisfiedIsOneRule covers the shared predicate directly — the
+// bootstrap workflow's storage_verified condition resolves to it, and that path
+// is the one that can mark a node failed via the workflow's onFailure handler.
+//
+// maybe_wait_storage gates mark_workload_ready in node.bootstrap.yaml, so before
+// this rule was shared, the workflow could still fail a node over MinIO even
+// though the reconciler had stopped doing so.
+func TestStorageGateSatisfiedIsOneRule(t *testing.T) {
+	timedOut := func(n *nodeState) *nodeState {
+		n.BootstrapStartedAt = time.Now().Add(-bootstrapPhaseTimeout - time.Minute)
+		return n
+	}
+	fresh := func(n *nodeState) *nodeState {
+		n.BootstrapStartedAt = time.Now()
+		return n
+	}
+
+	cases := []struct {
+		name string
+		node *nodeState
+		want bool
+	}{
+		{
+			// The bounded wait: MinIO still has budget, so hold.
+			name: "MinIO unconverged within its budget holds",
+			node: fresh(storageJoiningNode("a", []string{"core"})),
+			want: false,
+		},
+		{
+			// The budget is spent. A commodity tier does not get to hold forever.
+			name: "MinIO unconverged past its budget releases",
+			node: timedOut(storageJoiningNode("b", []string{"core"})),
+			want: true,
+		},
+		{
+			// ScyllaDB has no deadline — the phase budget must not release it.
+			name: "ScyllaDB unconverged past its budget still holds",
+			node: timedOut(storageJoiningNode("c", []string{"scylla"})),
+			want: false,
+		},
+		{
+			name: "verified MinIO releases immediately",
+			node: func() *nodeState {
+				n := fresh(storageJoiningNode("d", []string{"core"}))
+				n.MinioJoinPhase = MinioJoinVerified
+				return n
+			}(),
+			want: true,
+		},
+		{
+			name: "non-member MinIO releases immediately",
+			node: func() *nodeState {
+				n := fresh(storageJoiningNode("e", []string{"core"}))
+				n.MinioJoinPhase = MinioJoinNonMember
+				return n
+			}(),
+			want: true,
+		},
+		{
+			name: "verified ScyllaDB releases",
+			node: func() *nodeState {
+				n := fresh(storageJoiningNode("f", []string{"scylla"}))
+				n.ScyllaJoinPhase = ScyllaJoinVerified
+				return n
+			}(),
+			want: true,
+		},
+		{
+			// A node with neither profile has nothing to wait on.
+			name: "no storage profile releases",
+			node: fresh(storageJoiningNode("g", []string{"gateway"})),
+			want: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := storageGateSatisfied(tc.node, time.Now()); got != tc.want {
+				t.Errorf("storageGateSatisfied = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestStorageGateNeedsALiveDeadline guards the quiet way this fix could fail
+// open in the other direction: phaseTimedOut returns false for a zero
+// BootstrapStartedAt, so if the workflow ever reached this gate without a phase
+// start recorded, MinIO would hold the node forever and the release valve would
+// never open. Today mark_awareness_ready stamps it via setBootstrapPhase
+// immediately before maybe_wait_storage runs.
+func TestStorageGateNeedsALiveDeadline(t *testing.T) {
+	node := storageJoiningNode("no-deadline", []string{"core"})
+	node.BootstrapStartedAt = time.Time{}
+
+	if phaseTimedOut(node, time.Now()) {
+		t.Fatal("precondition: a zero start time must not read as timed out")
+	}
+	if storageGateSatisfied(node, time.Now()) {
+		t.Fatal("unexpected release without a recorded phase start")
+	}
+	// Documenting the dependency: the gate's MinIO valve is only reachable
+	// because some earlier step stamped BootstrapStartedAt.
+	node.BootstrapStartedAt = time.Now().Add(-bootstrapPhaseTimeout - time.Minute)
+	if !storageGateSatisfied(node, time.Now()) {
+		t.Fatal("with a recorded phase start the MinIO budget must expire")
+	}
+}

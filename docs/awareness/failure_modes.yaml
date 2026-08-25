@@ -8029,3 +8029,16 @@ failure_modes:
         - golang/cluster_doctor/cluster_doctor_server/rules/registry_scope_test.go:TestEvaluateForNode_ClusterScopedRulesSeeFullNodeSet
       evidence:
         - EvaluateForNode filters Snapshot.Nodes to the requested node, then evaluates cluster-scoped rules against that view. objectstore.write_quorum_lost fired CRITICAL (active_drives=1 < write_quorum=3) on a healthy 4-drive MinIO pool (4 drives online, 0 offline, EC:2, cross-node object read/write verified), naming a different sole survivor on every node report (.63/.8/.9/.102) while known_down_nodes was empty and data_incomplete=false. Verdict derived from nodes absent from a deliberately narrowed snapshot, not from observed state.
+    - id: failure.minio_join_gates_fail_a_node_s_bootstrap_instead_of_degradin
+      title: MinIO join gates fail a node's bootstrap instead of degrading it
+      description: Both bootstrap storage gates treated MinIO as a pillar. In reconcileBootstrapPhases the storage_joining phase held the node until MinioJoinPhase reached verified or non_member, then called failBootstrap on timeout. The bootstrap workflow's storage_verified condition (node.bootstrap.yaml step maybe_wait_storage, which gates mark_workload_ready) demanded a verified MinIO outright, and the workflow's onFailure marks the node failed. Either path turned an unconverging object store into a refusal of cluster membership.
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/bootstrap_phases.go
+          - golang/cluster_controller/cluster_controller_server/workflow_runner.go
+      related_invariants:
+        - minio.is_commodity_not_a_pillar
+      required_tests:
+        - golang/cluster_controller/cluster_controller_server/minio_not_a_pillar_test.go:TestMinioMayNotBlockNodeConvergence
+      evidence:
+        - 'Pre-fix tree, node with the core profile and MinioJoinPhase unset at phase timeout: BootstrapPhase=bootstrap_failed, BootstrapError="timeout waiting for storage service: globular-minio.service (join phase: )". ScyllaDB was not involved.'
