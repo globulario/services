@@ -258,19 +258,48 @@ func reconcileBootstrapPhases(nodes []*nodeState, poolNodes []string, emitter ev
 			// Verify storage services are active and healthy.
 			// MinIO: globular-minio.service must be active.
 			// ScyllaDB: ScyllaJoinPhase must be verified (gossip ring joined).
+			// MinIO and ScyllaDB are NOT the same kind of dependency, and this
+			// phase used to treat them identically.
+			//
+			// ScyllaDB is a pillar: it holds cluster state and the workflow lease
+			// table. A node that cannot join the ring has not finished joining the
+			// cluster, so blocking — and ultimately failing — is correct.
+			//
+			// MinIO is a commodity object-store tier
+			// (invariant:minio.is_commodity_not_a_pillar — "must not gate a primary
+			// service's health nor block node convergence"). Blocking on it did
+			// exactly what that invariant forbids: a MinIO that would not converge
+			// held the node at storage_joining and then FAILED its bootstrap
+			// outright, so an object-store problem became a cluster-membership
+			// problem. That is the recorded failure mode
+			// bootstrap.held_minio_nonmember_stranded_at_none — a held non-member
+			// stranded at MinioJoinNone wedges this phase.
+			//
+			// Two phases earlier this file already models the right shape for a
+			// non-pillar dependency: the awareness bundle "times out gracefully and
+			// advances — the bundle is not a hard cluster dependency… The node is
+			// not blocked; it simply operates with a degraded awareness graph."
+			// MinIO gets that treatment now. It is not silenced: the objectstore
+			// state stays visible to cluster-doctor's objectstore rules, which is
+			// where an object-store verdict belongs
+			// (forbidden_fix:bypass_doctor_for_cross_layer_health_finding).
 			allReady := true
 			var waiting string
+			minioWaiting := ""
 
 			if nodeHasMinioProfile(node) {
 				if node.MinioJoinPhase != MinioJoinVerified && node.MinioJoinPhase != MinioJoinNonMember {
 					allReady = false
-					waiting = "globular-minio.service (join phase: " + string(node.MinioJoinPhase) + ")"
+					minioWaiting = "globular-minio.service (join phase: " + string(node.MinioJoinPhase) + ")"
+					waiting = minioWaiting
 				}
 			}
+			scyllaWaiting := ""
 			if nodeHasScyllaProfile(node) {
 				if node.ScyllaJoinPhase != ScyllaJoinVerified {
 					allReady = false
-					waiting = "scylla-server.service (join phase: " + string(node.ScyllaJoinPhase) + ")"
+					scyllaWaiting = "scylla-server.service (join phase: " + string(node.ScyllaJoinPhase) + ")"
+					waiting = scyllaWaiting
 				}
 			}
 
@@ -290,6 +319,29 @@ func reconcileBootstrapPhases(nodes []*nodeState, poolNodes []string, emitter ev
 				node.BootstrapError = ""
 				dirty = true
 			} else if phaseTimedOut(node, now) {
+				// Only ScyllaDB may fail a bootstrap. If MinIO is the sole reason
+				// this node has not converged, advance it degraded rather than
+				// refusing it membership over a commodity tier.
+				if scyllaWaiting == "" && minioWaiting != "" {
+					log.Printf("bootstrap: node %s (%s) advancing with DEGRADED objectstore — "+
+						"timed out on %s; MinIO is a commodity tier and must not block node "+
+						"convergence (minio.is_commodity_not_a_pillar). cluster-doctor reports "+
+						"the objectstore state.",
+						node.NodeID, node.Identity.Hostname, minioWaiting)
+					if bootstrapOK, reason := bootstrapRequiredInfraRuntimeConverged(node, now, poolNodes); !bootstrapOK {
+						node.BlockedReason = "day1_infra_runtime_blocked"
+						node.BlockedDetails = reason
+						node.BootstrapError = reason
+						break
+					}
+					node.BlockedReason = ""
+					node.BlockedDetails = ""
+					node.BootstrapPhase = BootstrapWorkloadReady
+					node.BootstrapStartedAt = now
+					node.BootstrapError = ""
+					dirty = true
+					break
+				}
 				failBootstrap(node, "timeout waiting for storage service: "+waiting)
 				dirty = true
 			}
