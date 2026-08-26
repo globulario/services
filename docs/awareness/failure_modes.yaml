@@ -8123,3 +8123,15 @@ failure_modes:
         - diagnostics.must_measure_reality
       evidence:
         - 'Same code, same 5-node sim, five observations of rollback-guard: PASS (1.2.334 full suite), FAIL (1.2.336 full), FAIL (1.2.337 full), FAIL (1.2.337 upgrade suite alone on a pristine cluster whose verified baseline was 24/24 succeeded / 0 failed / 0 pending), PASS (same suite re-run immediately afterwards). It has no settle step, so no harness change explains the last flip. The isolated pristine run was one scenario WORSE than the full run that preceded it (PASS=9 vs PASS=10), which rules out accumulated residue from the destructive suites as the cause.'
+    - id: failure.a_release_is_judged_against_a_node_the_cluster_no_longer_has
+      title: A release is judged against a node the cluster no longer has, and can never converge
+      description: 'detectServiceDrift iterates the release''s own Status.Nodes list and resolves each entry against srv.state.Nodes, the membership authority. A miss was not handled: execution fell through to the version and health probes, which all read from the nil node and fail, so the release was marked DEGRADED then FAILED then PENDING on every reconcile pass. The verdict is unfalsifiable — nothing about a node that does not exist ever changes — so the release cycles indefinitely and the cluster-wide release audit can never be clean.'
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/release_pipeline.go
+      related_invariants:
+        - diagnostics.must_measure_reality
+      required_tests:
+        - golang/cluster_controller/cluster_controller_server/release_ghost_node_test.go:TestDriftIgnoresGhostNodes
+      evidence:
+        - 'Live 5-node sim, 1.2.337: ServiceRelease core@globular.io/persistence recorded 75 phase transitions in a ten-minute window (AVAILABLE -> RESOLVED -> FAILED -> PENDING -> ...) with ''release core@globular.io/persistence: node 2da500c8-32d8-5ffc-8452-6d8af5c02038 drift detected, will re-enter PENDING for workflow re-apply'' repeating 8 times. That id was absent from cluster nodes list and had zero keys under /globular/nodes/. In the same passes all five real nodes logged ''artifact+runtime converged''. Consequence: upgrade/platform-upgrade-release-boundary and upgrade/rollback-guard-refuses-silent-regression failed on release.audit failed:0, neither on its own subject matter.'
