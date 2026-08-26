@@ -8146,3 +8146,53 @@ failure_modes:
         - identity.has_single_canonical_source_and_is_immutable
       evidence:
         - '1.2.338, training/restart-storm-awareness: assertion all-nodes-present failed with count expected 5, got 6. The extra id b68457f5-bfb6-5452-bccc-cc36f29d1bbc appears under /globular/nodes/ in the scenario''s etcd evidence and in NO node journal. Computed directly: nodeid.FromMAC("02:42:0a:0a:00:0c") == b68457f5-bfb6-5452-bccc-cc36f29d1bbc, and /sys/class/net/eth0/address on globular-node-2 is 02:42:0a:0a:00:0c — so the phantom is node-2 derived from its container MAC, while node-2''s canonical id c8a09d9e-3813-5357-ab58-93aa410f27fb is its hostname+IPs derivation. The same id b68457f5 was observed in an earlier occurrence this session, confirming the derivation is deterministic rather than random. A ghost of this kind is what later drove ServiceRelease persistence to cycle 75 times in ten minutes.'
+    - id: failure.objectstore_topology_apply_leaves_stale_format_json_making_a
+      title: objectstore topology apply leaves stale format.json, making a drive-count change unrecoverable
+      description: 'globular objectstore topology apply --i-understand-data-reset documents itself as ''wipes .minio.sys where topology changes'', and the apply preview repeats it: ''DESTRUCTIVE OPERATION: standalone to distributed: .minio.sys will be wiped on 3 nodes''. On a 3-drive to 4-drive pool change it wiped the BUCKET directories but left .minio.sys/format.json in place on all three pre-existing drives. MinIO was then handed a 4-drive configuration pointing at disks still stamped with a 3-drive erasure format, which it cannot expand in place. Two distinct failures came out of one incomplete wipe: the pool could never initialize, and every bucket vanished.'
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/workflow_objectstore.go
+      related_invariants:
+        - objectstore.destructive_changes_require_approval
+      required_tests:
+        - a drive-count change N to N+1 on a formatted pool leaves no stale format.json on any admitted drive and reaches N+1 drives online without a restart loop
+      evidence:
+        - 'Real 5-node cluster 2026-08-19, generation 1 to 2, 3 to 4 drives. MinIO FATAL: ''Unable to initialize backend: /mnt/data/data drive is already being used in another erasure deployment. (Number of drives specified: 4 but the number of drives found in the 3rd drive''s format.json: 3)''. The stale format encoded a 3-UUID set. MinIO restart-looped on ryzen 10.0.0.63, hp-01 10.0.0.9 and lenovo 10.0.0.102; hp-01 hit the systemd start limit and entered a hard failed state (''Start request repeated too quickly''), starving the pool of quorum while the survivor logged ''Waiting for a minimum of 2 drives to come online''. Object storage was fully down until manual intervention. Second-order: all five buckets (globular, globular-config, globular-backups, globular-packages, globular-search-index) vanished because the buckets WERE wiped while the format was not, so webroot-sync failed on every node with ''list objects: The specified bucket does not exist''. Manual repair that worked: stop MinIO via globular node control, remove .minio.sys and the bucket dirs from each admitted drive, let the node-agent restart it — ''Formatting 1st pool, 1 set(s), 4 drives per set'' — then recreate the buckets. Verified after repair: 4 drives online, 0 offline, EC:2, object written via 10.0.0.8 read back identically from all four nodes.'
+    - id: failure.objectstore_topology_status_reports_converged_while_most_min
+      title: Objectstore topology status reports CONVERGED while most MinIO units are dead
+      description: 'The topology convergence gate polls a single MinIO endpoint on the founding node rather than verifying pool membership across admitted nodes. A pool with three of four units dead or restart-looping therefore reads as ''✓ CONVERGED / MinIO health: HEALTHY''. The verdict is drawn from one reachable endpoint, not from the pool, so the health signal is structurally incapable of seeing the failure it is meant to catch.'
+      protects:
+        files:
+          - scripts/provision-distributed-objectstore.sh
+      related_invariants:
+        - diagnostics.must_measure_reality
+      evidence:
+        - 'Real 5-node cluster 2026-08-19: status reported CONVERGED and HEALTHY while MinIO restart-looped on ryzen 10.0.0.63, hp-01 10.0.0.9 and lenovo 10.0.0.102, with hp-01 in a hard systemd failed state. This is what made the stale-format.json outage hard to see — the operator had a green status over a dead pool.'
+    - id: failure.bucket_recreation_path_covers_one_of_five_required_buckets
+      title: Bucket recreation path covers one of five required buckets
+      description: scripts/ensure-minio-buckets.sh creates only the main 'globular' bucket. The other four required buckets — globular-config (golang/config/minio_config.go ClusterConfigBucket), globular-backups (backup_manager), globular-packages, and globular-search-index (shared_index) — are created ONLY by the node-agent Day-0 workflow at workflow_day0.go:240. Any reformat or bucket loss after Day-0 therefore has no recreation path, and the failure is silent until a consumer tries to use one.
+      protects:
+        files:
+          - scripts/ensure-minio-buckets.sh
+      evidence:
+        - 'Real 5-node cluster 2026-08-19: after an incomplete topology wipe removed all five buckets, webroot-sync failed on every node with ''list objects: The specified bucket does not exist'' and backups had no target. Recovery required recreating the four missing buckets by hand because ensure-minio-buckets.sh restores only one.'
+      contract: Every bucket a service requires must have a recreation path that does not depend on a one-time Day-0 workflow
+    - id: failure.day_0_scylladb_readiness_probe_advertises_a_bound_it_does_no
+      title: Day-0 ScyllaDB readiness probe advertises a bound it does not enforce
+      description: 'scripts/release/install-day0.sh:90 loops 60 times with sleep 2, advertising a 120s bound on the ScyllaDB write-readiness DDL probe. But cqlsh is invoked with no client-side timeout, so a single attempt can block indefinitely and the loop never reaches iteration 2. The advertised bound is therefore fiction: the intended warning never fires and Day-0 hangs silently instead.'
+      protects:
+        files:
+          - scripts/release/install-day0.sh
+      related_invariants:
+        - critical_queries.must_be_bounded
+      evidence:
+        - 'Observed 2026-08-19 as an indefinite Day-0 hang at ''Waiting for ScyllaDB write readiness (DDL probe)'' against a stale 5-node Raft group0 with no quorum. Fix shape: ''timeout 10 cqlsh ...'' per attempt turns a silent hang into the intended bounded warning.'
+    - id: failure.scylla_seeds_keep_the_founding_node_s_self_only_list_after_p
+      title: Scylla seeds keep the founding node's self-only list after peers join
+      description: The Day-0 node's rendered scylla.yaml keeps its self-only seed entry after peers join, even though etcd's /globular/cluster/scylla/hosts correctly lists all five hosts. Harmless at runtime while that node remains a NORMAL ring member, which is why it reads as INFO — but a wiped restart would re-bootstrap an isolated ring from the stale self-seed rather than rejoining the existing one.
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/scylla_members.go
+      evidence:
+        - 'Real 5-node cluster 2026-08-19: /globular/cluster/scylla/hosts listed all five hosts while the founding node''s scylla.yaml still carried only itself as seed. Note infra_truth/attestation.go:14 marks hand-editing scylla.yaml a forbidden fix, so the repair belongs to the renderer and controller desired state, not to an operator edit.'
+      contract: A node's rendered scylla.yaml seed list must reflect current ring membership, and is owned by the post-install renderer plus controller desired state

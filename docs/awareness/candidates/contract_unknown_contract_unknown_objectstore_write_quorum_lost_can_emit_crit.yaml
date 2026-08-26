@@ -1,0 +1,10 @@
+contract_unknown:
+  - id: contract_unknown.objectstore_write_quorum_lost_can_emit_critical_from_absent
+    kind: contract_unknown
+    title: objectstore.write_quorum_lost can emit CRITICAL from absent data — code-read, not reproduced
+    description: 'The rule in cluster-doctor rules/objectstore_physical_overlap.go never queries MinIO; it infers active drive count from node-agent inventory (globular-minio.service state per node). Its suppression guard requires an EXPLICITLY RECORDED collector error AND zero confirmed-down nodes: ''if inventoryGap && len(knownDownNodes) == 0 { return nil }''. But nodes reach noInventoryNodes via paths that record no such error — nodeID empty (no NodeRecord for the pool IP), inv nil (inventory absent from the snapshot map), and the staleness branch. On those paths a partial harvest can emit CRITICAL with zero confirmed-down nodes: a quorum-loss verdict resting on missing data rather than observed state. That contradicts the project''s own seeded principle ops.always.doctor.reduced-harvest-honesty, which says reduced-harvest findings are UNKNOWN/WARN, not FAIL/ERROR.'
+    revision_request: 'Decide whether to stop emitting CRITICAL when len(knownDownNodes) == 0 — if no node is CONFIRMED down, every ''down'' node is merely unobserved, which is indeterminate rather than proven quorum loss. Detection is not lost: the genuine total-blackout case (all node-agents down) is already covered by the node.reachable CRITICAL. Reproduce against a forced partial harvest BEFORE changing the rule.'
+    source_files:
+      - golang/cluster_doctor/cluster_doctor_server/rules/objectstore_physical_overlap.go
+    evidence:
+      - CAVEAT — NOT REPRODUCED. This is a code-read finding, recorded as a latent false-positive path. During 25 --fresh doctor samples over ~4 minutes on 2026-08-19 (16:39-16:45) the finding never fired; the pool was healthy throughout (4 drives online, 0 offline, EC:2, cross-node read-back OK). The CRITICAL observed earlier that day was CORRECT at the time — MinIO was genuinely stopped on 3 of 4 nodes during the stale-format.json repair.
