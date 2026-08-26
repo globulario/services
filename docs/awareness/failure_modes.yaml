@@ -8113,3 +8113,13 @@ failure_modes:
         - diagnostics.must_measure_reality
       evidence:
         - 'Live 1.2.337 sim, 40+ minutes after the destructive suites finished: node-4 and node-5 held status converging while node-1/2/3 were ready, with the controller re-logging the same founding-profiles observation every 60s and violations empty. node-4 profiles [compute core] are missing [control-plane storage], a permanent topology fact in this sim, not a transient one. handlers_health.go:1245 is the branch; handlers_status.go:233 is the per-heartbeat ReportedAt write; server.go:51 sets statusGracePeriod = 2 minutes.'
+    - id: failure.scenarios_asserting_a_global_instantaneous_release_audit_are
+      title: Scenarios asserting a global instantaneous release audit are non-deterministic
+      description: platform-upgrade-release-boundary and rollback-guard-refuses-silent-regression both assert a cluster-wide property — release.audit failed:0 and pending:0 across all 24 releases — at a single instant, while running inside a suite that is continuously installing, upgrading and joining. Normal operation produces transient FAILED releases; the controller self-heals them (FAILED -> PENDING 'all nodes converged, clearing failure' -> RESOLVED -> AVAILABLE) but only after releaseRetryBackoff, which is 5 minutes. So whether either scenario passes depends on where its sample lands relative to a 5-minute decay it does not control, and neither scenario fails on its own subject matter when it fails. platform-upgrade-release-boundary documents itself as 'deliberately an observation of the steady state', but it is scheduled mid-suite where the cluster is never at steady state. Left alone after a suite the same cluster reaches 24/24 succeeded, 0 failed, 0 pending unaided.
+      protects:
+        files:
+          - tests/scenarios/upgrade/platform-upgrade-release-boundary.yaml
+      related_invariants:
+        - diagnostics.must_measure_reality
+      evidence:
+        - 'Same code, same 5-node sim, five observations of rollback-guard: PASS (1.2.334 full suite), FAIL (1.2.336 full), FAIL (1.2.337 full), FAIL (1.2.337 upgrade suite alone on a pristine cluster whose verified baseline was 24/24 succeeded / 0 failed / 0 pending), PASS (same suite re-run immediately afterwards). It has no settle step, so no harness change explains the last flip. The isolated pristine run was one scenario WORSE than the full run that preceded it (PASS=9 vs PASS=10), which rules out accumulated residue from the destructive suites as the cause.'
