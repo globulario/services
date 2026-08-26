@@ -236,6 +236,11 @@
   path: docs/operational-knowledge/stages/learned-2026-06.yaml
   hash: 313675fed8360d4ba3f2906879711f4784379a8de537c5a60de3c1275d4bf329
   title: Learned lessons — promoted from runtime ai-memory (2026-06)
+- ref: opsknowledge:stage.learned_2026_08
+  kind: stage
+  path: docs/operational-knowledge/stages/learned-2026-08.yaml
+  hash: 33fefd7cfe0478b612213af1e5a934d8209c20d2c004a0cc89826320521af07c
+  title: Learned lessons — 1.2.328→1.2.338 simulation campaign (2026-08)
 - ref: opsknowledge:stage.package_system
   kind: stage
   path: docs/operational-knowledge/stages/package-system.yaml

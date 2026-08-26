@@ -18,3 +18,15 @@
   title: The owning maintainer approved the change
   lane: recorded
   predicate: a CODEOWNERS-designated maintainer approved the change
+- id: evidence.prog.artifact_level_observation
+  title: A single concrete artifact supporting the stated cause
+  lane: recorded
+  predicate: the named cause is backed by one specific record, log line or recomputed value, not by a count or status alone
+- id: evidence.prog.fixed_path_executed
+  title: The changed code path is confirmed to have run
+  lane: recorded
+  predicate: an observation unique to the new path (emitted log line, counter, resulting state) is present after the change
+- id: evidence.prog.flake_mechanism_explained
+  title: The mechanism behind an intermittent result is identified
+  lane: recorded
+  predicate: the cause of the variation between runs is named and supported, not attributed to noise

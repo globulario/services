@@ -37,3 +37,21 @@
   recommended_behavior: Move the secret to the secret store / env injection and reference it; rotate any value already exposed.
   safe_next_step: remove the value from the diff and wire it through the secret path before committing
   action_aliases: commit_secret, write_secret_to_source, add_credential_to_source, add_credential_to_config, commit_api_key, commit_private_key
+- id: forbidden.prog.diagnose_from_aggregate_alone
+  title: Build a causal theory from a count, total or status field alone
+  reason: an aggregate says THAT something is wrong and is almost silent on WHY; a theory built on one is unfalsifiable and sends the investigation somewhere plausible and wrong
+  recommended_behavior: Go to one concrete artifact that can be checked mechanically — the record for the single stuck item, the log line naming the entity, a value that can be recomputed — and prefer the artifact that can falsify the theory in one step.
+  safe_next_step: gather evidence.prog.artifact_level_observation before naming a cause
+  action_aliases: diagnose_from_count, conclude_from_status_field, infer_cause_from_totals, root_cause_from_aggregate
+- id: forbidden.prog.claim_fix_without_confirming_path_executed
+  title: Attribute an improvement to a fix without confirming the fixed path ran
+  reason: a green measurement after a deploy is equally consistent with the fix working, the fix being inert, and unrelated timing; only one of those is a fix
+  recommended_behavior: Confirm the new code path actually executed — a log line it emits, a counter, a state only it can produce — before attributing any improvement to it.
+  safe_next_step: gather evidence.prog.fixed_path_executed
+  action_aliases: claim_fix_works, attribute_improvement_to_fix, declare_fixed_after_deploy
+- id: forbidden.prog.widen_budget_to_hide_flake
+  title: Raise a timeout or retry budget to stabilise an intermittent failure
+  reason: widening a window converts a visible failure into a rarer one and destroys the signal that was pointing at a real defect
+  recommended_behavior: Explain the mechanism first. Aligning a wait with the predicate actually asserted is legitimate; enlarging it so red turns green is not. Calibrate a budget only once a mechanism is known and is genuinely a scheduling mismatch.
+  safe_next_step: gather evidence.prog.flake_mechanism_explained
+  action_aliases: increase_timeout_for_flaky_test, raise_retry_budget, extend_settle_window, bump_timeout_to_pass
