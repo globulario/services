@@ -8102,3 +8102,14 @@ failure_modes:
         - golang/cluster_controller/cluster_controller_server/release_out_of_scope_test.go:TestOutOfScopeNodeDoesNotDeferRelease
       evidence:
         - 'Live 5-node sim on 1.2.336: ServiceRelease core@globular.io/ai-memory phase=DEFERRED while all three tracked nodes reported per-node phase AVAILABLE; ai-watcher identical. Two nodes were skipped as profile_not_applicable. release_phase.go defines DEFERRED to PENDING as ''retry target selection after backoff'' with releaseWaitingBackoff = 2 minutes and no attempt ceiling. Three scenarios failed on the resulting non-terminal count, none on their own subject: upgrade/platform-upgrade-release-boundary and authority/crash-during-mutation-is-atomic on ''pending: expected 0, got 1'', upgrade/rollback-guard-refuses-silent-regression on precondition releases_are_clean.'
+    - id: failure.the_converging_grace_period_is_measured_from_the_last_heartb
+      title: The converging grace period is measured from the last heartbeat, so a node never becomes degraded
+      description: 'evaluateNodeStatus escalates a node with missing or inactive required units from converging to degraded once statusGracePeriod (2 minutes) has elapsed, but it measures that window with time.Since(node.ReportedAt). ReportedAt is the node''s self-reported clock and handlers_status.go refreshes it on every heartbeat, so for any node still talking to the controller it is always a few seconds old and the grace never expires. The degraded verdict is therefore unreachable for a live node: a node whose units are permanently missing reports converging indefinitely, which reads as ''still working on it'' rather than ''broken''. A node that stopped heartbeating long enough to age ReportedAt past two minutes is already caught by the earlier unreachable branch on heartbeatStaleThreshold, so nothing reaches the degraded return at all. The grace was intended for fresh install (see service.bootstrap_ordering_skew, ''expected during fresh install only'') but as written it never ends.'
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/handlers_health.go
+          - golang/cluster_controller/cluster_controller_server/handlers_status.go
+      related_invariants:
+        - diagnostics.must_measure_reality
+      evidence:
+        - 'Live 1.2.337 sim, 40+ minutes after the destructive suites finished: node-4 and node-5 held status converging while node-1/2/3 were ready, with the controller re-logging the same founding-profiles observation every 60s and violations empty. node-4 profiles [compute core] are missing [control-plane storage], a permanent topology fact in this sim, not a transient one. handlers_health.go:1245 is the branch; handlers_status.go:233 is the per-heartbeat ReportedAt write; server.go:51 sets statusGracePeriod = 2 minutes.'
