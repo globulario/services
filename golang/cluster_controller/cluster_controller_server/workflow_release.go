@@ -840,10 +840,32 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 	catalogEntry := CatalogByName(pkgName)
 	deferred := false
 	deferReason := ""
+	skippedPermanently := ""
+	// markDeferred records a node we could not target THIS PASS but might target
+	// later. markOutOfScope records a node that will never be a target until an
+	// operator changes something — a different question entirely.
+	//
+	// These used to be one call. A single sticky `deferred` flag was set by any
+	// skip for any reason, and the finalize below reads it as "there is still
+	// work pending". So one permanently-ineligible node parked the whole release
+	// in DEFERRED even when every node that COULD host the package had already
+	// converged — and DEFERRED means retry-after-backoff (release_phase.go), so
+	// the release re-entered PENDING every 2 minutes, re-derived the same
+	// permanent answer, and returned to DEFERRED forever.
+	//
+	// Observed on the 5-node sim: ai-memory and ai-watcher sat at DEFERRED with
+	// all three of their tracked nodes reporting AVAILABLE, because two nodes
+	// whose profiles cannot host them were skipped as profile_not_applicable.
+	// Three scenarios failed on the resulting non-terminal release count.
 	markDeferred := func(reason string) {
 		if !deferred {
 			deferred = true
 			deferReason = reason
+		}
+	}
+	markOutOfScope := func(reason string) {
+		if skippedPermanently == "" {
+			skippedPermanently = reason
 		}
 	}
 
@@ -883,16 +905,16 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 		if catalogEntry != nil && len(catalogEntry.Profiles) > 0 {
 			expanded := normalizeProfiles(node.Profiles)
 			if !profilesOverlap(catalogEntry.Profiles, expanded) {
-				log.Printf("release-workflow: skip node %s (profiles %v don't match %v)", nodeID, expanded, catalogEntry.Profiles)
-				markDeferred("profile_not_applicable")
+				log.Printf("release-workflow: skip node %s (profiles %v don't match %v) — out of scope, not pending", nodeID, expanded, catalogEntry.Profiles)
+				markOutOfScope("profile_not_applicable")
 				continue
 			}
 		}
 
 		// Skip nodes that are active infrastructure members for this package.
 		if isActiveInfraMember(node, pkgName) {
-			log.Printf("release-workflow: SKIP node %s — active %s member (protected)", nodeID, pkgName)
-			markDeferred("active_infra_member_protected")
+			log.Printf("release-workflow: SKIP node %s — active %s member (protected) — out of scope, not pending", nodeID, pkgName)
+			markOutOfScope("active_infra_member_protected")
 			continue
 		}
 
@@ -940,7 +962,11 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 	if len(resolvedBuildID) > 0 {
 		wantBuildID = strings.TrimSpace(resolvedBuildID[0])
 	}
-	if wantBuildID == "" {
+	// Only resolve the convergence identity when there is something to compare it
+	// against. With no eligible candidate the loop below never runs, so the
+	// lookup is a pure cost — and on a store that cannot answer it is a hazard
+	// rather than a cost.
+	if wantBuildID == "" && len(eligible) > 0 {
 		if rbid, _ := srv.lookupServiceReleaseBuildID(ctx, pkgName); strings.TrimSpace(rbid) != "" {
 			wantBuildID = strings.TrimSpace(rbid)
 		}
@@ -1020,14 +1046,23 @@ func (srv *server) selectReleaseTargets(ctx context.Context, candidates []any, p
 			"agent_endpoint": ec.agentEndpoint,
 		})
 	}
+	// Only a node that could still BECOME a target justifies deferring. A node
+	// that is permanently out of scope is not pending work, so a release whose
+	// every eligible node has converged finalizes AVAILABLE.
 	finalizeStatus := cluster_controllerpb.ReleasePhaseAvailable
+	reason := deferReason
 	if len(targets) == 0 && deferred {
 		finalizeStatus = cluster_controllerpb.ReleasePhaseDeferred
+	}
+	if len(targets) == 0 && !deferred && skippedPermanently != "" {
+		reason = "no targets required update; " + skippedPermanently + " nodes are out of scope"
+		log.Printf("release-workflow: %s converged on every eligible node; %s nodes skipped as out of scope — finalizing AVAILABLE",
+			pkgName, skippedPermanently)
 	}
 	return engine.ReleaseTargetSelection{
 		Targets:        targets,
 		FinalizeStatus: finalizeStatus,
-		Reason:         deferReason,
+		Reason:         reason,
 	}, nil
 }
 
