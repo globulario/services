@@ -8090,3 +8090,15 @@ failure_modes:
         - diagnostics.must_measure_reality
       evidence:
         - 'authority/rejoin-after-missed-generations on 1.2.334: console shows ''advance_generation_1: expected accepted, got refused —   --output string       Output format (table|json|yaml) (default "table")''. evidence.json for the same step records the truth: ''Error: cannot verify dns is a SERVICE package: repository instance 10.10.0.15:443 reported no published version with a resolvable kind'', exit_code 1, attempts 6. Reproduced live: ''globular pkg info dns'' prints ''Error: DescribePackage: rpc error: code = Unauthenticated'' immediately followed by ''Usage:'' and the flag list.'
+    - id: failure.one_permanently_ineligible_node_parks_a_finished_release_in
+      title: One permanently ineligible node parks a finished release in a retry-forever phase
+      description: selectReleaseTargets kept a single sticky deferred flag set by any skipped candidate for any reason, and finalized DEFERRED whenever it was set with zero targets. Nodes skipped for a transient reason can become targets later, so deferring is correct for them. Nodes skipped because their profiles cannot host the package, or because they are protected active infra members, never can. Since DEFERRED means retry-after-backoff, one permanently ineligible node put a release whose work was already finished into an endless PENDING/DEFERRED cycle, so it never reached a terminal phase.
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/workflow_release.go
+      related_invariants:
+        - reconcile.terminal_success_requires_observed_convergence
+      required_tests:
+        - golang/cluster_controller/cluster_controller_server/release_out_of_scope_test.go:TestOutOfScopeNodeDoesNotDeferRelease
+      evidence:
+        - 'Live 5-node sim on 1.2.336: ServiceRelease core@globular.io/ai-memory phase=DEFERRED while all three tracked nodes reported per-node phase AVAILABLE; ai-watcher identical. Two nodes were skipped as profile_not_applicable. release_phase.go defines DEFERRED to PENDING as ''retry target selection after backoff'' with releaseWaitingBackoff = 2 minutes and no attempt ceiling. Three scenarios failed on the resulting non-terminal count, none on their own subject: upgrade/platform-upgrade-release-boundary and authority/crash-during-mutation-is-atomic on ''pending: expected 0, got 1'', upgrade/rollback-guard-refuses-silent-regression on precondition releases_are_clean.'
