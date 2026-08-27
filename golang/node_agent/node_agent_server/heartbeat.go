@@ -217,6 +217,17 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 			hb.Tick()
 		}
 		setControllerStateGauge(srv.controllerConnState)
+
+		// Converge derived per-node config that is read only at process start.
+		// Both are cheap — a TTL-cached etcd read plus a small file read — and
+		// write nothing when already correct, so they ride the 30s heartbeat
+		// rather than the 5-minute sync ticker. Cadence is the point: these
+		// files must be correct BEFORE the next restart, and ring membership
+		// changes exactly when a node joins or leaves, so a 5-minute window
+		// would leave a freshly grown cluster reporting stale seeds for most of
+		// its bootstrap. Neither restarts its service.
+		withOpTimeout(10*time.Second, srv.reconcileScyllaSeeds)
+		withOpTimeout(10*time.Second, srv.refreshEtcdEndpointsFromSystemKey)
 	}
 
 	for {
@@ -234,9 +245,6 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 			withOpTimeout(10*time.Second, srv.ensureScyllaManagerAgentAuthToken)
 			withOpTimeout(30*time.Second, srv.importProvisionalPackages)
 			withOpTimeout(15*time.Second, srv.reconcileDiskInventory)
-			// Start-time-only derived config: converge by writing, never restart.
-			withOpTimeout(15*time.Second, srv.reconcileScyllaSeeds)
-			withOpTimeout(15*time.Second, srv.refreshEtcdEndpointsFromSystemKey)
 		case <-rediscoverTicker.C:
 			shouldRediscover := srv.controllerEndpoint == "" ||
 				srv.controllerConnState == ConnStateDegraded ||
