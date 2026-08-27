@@ -239,7 +239,7 @@
 - ref: opsknowledge:stage.learned_2026_08
   kind: stage
   path: docs/operational-knowledge/stages/learned-2026-08.yaml
-  hash: 294076466c035312d7d7f54834bb8f7923f48e5160c8da0b8ce6438d45dfaacd
+  hash: c8b52e4d575f237e1646682d5b6d87aee82d0c63d2c7d4aeee0708c14449a59c
   title: Learned lessons — 1.2.328→1.2.338 simulation campaign (2026-08)
 - ref: opsknowledge:stage.package_system
   kind: stage
