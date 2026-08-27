@@ -248,9 +248,36 @@ func newServer(cfg *clusterdoctorConfig, version string) (*ClusterDoctorServer, 
 	// that may not match the actual running workflow service.
 	var wfClient workflowpb.WorkflowServiceClient
 	clusterID := cfg.ClusterID
-	wfEndpoint := config.ResolveServiceAddr("workflow.WorkflowService", cfg.WorkflowEndpoint)
+
+	// DIRECT dial, for the same reason the repository client below dials direct.
+	//
+	// ExecuteWorkflow is auth-gated: it requires the CALLER's identity. The mesh
+	// address is the Envoy gateway (ResolveServiceAddr routes every endpoint to
+	// <host>:443), and Envoy terminates the doctor's mTLS, so the workflow
+	// service sees an empty Subject and rejects the dispatch:
+	//
+	//   Unauthenticated: authentication required: provide --token or configure
+	//   client certificates
+	//
+	// The healer therefore could not start ANY remediation workflow. Every cycle
+	// closed "auto=0 executed=0 proposed=0 errors=1", so autonomous remediation
+	// was entirely non-functional AND the permanent error failed every scenario
+	// asserting zero doctor errors. Observed on 1.2.341 against
+	// node.systemd.units_running for globular-prometheus.service, with the run
+	// reported honestly as "proposed; durable commit UNCONFIRMED".
+	//
+	// dialOptionsForInternalService still attaches the cluster_id-injecting
+	// interceptor, so this does NOT trip forbidden_fix
+	// bypass_shared_client_for_internal_dials or weaken
+	// invariant:grpc.backbone.contract — only the ADDRESS changes.
+	wfEndpoint := config.ResolveServiceDirectAddr("workflow.WorkflowService")
 	if wfEndpoint == "" {
-		wfEndpoint = cfg.WorkflowEndpoint // last-resort compiled default
+		// Fall back to the configured endpoint, which is a direct host:port.
+		// Deliberately NOT ResolveServiceAddr: a mesh address would dial
+		// successfully and then fail closed on every dispatch, which is worse
+		// than having no client at all — the healer would keep proposing runs
+		// that can never commit.
+		wfEndpoint = cfg.WorkflowEndpoint
 	}
 	if wfEndpoint != "" {
 		wfTarget := config.ResolveDialTarget(wfEndpoint)
