@@ -123,6 +123,13 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 	withOpTimeout(15*time.Second, srv.reconcileMinioSystemdConfig)
 	// Ensure scylla-manager-agent config always has a valid auth_token.
 	withOpTimeout(10*time.Second, srv.ensureScyllaManagerAgentAuthToken)
+	// Converge derived per-node config that is read only at process start.
+	// These files have no other live writer: scylla.yaml is written once by the
+	// scylladb post-install, and the controller's renderer never lands because
+	// dispatchPlan is a no-op. Neither reconciler restarts its service — the
+	// files matter for the NEXT start, so they converge by being written.
+	withOpTimeout(15*time.Second, srv.reconcileScyllaSeeds)
+	withOpTimeout(15*time.Second, srv.refreshEtcdEndpointsFromSystemKey)
 
 	heartbeatDelay := 30 * time.Second
 	heartbeatTimer := time.NewTimer(0) // immediate first heartbeat
@@ -227,6 +234,9 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 			withOpTimeout(10*time.Second, srv.ensureScyllaManagerAgentAuthToken)
 			withOpTimeout(30*time.Second, srv.importProvisionalPackages)
 			withOpTimeout(15*time.Second, srv.reconcileDiskInventory)
+			// Start-time-only derived config: converge by writing, never restart.
+			withOpTimeout(15*time.Second, srv.reconcileScyllaSeeds)
+			withOpTimeout(15*time.Second, srv.refreshEtcdEndpointsFromSystemKey)
 		case <-rediscoverTicker.C:
 			shouldRediscover := srv.controllerEndpoint == "" ||
 				srv.controllerConnState == ConnStateDegraded ||
@@ -265,6 +275,13 @@ func (srv *NodeAgentServer) refreshEtcdEndpointsFromSystemKey(ctx context.Contex
 	}
 	path := "/var/lib/globular/config/etcd_endpoints"
 	content := strings.Join(endpoints, "\n") + "\n"
+	// Idempotence guard. This runs on the sync ticker as well as on the
+	// heartbeat-failure path, and resetSharedEtcdClient() tears down every
+	// pooled etcd connection on this node. Rewriting an already-correct file
+	// every cycle would churn those connections forever for no gain.
+	if existing, err := readEtcdEndpointsFile(path); err == nil && string(existing) == content {
+		return
+	}
 	if err := writeEtcdEndpointsFile(path, []byte(content), 0o644); err != nil {
 		log.Printf("nodeagent: failed to write refreshed etcd endpoints: %v", err)
 		return
