@@ -8244,3 +8244,18 @@ failure_modes:
         - 'build344c.log (--all, not --rebuild) line 203: Error: unknown flag: --package-sources, immediately after "==> pkg build ai_executor"; run exited 0 and produced no dist/globular-1.2.344 artifact'
         - 'ls golang/tools/stage/linux-amd64/usr/local/bin/globularcli showed Jul 3 while a go build of ./globularcli produced a binary whose `pkg build --help` lists --package-sources'
       contract: The release build must prove the tooling it invokes can serve the flags it passes, and must not report success when it produced no artifact.
+    - id: failure.sql_cannot_satisfy_release_input_provenance_because_its_debs
+      title: sql cannot satisfy release-input provenance because its debs are never vendored into the packages repo
+      description: 'golang/globularcli/tools/pkggen/pkggen.sh adds --package-source-root only when PACKAGES_ROOT/metadata/<svc> exists, and the builder resolves bundled debs at <root>/debs/<file>. Four packages (scylladb, scylla-manager, scylla-manager-agent, and one sibling) vendor their debs that way and pass. metadata/sql does not exist at all, so the sql build falls back to an apt download into a temp dir and the provenance gate rejects it: ''bundled deb libltdl7_2.4.7-7build1_amd64.deb: no owning git repository — a bundled deb must come from a declared, revision-backed source, not ambient filesystem state''. pkggen.sh:228 already states the resolution — ''Prefer vendored debs over an apt download: bytes fetched into a temp dir have no owning git repository, so their provenance cannot be established against the pinned revision no matter which flags are passed'' — so the mechanism exists and sql is simply the one deb-bundling package never migrated onto it. Dropping the bundling is NOT an available answer: specgen.sh:54-60 records that sql_server is the only Globular service linking a native library (libodbc.so.2 via libodbc2), and that before it was bundled, install_package_payload''s ldd preflight hard-failed NATIVE_LIBRARY_DEPENDENCY_MISSING, which failed install_workloads_compute and therefore node.join on every compute-profile node. So the fix is to vendor libodbc2 and its transitive libltdl7 into packages/metadata/sql/debs/ and bump the pin in scripts/release/package-sources.json. That is a sibling-repo commit plus a release-pin bump governing CI for every consumer, so it needs an explicit human decision rather than a build-time workaround.'
+      protects:
+        files:
+          - golang/globularcli/tools/pkggen/pkggen.sh
+          - scripts/release/package-sources.json
+      related_invariants:
+        - repository.fallback_requires_manifest_and_checksum
+      required_tests:
+        - golang/node_agent/node_agent_server/specgen_test.go:TestSpecgenBundlesNativeDebsForSQL
+      evidence:
+        - 'build344d.log: ''[FAIL] sql: release input provenance: bundled deb /tmp/pkg-debs-1192978457/libltdl7_2.4.7-7build1_amd64.deb: no owning git repository'', exit status 128, then ''Error: one or more packages failed'' with no dist artifact produced'
+        - packages repo has metadata/<pkg>/debs/ for 4 packages; metadata/sql does not exist. package-sources.json pins ab18a3c9 while the local packages HEAD is e577b77 with one dirty file of unrelated in-progress work.
+      contract: A package that bundles native debs must source them from the pinned packages revision; a package whose debs are fetched at build time cannot be released once provenance is enforced.
