@@ -11676,3 +11676,16 @@ invariants:
   related_failure_modes:
     - failure.release_build_refuses_every_package_whose_version_is_not_the
   contract: The platform release version identifies the bundle, never its packages; every path that resolves a package artifact must read that package's committed version.
+- id: invariant.rendered_per_node_config_must_converge_to_the_render_of_curr
+  title: Rendered per-node config must converge to the render of current cluster state
+  status: active
+  description: 'Per-node config files (scylla.yaml, etcd.yaml, etcd_endpoints, minio.env, dns, xds) are DERIVED state: a pure function of cluster membership plus per-node identity. Derived state has exactly one correct value at any instant, so a node holding a render computed from an older membership is in drift, not in a valid alternative state. The controller already computes the render every reconcile pass and already hashes it against the node''s applied hashes; the invariant is that this comparison must actually drive a dispatch rather than only feeding health evaluation. Corollary for restart policy: a renderer declares restartUnits only when the running process must re-read the file to be correct. A file consumed solely at process start (scylla seeds, etcd_endpoints) converges by being written; forcing a restart to ''apply'' it converts a benign correction into an availability event on the data tier.'
+  protects:
+    files:
+      - golang/cluster_controller/cluster_controller_server/reconcile_nodes.go
+      - golang/cluster_controller/cluster_controller_server/service_config.go
+  required_tests:
+    - golang/cluster_controller/cluster_controller_server/service_config_test.go:TestRenderedConfigConvergesAfterMembershipChange
+  evidence:
+    - '1.2.343 5-node cluster: three nodes held three different seed lists for one ring (node-1 self-only, node-2 ''11,12'', node-3 ''11,13''), each frozen at that node''s join instant, because the only dispatch site is recoverNode()'
+  contract: The applied rendered config on a node is not authoritative. Whenever the controller's render of a node's config differs from what that node last applied, the difference is drift and must be re-dispatched — regardless of why it changed.

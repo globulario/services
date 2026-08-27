@@ -8196,3 +8196,15 @@ failure_modes:
       evidence:
         - 'Real 5-node cluster 2026-08-19: /globular/cluster/scylla/hosts listed all five hosts while the founding node''s scylla.yaml still carried only itself as seed. Note infra_truth/attestation.go:14 marks hand-editing scylla.yaml a forbidden fix, so the repair belongs to the renderer and controller desired state, not to an operator edit.'
       contract: A node's rendered scylla.yaml seed list must reflect current ring membership, and is owned by the post-install renderer plus controller desired state
+    - id: failure.rendered_service_config_is_never_re_pushed_after_membership
+      title: Rendered service config is never re-pushed after membership changes
+      description: 'computeNodePlan() renders per-node config (scylla.yaml, etcd, dns, xds) from the live membership snapshot, and the full reconciliation machinery exists — HashRenderedConfigs, PendingRenderedConfigHashes, promote-on-apply-success, restartActionsForChangedConfigs. But computeNodePlan has three callers and only ONE dispatches the plan: recoverNode() in handlers_health.go. The other two use the plan solely to derive the required-unit set for health evaluation and discard RenderedConfig. Consequence: a node''s rendered config is frozen at the membership snapshot taken when that node joined, and no membership change ever updates it. Observed on a 5-node quickstart cluster at 1.2.343: node-1 /etc/scylla/scylla.yaml seeds=''10.10.0.11'' (self only, Day-0 write), node-2 seeds=''10.10.0.11,10.10.0.12'', node-3 seeds=''10.10.0.11,10.10.0.13'' — three different views of one cluster-wide fact. Benign while each node is a live NORMAL ring member (gossip/Raft carry membership at runtime), but seeds are read only at process start, so a wiped restart of node-1 would bootstrap an isolated single-node ring. Surfaces as the single doctor ERROR at baseline and fails the doctor assertion in first-join-from-clean-node, liveness-survives-state-writes and package-upgrade-converges-on-all-nodes.'
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/reconcile_nodes.go
+          - golang/cluster_controller/cluster_controller_server/handlers_health.go
+      related_invariants:
+        - four_layer.cross_layer_write_creates_drift
+      evidence:
+        - '1.2.343 baseline doctor: severity error=1, ''Node c777633e ScyllaDB rendered config is invalid: seeds contains only self (10.10.0.11); the node is already a NORMAL member of a multi-node ring so it is not isolated now''; per-node grep of /etc/scylla/scylla.yaml shows three divergent seed lists'
+      contract: The controller renders per-node service config from current cluster membership; the file on the node must reflect current membership, not membership at the node's join instant.
