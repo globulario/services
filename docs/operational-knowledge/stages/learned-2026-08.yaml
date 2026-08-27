@@ -54,7 +54,30 @@ entries:
       02:42 MAC prefix — the basis choice is not the defect, its instability is.
 
       COST: a phantom in a release's node list makes that release permanently
-      unconvergeable — see ops.always.release.ghost-node-churn.
+      unconvergeable — see ops.always.release.ghost-node-churn. And a phantom
+      that never even joins still costs you: see
+      ops.always.diagnose.one-orphan-record-fails-every-doctor-assertion.
+
+      WHERE THE ORPHANS COME FROM. Two distinct sources, and closing one does not
+      close the other:
+
+        ADMISSION — a node re-presenting itself under a basis that resolves
+        differently is admitted a SECOND time. Guarded by services 865ea7f8
+        (refuse a partial hostname+IPs basis), 05f5eeae (refuse admission on a
+        partial basis) and de78cec5 (reuse the id a machine already holds:
+        same hostname AND a shared IP).
+
+        WRITERS — a node-agent path that files a record under its locally-derived
+        id before the controller has granted one. The record appears under
+        /globular/nodes/<derived>/ even though the node is NOT in the node list.
+        Guarded by services 0dd286dd (installed-state sync) and dd38635c
+        (metrics-port persister).
+
+      So `cluster nodes list` showing the right count does NOT mean there are no
+      phantoms. Count the ids in etcd separately:
+
+          etcdctl get /globular/nodes/ --prefix --keys-only \
+            | grep -oE '/globular/nodes/[0-9a-f-]{36}' | sort -u | wc -l
     links:
       awareness_failure_modes:
         - failure.the_node_identity_basis_is_not_time_invariant_so_one_machine
@@ -265,6 +288,7 @@ entries:
           evidence/journal/<node>/cluster-controller.log
           evidence/journal/<node>/node-agent.log
           evidence/journal/<node>/workflow.log
+          evidence/journal/<node>/cluster-doctor.log
 
       bounded by EVIDENCE_JOURNAL_SINCE (default -30 min) and EVIDENCE_JOURNAL_LINES
       (default 4000) — roughly 1 MB per node.
@@ -279,7 +303,65 @@ entries:
       READ THIS DIRECTORY FIRST when a scenario fails. The ghost-node bug
       (ops.always.release.ghost-node-churn) was found in it within minutes of it
       existing, after two earlier attempts had dead-ended for want of exactly this.
+
+      cluster-doctor was added second (quickstart 2e1e442) and matters most for
+      assertion failures: several assertions ARE doctor findings
+      (doctor_reports_no_errors, no_doctor_errors), so when one fails the question
+      is always "which finding, on what evidence" — and that reasoning exists
+      nowhere else. Without it a bundle records the COUNT
+      (info 1, warn 0, error 1, worst CRITICAL) and not the finding, which is
+      exactly what left three upgrade failures unattributable.
     related_ids: [ops.always.release.ghost-node-churn]
+    provenance:
+      source: seed
+      seed_version: ""
+      seed_sha256: ""
+      immutable: true
+
+  - id: ops.always.diagnose.one-orphan-record-fails-every-doctor-assertion
+    type: DEBUG
+    title: "Several scenarios fail the same doctor assertion — look for one orphan record"
+    tags: [always, diagnostics, node, testing]
+    applies_when:
+      cluster_phases: [day-1, day-2]
+      services_present: [cluster_controller, cluster_doctor]
+    content: |
+      SYMPTOM: several unrelated scenarios fail on the IDENTICAL assertion —
+      "doctor error: expected 0, got 1" — and none of them fails on its own
+      subject matter.
+
+      That shape means ONE cluster-wide finding, not N independent bugs. Do not
+      debug the scenarios; find the finding.
+
+      THE COMMON CAUSE is a single orphaned per-node record. A node id that holds
+      even ONE key under /globular/nodes/ while being absent from the node list is
+      enough: cluster-doctor reports CRITICAL on an otherwise healthy cluster
+      (failure_mode cluster.node_removal_leaves_orphaned_per_node_records), and
+      every scenario asserting zero doctor errors then fails.
+
+      Measured 2026-08-26 on a FRESH cluster before any scenario ran: six ids under
+      /globular/nodes/ for five nodes. The extra one held exactly ONE key,
+      node_agent_metrics_port, and was absent from `cluster nodes list`. One stray
+      key, four red scenarios.
+
+      CHECK, in this order:
+        1. count ids in etcd vs the node list — they can disagree
+        2. for any id in etcd but not in the list, dump its subtree; a single key
+           is the signature of a pre-join writer, a full subtree
+           (packages/..., installed state) is the signature of an admitted duplicate
+        3. recompute the id — see
+           ops.always.identity.phantom-node-recompute-the-id
+
+      Because the derivation is deterministic, the SAME orphan reappears on every
+      boot rather than accumulating new ones. A recurring id across runs you
+      assumed were independent is the tell.
+    links:
+      awareness_failure_modes:
+        - cluster.node_removal_leaves_orphaned_per_node_records
+        - failure.the_node_identity_basis_is_not_time_invariant_so_one_machine
+    related_ids:
+      - ops.always.identity.phantom-node-recompute-the-id
+      - ops.always.evidence.read-the-journal-first
     provenance:
       source: seed
       seed_version: ""
