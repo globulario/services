@@ -10,3 +10,16 @@ decisions:
       - failure.workflow_cache_asked_etcd_for_filenames_so_a_wiped_node_coul
     source_files:
       - scripts/check-workflow-enumeration-mirrors.sh
+  - id: decision.derived_per_node_config_is_controller_published_and_reconcil
+    title: Derived per-node config is controller-published and reconciled in steady state
+    status: accepted
+    architectural_plane: desired
+    rationale: 'Owner is the CONTROLLER. Derived per-node config is Layer 2 desired state, published by the controller renderer and reconciled against the node''s applied hashes on the normal reconcile pass — not on a recovery, failure, or install trigger, and not by a per-file node-agent reconciler. Scope is all renderers, not scylla alone, because the defect is structural rather than scylla-specific. A per-file node-agent reconciler was rejected: it would add a second writer to files the controller already claims, which is the cross-layer authority inversion that produced this defect.'
+    context: 'The open question contract_unknown.nothing_re_renders_scylladb_seeds_after_the_ring_grows_past asked who owns refreshing scylla seeds, offering two candidate owners: a node-agent reconcileScyllaSeeds alongside reconcileMinioSystemdConfig, or controller-published desired config consumed at render time. Investigation at 1.2.343 showed the question generalizes well past scylla: the controller already declares /etc/scylla/scylla.yaml, /var/lib/globular/config/etcd.yaml and etcd_endpoints in its renderer table and re-renders them every reconcile pass against live membership, but the only dispatch site is recoverNode(), so on a healthy cluster the render never lands and lower layers own the files. The same shape appears in node_agent, where refreshEtcdEndpointsFromSystemKey runs only after 3 consecutive heartbeat failures.'
+    consequences: 'Steady-state dispatch means the controller begins overwriting files a lower layer currently owns, so the change must be staged rather than switched on wholesale. restartActionsForChangedConfigs injects a restart for every renderer declaring restartUnits, which on first pass would restart globular-etcd.service on the founding node whose etcd.yaml still holds single-node embedded defaults. Restart policy follows the existing etcd-endpoints precedent: a renderer declares restartUnits only when the running process must re-read the file to be correct; a file consumed solely at process start converges by being written, and forcing a restart to apply it converts a benign correction into an availability event on the data tier.'
+    related_invariants:
+      - invariant.rendered_per_node_config_must_converge_to_the_render_of_curr
+    affects_components:
+      - component.golang.cluster_controller
+    mitigates:
+      - failure.rendered_service_config_is_never_re_pushed_after_membership
