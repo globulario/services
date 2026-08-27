@@ -8231,3 +8231,13 @@ failure_modes:
         - 'go test ./deploy/ -run TestGenerateSpec_MatchesExisting fails only on node_agent: generated wants ''globular-event.service globular-etcd.service globular-cluster-controller.service'', existing has ''globular-event.service globular-cluster-controller.service'''
         - ai-memory inactive on node-5 (profiles [compute core]) matches component_catalog.go [control-plane scylla database], not service_catalog.yaml [core compute]
       contract: A service's systemd ordering and its placement profiles each have exactly one authoritative declaration, and editing that declaration changes what ships.
+    - id: failure.targeted_rebuild_fails_outright_when_the_previous_bundle_s_g
+      title: Targeted --rebuild fails outright when the previous bundle's globularcli predates a flag the build script now passes
+      description: 'scripts/build-local-release.sh --rebuild <pkg> stages tooling from the PREVIOUS bundle rather than building it, then invokes ${STAGE_BIN}/globularcli pkg build with the flag set the CURRENT script expects. When the script has gained a flag since the previous bundle was cut, every package build fails with ''Error: unknown flag: --package-sources'' followed by a cobra usage dump. Two things make this expensive to diagnose: the usage dump is far longer than the error, so a tail of the log shows only flag documentation and looks like help output rather than a failure (see failure.a_cobra_usage_dump_masquerades_as_the_error_in_scenario_evid), and the script keeps going package after package rather than failing fast, so the log grows without the run ever aborting. Observed building 1.2.344 on top of the 1.2.343 bundle. This is a distinct mechanism from failure.targeted_rebuild_ships_a_fix_that_the_affected_service_never — that one ships a silently stale artifact, this one cannot produce an artifact at all — but both come from the same root: --rebuild reuses previous-bundle tooling to build current-source packages. Workaround is --all.'
+      protects:
+        files:
+          - scripts/build-local-release.sh
+          - scripts/regenerate-release-inputs.sh
+      evidence:
+        - 'build344.log line 170: ''Error: unknown flag: --package-sources'' immediately after ''==> pkg build ai_executor''; the flag is defined at golang/globularcli/pkg_cmds.go:202 in current source'
+      contract: A targeted --rebuild must either produce a bundle equivalent to --all for the rebuilt packages, or refuse with the reason; it must not fail per-package on a tool-version skew it created itself.
