@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -406,6 +407,11 @@ func stopGRPCServerWithDeadline(grpcServer *grpc.Server, deadline time.Duration)
 	}
 }
 
+// boundMetricsPort is the port the metrics listener actually bound, published so
+// identity adoption can persist it under the canonical id. Zero means the
+// listener has not bound yet, in which case there is nothing to persist.
+var boundMetricsPort atomic.Int32
+
 // metricsPortDefault is the preferred port for the node_agent metrics HTTP
 // server — sibling of the gRPC default on 11000. Tried before any ephemeral
 // fallback so first-time starts are deterministic.
@@ -461,6 +467,13 @@ func startMetricsServer(currentNodeID func() string) {
 	// Bounded on purpose: a join that has not settled within this window is a
 	// different problem, and an unbounded watcher here would violate
 	// error_path.no_unbounded_fire_and_forget_goroutine.
+	// Record the bound port so applyApprovedNodeID can persist it the moment the
+	// controller grants a canonical id. The timer below is a fallback, not the
+	// mechanism: its window is 30 x 10s = 5 minutes, and a Day-1 join routinely
+	// takes longer than that, so a node whose id settles late was never re-keyed
+	// at all.
+	boundMetricsPort.Store(int32(chosen))
+
 	go rekeyMetricsPortWhenIdentitySettles(currentNodeID, nodeID, chosen)
 
 	log.Printf("metrics listening on 0.0.0.0:%d (saved=%d, default=%d)",

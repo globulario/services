@@ -1575,6 +1575,17 @@ func (srv *NodeAgentServer) applyApprovedNodeID(nodeID string) {
 	}
 	srv.stateMu.Lock()
 	srv.nodeID = nodeID
+	// The id is no longer DERIVED — the controller granted it. Release the
+	// suppressions that were waiting on exactly this moment.
+	//
+	// nodeIDProvisional gates two writers: syncInstalledStateToEtcd (services
+	// 0dd286dd) and the metrics-port persister (dd38635c). Both were added to
+	// stop a node filing records under an identity the cluster had not granted.
+	// Neither cleared the flag, so on any node that started provisional the
+	// suppression LATCHED: installed state never synced and no metrics-port key
+	// was ever written, for the life of the process. A guard with no exit is not
+	// a guard, it is an outage with good intentions.
+	srv.nodeIDProvisional = false
 	srv.state.NodeID = nodeID
 	srv.state.RequestID = ""
 	srv.state.JoinID = ""        // clear v2 join_id so auto-join doesn't re-fire on restart
@@ -1585,6 +1596,29 @@ func (srv *NodeAgentServer) applyApprovedNodeID(nodeID string) {
 	if err := srv.saveState(); err != nil {
 		log.Printf("warn: persist approved node id: %v", err)
 	}
+	// Persist the metrics port under the id we were just granted.
+	//
+	// startMetricsServer binds long before a Day-1 node has joined, so the port
+	// was either written under a pre-join id or (with the provisional guard) not
+	// written at all. rekeyMetricsPortWhenIdentitySettles exists to correct that,
+	// but it is a 5-minute timer racing a join that routinely takes twenty, so it
+	// expires first and the node ends with NO metrics-port key under its
+	// canonical subtree.
+	//
+	// That key is load-bearing beyond metrics: the quickstart harness counts
+	// cluster members by it (probe_cluster_nodes greps
+	// /node_agent_metrics_port$), so a node missing it reads as absent. On
+	// 1.2.340 that surfaced as all_nodes_heartbeating "expected >= 5, got 4",
+	// failing three functional scenarios on a cluster where all five agents were
+	// up with zero restarts. Before the provisional guard the orphan key under
+	// the pre-join id was counted instead, so the total still reached five and
+	// hid this entirely.
+	//
+	// Adoption is the deterministic event the timer was approximating. Do it here.
+	if port := boundMetricsPort.Load(); port > 0 {
+		persistMetricsPortFn(nodeID, int(port))
+	}
+
 	// Now that we have a node ID, immediately sync installed packages to etcd.
 	go srv.syncInstalledStateToEtcd(context.Background())
 }
