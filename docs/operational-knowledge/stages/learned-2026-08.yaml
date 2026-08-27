@@ -440,6 +440,26 @@ entries:
         3. etcd_endpoints. node_agent refreshEtcdEndpointsFromSystemKey() reconciles the
            file from /globular/system/etcd_endpoints, but is called ONLY in the heartbeat
            failure branch after 3 consecutive failures.
+        4. etcd initial-cluster. /var/lib/globular/config/etcd.yaml is never rewritten
+           after it is first laid down, so the founding node keeps its Day-0 self-only
+           list and later nodes freeze membership as of their own join. THIS IS THE
+           DANGEROUS ONE: self-only initial-cluster plus initial-cluster-state "new"
+           means a wiped restart SILENTLY BOOTSTRAPS A SECOND CLUSTER rather than
+           rejoining. Promoting the state to "existing" turns that split-brain into an
+           honest refusal to start until the member is re-added.
+
+      EXPECT SIBLINGS, ONE AT A TIME. The doctor surfaces whichever instance it has an
+      attestation rule for, so fixing one REVEALS the next rather than finishing the job.
+      On 1.2.344 the scylla-seed ERROR cleared and the etcd initial-cluster ERROR
+      appeared immediately in its place — same root, one layer down. When you fix a
+      member of this class, go looking for the others before declaring it closed.
+
+      THE FIX SHAPE (node-agent reconcilers on the 30s heartbeat, never restarting):
+      read the authoritative etcd key or the LIVE ring, rewrite only the one field,
+      write atomically, no-op when it already matches, and refuse to act when authority
+      is unavailable rather than guessing from local observation. Defer entirely on a
+      partially-formed ring (an added-but-unstarted etcd member has an empty Name);
+      emitting a partial ring a future bootstrap would trust is worse than waiting.
 
       SEVERITY IS START-TIME, NOT RUNTIME. All three files are read only at process start.
       Do not escalate from a stale file to a live outage without checking the runtime path:
