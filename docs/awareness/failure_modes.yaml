@@ -8214,3 +8214,20 @@ failure_modes:
         - 'etcd key /globular/system/etcd_endpoints correctly held all five endpoints while every one of the five nodes had a file containing only https://10.10.0.11:2379'
         - 'Runtime disproof of a suspected SPOF: ss showed every node holding ~42 established connections to each of the five etcd endpoints, because clientv3 AutoSyncInterval=30s replaces the seeded endpoint set with live membership'
       contract: Derived per-node config must converge to the render of current cluster state on a healthy cluster, not only while a node is recovering or installing. One layer owns each derived file.
+    - id: failure.two_spec_generators_keep_independent_dependency_and_profile
+      title: Two spec generators keep independent dependency and profile tables; the one that ships is not the one people edit
+      description: 'Service unit specs are produced by TWO generators with independently hand-maintained tables. (1) golang/globularcli/tools/specgen/specgen.sh carries a bash case statement for dependencies (service_deps) and a second one for profiles (catalog_profiles); it is invoked unconditionally by scripts/regenerate-release-inputs.sh from scripts/build-local-release.sh:498, so it is what the RELEASE BUILD ships. (2) golang/deploy/specgen.go GenerateSpec reads golang/service_catalog.yaml; it is reached only by the ''globular deploy'' CLI path and by TestGenerateSpec_MatchesExisting. The two disagree and nothing reconciles them. Demonstrated: commit e6543c38 ''service_catalog: node-agent depends on etcd, not just cluster-controller'' edited the YAML, which does not drive the release build, so the shipped unit never gained the etcd ordering. On a live 1.2.343 cluster every node''s globular-node-agent.service still reads ''After=network-online.target globular-event.service globular-cluster-controller.service'' with no globular-etcd.service, matching specgen.sh''s node_agent) deps=cluster_controller rather than the YAML''s [etcd, cluster_controller]. TestGenerateSpec_MatchesExisting/node_agent has been failing on head ever since and was left standing. Separately, a field documented at service_catalog.yaml:10 as ''explicit runtime client dependencies'' is rendered by specgen.go into BOTH systemd After= and Wants= (specgen.go:305-307), which are different semantics; the result orders node_agent behind globular-cluster-controller.service, a service node_agent itself installs and supervises, and is not profile-aware — node-5 carries Wants=globular-cluster-controller.service while having no such unit installed at all. Placement authority is split the same way but resolves differently: component_catalog.go governs dispatch, verified by ai-memory being absent from node-5 ([compute core]) although service_catalog.yaml declares ai_memory profiles [core compute], while component_catalog.go declares [control-plane scylla database].'
+      protects:
+        files:
+          - golang/globularcli/tools/specgen/specgen.sh
+          - golang/deploy/specgen.go
+          - golang/service_catalog.yaml
+      related_invariants:
+        - identity.field_semantic_drift_across_writers
+      required_tests:
+        - golang/deploy/deploy_test.go:TestGenerateSpec_MatchesExisting
+      evidence:
+        - 'Live 1.2.343: systemctl cat globular-node-agent.service on nodes 1,3,5 all show After=/Wants= event+cluster-controller and no etcd; node-5 has no globular-cluster-controller unit file yet declares Wants= on it'
+        - 'go test ./deploy/ -run TestGenerateSpec_MatchesExisting fails only on node_agent: generated wants ''globular-event.service globular-etcd.service globular-cluster-controller.service'', existing has ''globular-event.service globular-cluster-controller.service'''
+        - ai-memory inactive on node-5 (profiles [compute core]) matches component_catalog.go [control-plane scylla database], not service_catalog.yaml [core compute]
+      contract: A service's systemd ordering and its placement profiles each have exactly one authoritative declaration, and editing that declaration changes what ships.
