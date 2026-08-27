@@ -487,6 +487,39 @@ func (srv *server) approveJoinRecordLocked(jr *joinRequestRecord, profiles []str
 	jr.Profiles = profiles
 
 	nodeID := deterministicNodeID(jr.Identity, jr.Labels)
+
+	// An id, once assigned to a machine, is reused — never re-derived into a
+	// second one.
+	//
+	// deterministicNodeID prefers labels["node.mac"] and falls back to
+	// hostname+IPs, mirroring the agent's identity.StableNodeID. Both are stable
+	// WITHIN a process (IdentityBasisMAC is sync.Once) and neither is stable
+	// ACROSS restarts: SelectBestMAC requires an interface that is up with a
+	// routable IP, so an agent restarting before its interface is ready
+	// advertises no MAC and derives the hostname id, and after it is ready
+	// advertises one and derives a different id. A restart storm therefore
+	// re-presents the same machine under a basis that resolves elsewhere, and
+	// without this guard the cluster admits it twice.
+	//
+	// Observed on the sim: node-2 held canonical c8a09d9e (hostname+IPs) and was
+	// admitted again as b68457f5, which is exactly FromMAC of its own container
+	// eth0 MAC 02:42:0a:0a:00:0c; node-5 likewise as 2da500c8 from :0f. Each
+	// phantom then carried per-node records, cluster-doctor reported CRITICAL on
+	// a healthy cluster
+	// (failure_mode:cluster.node_removal_leaves_orphaned_per_node_records), and
+	// every scenario asserting zero doctor errors failed. One of them also
+	// wedged a release permanently, because a release judged against a node that
+	// does not exist can never converge.
+	//
+	// The match is deliberately strict — same hostname AND a shared IP — so two
+	// genuinely different machines are never merged onto one id. A weaker
+	// predicate here would be far worse than a duplicate.
+	if existing := srv.existingNodeIDForIdentityLocked(jr.Identity, nodeID); existing != "" {
+		log.Printf("join: %s (%s) derives id %s but this machine is already a member as %s — "+
+			"reusing the assigned id rather than minting a second identity",
+			jr.Identity.Hostname, jr.Identity.Ips, nodeID, existing)
+		nodeID = existing
+	}
 	jr.AssignedNodeID = nodeID
 	jr.Status = "approved"
 	// TODO(v2-join): legacy RequestJoin still creates node state during approval.
@@ -691,4 +724,36 @@ func (srv *server) GetJoinRequestStatus(ctx context.Context, req *cluster_contro
 		NodePrincipal: jr.NodePrincipal,
 		PlanJson:      append([]byte(nil), jr.JoinPlanJSON...),
 	}, nil
+}
+
+// existingNodeIDForIdentityLocked returns the id this machine is ALREADY known by,
+// when the freshly derived id differs from it. Caller must hold srv.lock.
+//
+// Membership authority is srv.state.Nodes. The predicate requires BOTH a matching
+// hostname and at least one shared IP: that is strong evidence of the same
+// machine, and deliberately stricter than the duplicate-cleanup predicate in
+// removeStaleNodesLocked, which may also act on endpoint alone. Merging two
+// different machines onto one id would be a worse failure than the duplicate this
+// prevents, so this errs toward doing nothing.
+func (srv *server) existingNodeIDForIdentityLocked(identity storedIdentity, derivedID string) string {
+	host := strings.TrimSpace(identity.Hostname)
+	if host == "" || len(identity.Ips) == 0 {
+		return "" // no basis to match on — say nothing rather than guess
+	}
+	for id, n := range srv.state.Nodes {
+		if n == nil || id == derivedID {
+			continue // already the id we derived: nothing to reconcile
+		}
+		if !strings.EqualFold(strings.TrimSpace(n.Identity.Hostname), host) {
+			continue
+		}
+		for _, want := range identity.Ips {
+			for _, have := range n.Identity.Ips {
+				if want != "" && want == have {
+					return id
+				}
+			}
+		}
+	}
+	return ""
 }
