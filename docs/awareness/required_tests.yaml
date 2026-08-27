@@ -6424,3 +6424,13 @@ required_tests:
   protects:
     failure_modes:
       - failure.cluster_scoped_doctor_rules_evaluated_against_a_node_filtere
+- id: golang/node_agent/node_agent_server/etcd_initial_cluster_reconcile_test.go:TestEtcdInitialCluster_FoundingNodeConvergesAndPromotesState
+  title: Founding node's self-only initial-cluster converges to the live ring and state is promoted to existing
+  protects:
+    failure_modes:
+      - failure.rendered_service_config_is_never_re_pushed_after_membership
+- id: golang/node_agent/node_agent_server/scylla_seeds_reconcile_test.go:TestScyllaSeedsRewrite_ReplacesOnlySeedsValue
+  title: Scylla seed reconciler replaces only the seeds value and disturbs nothing else
+  protects:
+    failure_modes:
+      - failure.rendered_service_config_is_never_re_pushed_after_membership
