@@ -130,6 +130,7 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 	// files matter for the NEXT start, so they converge by being written.
 	withOpTimeout(15*time.Second, srv.reconcileScyllaSeeds)
 	withOpTimeout(15*time.Second, srv.refreshEtcdEndpointsFromSystemKey)
+	withOpTimeout(15*time.Second, srv.reconcileEtcdInitialCluster)
 
 	heartbeatDelay := 30 * time.Second
 	heartbeatTimer := time.NewTimer(0) // immediate first heartbeat
@@ -228,6 +229,7 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 		// its bootstrap. Neither restarts its service.
 		withOpTimeout(10*time.Second, srv.reconcileScyllaSeeds)
 		withOpTimeout(10*time.Second, srv.refreshEtcdEndpointsFromSystemKey)
+		withOpTimeout(10*time.Second, srv.reconcileEtcdInitialCluster)
 	}
 
 	for {
