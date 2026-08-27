@@ -303,7 +303,34 @@ func main() {
 	// time the process restarts (see startMetricsServer for details).
 	// Pass a reader, not a snapshot: srv.nodeID can still change after this
 	// point (see startMetricsServer).
-	go startMetricsServer(func() string { return srv.nodeID })
+	// Withhold a PROVISIONAL id from the metrics-port persister.
+	//
+	// metricsPortEtcdKey already treats an empty id as "skip persistence
+	// (pre-registration startup)", and a locally-derived id is exactly that
+	// case: the cluster has not granted it yet. Returning it here writes
+	// /globular/nodes/<derived>/node_agent_metrics_port under an identity that
+	// may never become a member, and the derivation is deterministic, so the
+	// same orphan reappears on every boot.
+	//
+	// Measured on a FRESH 1.2.339 cluster, before any scenario ran: six ids
+	// under /globular/nodes/ for five nodes, and the extra one —
+	// 12944a1b-cfae-5d2f-8056-e8f633c8d3dd, which is nodeid.FromMAC of node-3's
+	// own container MAC 02:42:0a:0a:00:0d — held exactly ONE key, this one. It
+	// was absent from the node list, so it was never an admitted member: purely
+	// an orphaned record. That orphan is enough to make cluster-doctor report
+	// CRITICAL on a healthy cluster
+	// (cluster.node_removal_leaves_orphaned_per_node_records) and fail every
+	// scenario asserting zero doctor errors.
+	//
+	// The join-side guards (services 865ea7f8, 05f5eeae, de78cec5) govern
+	// ADMISSION and cannot reach this path, and 0dd286dd suppressed the
+	// installed-state sync but not this writer. Same rule, one more site.
+	go startMetricsServer(func() string {
+		if srv.nodeIDProvisional {
+			return "" // not ours to file under yet
+		}
+		return srv.nodeID
+	})
 
 	// Sync ACME certificates from etcd to local disk so every gateway node
 	// can serve Let's Encrypt certs via Envoy, regardless of which node
