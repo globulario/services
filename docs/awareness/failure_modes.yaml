@@ -8269,3 +8269,19 @@ failure_modes:
         - '1.2.345 unchanged build: resilience 9/13 late vs 13/13 first; recovery 6/7 late vs 7/7 early; upgrade 11/12 early vs 7/12 late'
         - After the late upgrade run the doctor reported ZERO findings and all derived config was correct, proving the failing doctor assertion had sampled a transient window rather than a persistent defect
       contract: A scenario's PASS/FAIL must be a property of the build under test, not of which suites happened to run before it on the same cluster.
+    - id: failure.rejoin_stamps_an_install_receipt_before_the_unit_file_exists
+      title: Rejoin stamps an install receipt before the unit file exists, leaving the unit permanently unproven
+      description: 'installer_api.go stamps the canonical receipt with ReceiptOpts.UnitFilePath set only when /etc/systemd/system/globular-<name>.service already exists at stamp time (os.Stat guard, installer_api.go:335). During a wipe-and-rejoin the receipt for some services is written BEFORE their unit file lands, so installreceipt.Stamp records entrypoint_checksum but never unit_file_path / unit_file_sha256. checkUnitHashDrift then finds Authority 1 empty (receiptUnitFileSha256 returns ""), falls through to Authority 2 (legacy .sha256 sidecar) which no longer exists because sidecars were retired by docs/architecture/retire-systemd-sidecars.md, and returns installed_state_missing_or_unproven. cluster-doctor''s unit_receipt_drift rule turns that into a CRITICAL fail-closed finding that never clears, because nothing re-stamps a receipt once the unit file appears. Observed on a fresh 1.2.345 cluster: doctor was 0-ERROR before the scenario; after first-join-from-clean-node wiped and rejoined node-5 successfully (every functional check passed — registered in etcd, all five present, quorum intact, writes accepted), globular-ldap.service on that node was left with metadata {entrypoint_checksum, entrypoint_checksum_disk_observed} and no unit-file keys, producing a persistent CRITICAL that was still present in every later sample. THE OBVIOUS FIX IS FORBIDDEN: installer_api.go:1310 states the doctor surfaces this ''so an operator can run the deliberate repair action rather than silently trusting filesystem evidence'', so a reconciler that re-stamps unit_file_sha256 by hashing whatever is on disk would launder unverified filesystem state into an authority record. The repair belongs at the source — stamp the receipt after the unit file is written, or re-drive the install step that owns the unit.'
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/installer_api.go
+          - golang/node_agent/node_agent_server/server.go
+      related_invariants:
+        - install.join_path_must_complete_install_contract
+      required_tests:
+        - golang/node_agent/node_agent_server/install_receipt_test.go:TestStampInstallReceipt
+      evidence:
+        - Fresh 1.2.345 cluster, doctor 0 ERROR across 3 samples before the scenario; after wipe-and-rejoin, CRITICAL 'Unit globular-ldap.service on node 35ac3821 has no authoritative installed_state receipt' persisted across 3 further samples spanning ~6 minutes
+        - etcd record /globular/nodes/35ac3821/packages/SERVICE/ldap has status=installed and metadata keys [entrypoint_checksum, entrypoint_checksum_disk_observed] only — no unit_file_path or unit_file_sha256
+        - 'This is pre-existing, not a regression: first-join-from-clean-node was also FAIL on the 1.2.341 baseline'
+      contract: An install receipt must be stamped only after every artifact it attests to is on disk; a receipt missing unit_file_sha256 has no repair path and fails closed forever.
