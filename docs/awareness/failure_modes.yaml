@@ -8300,3 +8300,17 @@ failure_modes:
         - tests/reports/20260828T212336-rejoin-with-stale-membership-state-is-bounded/evidence/journal/node-1/workflow.log — full line with code = Unauthenticated on the incident projection store
         - 'probe output: {clean:false, error_count:12, kinds:''circuit OPEN;reconcile-workflow: cluster.reconcile FAILED''} while all functional assertions in the scenario passed'
       contract: A component that records incidents must be able to authenticate to the incident store; a failure to STORE an incident must not be indistinguishable from the incident itself.
+    - id: failure.mutating_inter_service_rpcs_have_no_authorized_identity_serv
+      title: Mutating inter-service RPCs have no authorized identity — services share a node cert whose subject is bound to no role
+      description: 'Every service on a node presents /var/lib/globular/pki/issued/services/service.crt, whose subject is the NODE (audit shows subject=node-1, principal_type=application, auth_method=mtls). The Day-0 seed binds only four subjects — globular-controller, sa, globular-node-agent, globular-gateway — so a node subject has NO role binding at all. The interceptor''s checkRoleBinding therefore fails, and because AiMemoryService/Store is a mutating RPC, the post-Day-0 guard denies it with ''requires an explicit RBAC permission (cluster is secured)'' and reason no_rbac_mapping_post_day0. Internal READS survive this because the guard only denies mutating methods, which is why dialOptionsForInternalService works for cluster_doctor''s controller reads and hides the gap. Consequence: workflow_server cannot store incident projections, so the incident record and the doctor_finding->incident bridge have apparently never functioned in this deployment; every incident it tried to record was dropped. Note the role globular-workflow-writer-sa EXISTS in cluster-roles.json but is bound to no subject anywhere in the tree — granting it permissions is necessary but not sufficient, which is exactly the trap: the policy file looks correct while the binding that would make it apply does not exist. Resolution requires an explicit decision that is NOT safe to make unilaterally: either issue per-service identities instead of one shared node cert, or seed a binding for node-scoped subjects, or have mutating inter-service calls carry the sa token the way the legacy inter-service path does. Each has a different blast radius on cluster security.'
+      protects:
+        files:
+          - golang/interceptors/ServerInterceptors.go
+          - golang/globularcli/rbac_cmds.go
+      related_invariants:
+        - four_layer.layer_has_single_writing_actor
+      evidence:
+        - 'ai_memory audit: {subject:''node-1'', principal_type:''application'', auth_method:''mtls''} followed by PermissionDenied on /ai_memory.AiMemoryService/Store'
+        - 'rbac_cmds.go seeds only: globular-controller, sa, globular-node-agent, globular-gateway — no node-hostname subject'
+        - After fixing the client to present mTLS (bbaf875a) the error moved Unauthenticated -> PermissionDenied, proving authentication succeeds and only authorization is missing
+      contract: A service making a mutating call to another service must present an identity that resolves to a role authorized for that action; sharing one node-scoped certificate across all services makes that impossible without a binding.
