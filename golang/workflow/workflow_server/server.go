@@ -20,7 +20,6 @@ import (
 	"sync"
 	"time"
 
-	"crypto/tls"
 	"crypto/x509"
 
 	ai_memorypb "github.com/globulario/services/golang/ai_memory/ai_memorypb"
@@ -36,7 +35,6 @@ import (
 	"github.com/google/uuid"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -115,10 +113,10 @@ type server struct {
 	leaseManager *executorLeaseManager
 
 	// AI-memory client for incident projection (AL-1).
-	aiMemoryClient    ai_memorypb.AiMemoryServiceClient
+	aiMemoryClient ai_memorypb.AiMemoryServiceClient
 
 	// ClusterDoctor client for finding → incident bridge (INC-DOCTOR).
-	doctorClient cluster_doctorpb.ClusterDoctorServiceClient
+	doctorClient      cluster_doctorpb.ClusterDoctorServiceClient
 	incidentDedupeMu  sync.RWMutex
 	incidentDedupeMap map[string]time.Time
 
@@ -474,14 +472,19 @@ func (srv *server) Init() error {
 
 	// AL-1: Connect to ai-memory for incident projection.
 	// Best-effort — if ai-memory is unavailable, incidents are skipped.
+	// mTLS, not server-auth-only. A RootCAs-only tls.Config verifies the SERVER
+	// but presents no client certificate, so the callee sees no identity and
+	// answers "Unauthenticated: authentication required: provide --token or
+	// configure client certificates". Incidents were then never stored, and the
+	// resulting WARN embeds the failure title verbatim — which the quickstart
+	// cluster.reconcile_clean probe greps for, so an auth gap was being counted
+	// as reconcile uncleanliness.
 	if memAddr := config.ResolveLocalServiceAddr("ai_memory.AiMemoryService"); memAddr != "" {
 		dt := config.ResolveDialTarget(memAddr)
-		if memConn, err := grpc.NewClient(dt.Address, grpc.WithTransportCredentials(
-			credentials.NewTLS(&tls.Config{
-				ServerName: dt.ServerName,
-				RootCAs:    srv.loadCAPool(),
-			}),
-		)); err == nil {
+		memCreds, credErr := loadExecutorTLS(dt.ServerName)
+		if credErr != nil {
+			logger.Warn("incident projection: ai-memory client credentials unavailable", "err", credErr)
+		} else if memConn, err := grpc.NewClient(dt.Address, grpc.WithTransportCredentials(memCreds)); err == nil {
 			srv.aiMemoryClient = ai_memorypb.NewAiMemoryServiceClient(memConn)
 			logger.Info("incident projection: ai-memory connected", "addr", dt.Address)
 		} else {
@@ -491,14 +494,14 @@ func (srv *server) Init() error {
 
 	// INC-DOCTOR: Connect to ClusterDoctorService for finding → incident bridge.
 	// Best-effort — if the doctor is unavailable, doctor_finding incidents are skipped.
+	// Same mTLS requirement as the ai-memory client above — a RootCAs-only
+	// config would leave the doctor_finding -> incident bridge Unauthenticated.
 	if drAddr := config.ResolveLocalServiceAddr("cluster_doctor.ClusterDoctorService"); drAddr != "" {
 		dt := config.ResolveDialTarget(drAddr)
-		if drConn, err := grpc.NewClient(dt.Address, grpc.WithTransportCredentials(
-			credentials.NewTLS(&tls.Config{
-				ServerName: dt.ServerName,
-				RootCAs:    srv.loadCAPool(),
-			}),
-		)); err == nil {
+		drCreds, credErr := loadExecutorTLS(dt.ServerName)
+		if credErr != nil {
+			logger.Warn("incident scanner: cluster doctor credentials unavailable", "err", credErr)
+		} else if drConn, err := grpc.NewClient(dt.Address, grpc.WithTransportCredentials(drCreds)); err == nil {
 			srv.doctorClient = cluster_doctorpb.NewClusterDoctorServiceClient(drConn)
 			logger.Info("incident scanner: cluster doctor connected", "addr", dt.Address)
 		} else {
