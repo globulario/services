@@ -35,5 +35,5 @@ sql=1.2.317
 storage=1.2.317
 title=1.2.317
 torrent=1.2.317
-workflow=1.2.326
+workflow=1.2.327
 xds=1.2.272
