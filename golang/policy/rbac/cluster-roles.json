@@ -287,7 +287,9 @@
     "globular-workflow-writer-sa": [
       "workflow.admin",
       "repository.artifact.read",
-      "repository.namespace.read"
+      "repository.namespace.read",
+      "ai.memory.write",
+      "cluster_doctor.cluster_report.read"
     ],
 
     "globular-ai-watcher-sa": [
