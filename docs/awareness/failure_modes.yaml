@@ -8288,3 +8288,15 @@ failure_modes:
         - 'The unit file /etc/systemd/system/globular-ldap.service was already present at 09:44, before the record was written — ruling out the stamp-before-unit-file explanation'
         - 'Every functional check in the scenario passed (registered in etcd, all five present, quorum intact, writes accepted, liveness current); only the doctor gate failed, which is the fail-closed design working'
       contract: A node completing a join must carry install receipts produced by the owning install; an observer that backfills installed_state records must never be the thing that establishes proof.
+    - id: failure.workflow_server_cannot_store_incident_projections_unauthenti
+      title: workflow_server cannot store incident projections — Unauthenticated — and the WARN it logs inflates reconcile-clean counts
+      description: 'workflow_server logs: WARN incident projection: store failed title="cluster.reconcile FAILED: step dispatch_remediations: 8/16 items failed" err="rpc error: code = Unauthenticated desc = authentication required: provide --token or configure client certificates". Two separable problems. FIRST, workflow_server has no credentials for the incident-projection store, so incidents are never durably recorded — the same shape as the cluster-doctor Unauthenticated gap fixed earlier in this campaign, where a mesh-routed client reached a TLS-terminating hop and lost its identity. SECOND, and this is what makes it expensive: the WARN embeds the failure TITLE verbatim, and the quickstart probe cluster.reconcile_clean greps the controller journal for the literal string ''reconcile-workflow: <name> FAILED''. A single un-storable incident therefore contributes journal matches that read as reconcile errors, so a storage-auth gap is counted as reconcile uncleanliness. Observed on an isolated 1.2.346 cluster: error_count=12, kinds=''circuit OPEN;reconcile-workflow: cluster.reconcile FAILED'', failing rejoin-with-stale-membership-state-is-bounded on its reconcile_clean assertion while every functional assertion in that scenario passed (node reached a terminal outcome, cluster healthy after, no identity collision from stale state, liveness unaffected). The underlying dispatch_remediations 8/16 failure is a third, still-unattributed condition; do not conflate the three.'
+      protects:
+        files:
+          - golang/workflow/workflow_server/server.go
+      related_invariants:
+        - diagnostics.must_measure_reality
+      evidence:
+        - tests/reports/20260828T212336-rejoin-with-stale-membership-state-is-bounded/evidence/journal/node-1/workflow.log — full line with code = Unauthenticated on the incident projection store
+        - 'probe output: {clean:false, error_count:12, kinds:''circuit OPEN;reconcile-workflow: cluster.reconcile FAILED''} while all functional assertions in the scenario passed'
+      contract: A component that records incidents must be able to authenticate to the incident store; a failure to STORE an incident must not be indistinguishable from the incident itself.
