@@ -1462,7 +1462,27 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*workflowpb
 	if err != nil {
 		outcomeStatus = workflowpb.RunStatus_RUN_STATUS_FAILED
 		failureReason = err.Error()
-		log.Printf("reconcile-workflow: cluster.reconcile FAILED: %v", err)
+		// Distinguish "declined because a dependency is down" from "ran and
+		// failed". They are different conditions and must not read the same.
+		//
+		// Reconciliation classification already draws this line for one case —
+		// etcd.must_have_free_backend_space_for_reconciliation requires that
+		// persistence-blocked be distinguishable from controller/verification
+		// failure. A dependency-blocked refusal is the same shape and was
+		// simply missing the distinction: the workflow never ran, so calling it
+		// FAILED reports an outcome that did not occur.
+		//
+		// This is not cosmetic. When a node is deliberately removed, ScyllaDB
+		// is legitimately absent and every reconcile tick correctly declines;
+		// each decline was logging "cluster.reconcile FAILED", which any reader
+		// grepping for failures — human or probe — counts as a real fault. The
+		// classifier already identifies the condition (workflow_dependency_
+		// blocked); only the log ignored it.
+		if transient, reason := classifyWorkflowError(err); transient {
+			log.Printf("reconcile-workflow: cluster.reconcile BLOCKED (%s, will retry): %v", reason, err)
+		} else {
+			log.Printf("reconcile-workflow: cluster.reconcile FAILED: %v", err)
+		}
 		// Stamp heartbeat on failure so alerts reset and surfaces show recent activity.
 		controllerLoopHeartbeatUnix.Set(float64(time.Now().Unix()))
 	} else {
