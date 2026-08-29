@@ -8314,3 +8314,16 @@ failure_modes:
         - 'rbac_cmds.go seeds only: globular-controller, sa, globular-node-agent, globular-gateway — no node-hostname subject'
         - After fixing the client to present mTLS (bbaf875a) the error moved Unauthenticated -> PermissionDenied, proving authentication succeeds and only authorization is missing
       contract: A service making a mutating call to another service must present an identity that resolves to a role authorized for that action; sharing one node-scoped certificate across all services makes that impossible without a binding.
+    - id: failure.reconcile_refuses_correctly_while_a_node_is_deliberately_rem
+      title: Reconcile refuses correctly while a node is deliberately removed, but the refusals are counted as uncleanliness and arrive as a retry storm
+      description: 'During rejoin-with-stale-membership-state-is-bounded a node is deliberately removed, so ScyllaDB is legitimately unavailable. cluster.reconcile then logs WORKFLOW_DEPENDENCY_BLOCKED: dependency=scylla, reason=workflow circuit breaker open: 287 failures in 5m0s, retry after 20s. Two separable problems. FIRST, the refusal is logged as ''reconcile-workflow: cluster.reconcile FAILED'', and the quickstart probe cluster.reconcile_clean greps the controller journal for exactly that literal over a 30-minute window — which spans the scenario''s own disruption. A correct refusal is therefore counted as reconcile uncleanliness, the same category error as the incident-projection WARN fixed in b31bc2ae: measuring the report of a condition as though it were the condition. SECOND, 287 failures in 5 minutes is roughly one per second against a dependency that is down by design; the circuit breaker opening is the symptom of a retry rate that does not back off while a known-absent dependency is absent. After the incident-store fix the probe count fell 12 -> 4 and the ''circuit OPEN'' kind disappeared, isolating this as the sole remaining contributor. Note the probe pattern is case-sensitive: it matches ''circuit OPEN'' but the controller emits ''circuit breaker open'', so the breaker itself is invisible to the probe and only its downstream FAILED line is counted.'
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/reconcile_actions.go
+      related_invariants:
+        - diagnostics.must_measure_reality
+      evidence:
+        - '1.2.350 fresh cluster: probe {clean:false, error_count:4, kinds:''reconcile-workflow: cluster.reconcile FAILED''} — down from 12 with ''circuit OPEN;...'' before the incident-store fix'
+        - 'controller journal: WORKFLOW_DEPENDENCY_BLOCKED: dependency=scylla reason=workflow circuit breaker open: 287 failures in 5m0s, retry after 20s, while the scenario had deliberately removed a node'
+        - 'every functional assertion in the scenario passed: node reached a terminal outcome, cluster healthy after, no identity collision from stale state, liveness unaffected'
+      contract: A workflow that correctly declines to run because a dependency is down must not be indistinguishable from a workflow that failed, and must not re-attempt fast enough to constitute a storm.
