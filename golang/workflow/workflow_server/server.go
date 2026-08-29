@@ -484,7 +484,10 @@ func (srv *server) Init() error {
 		memCreds, credErr := loadExecutorTLS(dt.ServerName)
 		if credErr != nil {
 			logger.Warn("incident projection: ai-memory client credentials unavailable", "err", credErr)
-		} else if memConn, err := grpc.NewClient(dt.Address, grpc.WithTransportCredentials(memCreds)); err == nil {
+		} else if memConn, err := grpc.NewClient(dt.Address,
+			grpc.WithTransportCredentials(memCreds),
+			grpc.WithUnaryInterceptor(serviceTokenUnaryInterceptor()),
+		); err == nil {
 			srv.aiMemoryClient = ai_memorypb.NewAiMemoryServiceClient(memConn)
 			logger.Info("incident projection: ai-memory connected", "addr", dt.Address)
 		} else {
@@ -501,7 +504,10 @@ func (srv *server) Init() error {
 		drCreds, credErr := loadExecutorTLS(dt.ServerName)
 		if credErr != nil {
 			logger.Warn("incident scanner: cluster doctor credentials unavailable", "err", credErr)
-		} else if drConn, err := grpc.NewClient(dt.Address, grpc.WithTransportCredentials(drCreds)); err == nil {
+		} else if drConn, err := grpc.NewClient(dt.Address,
+			grpc.WithTransportCredentials(drCreds),
+			grpc.WithUnaryInterceptor(serviceTokenUnaryInterceptor()),
+		); err == nil {
 			srv.doctorClient = cluster_doctorpb.NewClusterDoctorServiceClient(drConn)
 			logger.Info("incident scanner: cluster doctor connected", "addr", dt.Address)
 		} else {
