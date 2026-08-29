@@ -42,3 +42,18 @@ func TestNilErrorIsNotTransient(t *testing.T) {
 		t.Error("nil error classified as transient")
 	}
 }
+
+// Service discovery finding no healthy workflow instance is transient: during
+// bootstrap the workflow service has simply not registered yet. Before this was
+// classified, ordinary startup logged "cluster.reconcile FAILED" and a reader
+// grepping for failures counted a startup race as a fault.
+func TestWorkflowUnreachableClassifiesAsTransient(t *testing.T) {
+	err := errors.New("no workflow service instance is reachable (none registered in etcd, or every candidate is unhealthy)")
+	transient, reason := classifyWorkflowError(err)
+	if !transient {
+		t.Fatal("workflow-unreachable must classify as transient — it resolves on its own once the service registers")
+	}
+	if reason != "workflow_unavailable" {
+		t.Errorf("reason = %q, want workflow_unavailable — same condition as other unreachable spellings", reason)
+	}
+}

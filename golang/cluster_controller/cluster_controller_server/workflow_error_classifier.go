@@ -59,6 +59,19 @@ func classifyWorkflowError(err error) (transient bool, reason string) {
 		return true, "workflow_posture_gate"
 	case strings.Contains(msg, "WORKFLOW_DEPENDENCY_BLOCKED"):
 		return true, "workflow_dependency_blocked"
+	case strings.Contains(msg, "no workflow service instance is reachable"):
+		// Service discovery found no healthy workflow instance — emitted by
+		// executeWorkflowCentralized when etcd lists none, or every candidate
+		// fails its health probe. This is the same condition as
+		// workflow_unavailable, differently worded: during bootstrap the
+		// workflow service simply has not registered yet, and it becomes
+		// reachable minutes later without intervention.
+		//
+		// Without this case the message matched no pattern and fell through as
+		// a hard failure, so ordinary bootstrap logged
+		// "cluster.reconcile FAILED" and any reader grepping for failures
+		// counted a startup race as a fault.
+		return true, "workflow_unavailable"
 	}
 
 	return false, ""
