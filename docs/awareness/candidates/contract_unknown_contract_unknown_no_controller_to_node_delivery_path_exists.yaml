@@ -1,0 +1,13 @@
+contract_unknown:
+  - id: contract_unknown.no_controller_to_node_delivery_path_exists_for_rendered_conf
+    kind: contract_unknown
+    title: No controller-to-node delivery path exists for rendered config
+    description: 'The founding node keeps initial-cluster self-only forever, and the fix cannot be applied anywhere that currently exists. The controller renders correctly (renderEtcdConfig builds from the LIVE ring, pinned by TestRenderEtcdConfig_InitialClusterCountMatchesRingNotRegistry). Delivery is dead. Nodes 2..5 hold correct config only because the JOIN writes it once on the joining node, so nothing can revise the founding node''s copy. And the node agent may not write it: etcd_attestation.go names cluster-controller reconcileServiceConfigs as the owner and forbids hand-editing, while node_agent.destructive_member_wipes_require_controller_prep reserves the file for the controller on the rejoin path. I attempted the node-agent route and measured the harm — six doctor ERRORs and a cluster reduced to one visible node. So renderServiceConfigs, HashRenderedConfigs, PendingRenderedConfigHashes and restartActionsForChangedConfigs all exist and are all unreachable, which is the shape that made this read as under-triggered rather than absent.'
+    proposed_contract: The controller renders per-node config and MUST have a delivery path that applies it to the node; without one the renderer is decorative and derived config can only ever be correct at the instant it is first written.
+    revision_request: 'Decide the delivery mechanism and build it: a node-agent workflow action (e.g. node.apply_rendered_config) dispatched by the controller when the render differs from the node''s applied hashes, matching the ''workflow-native paths'' the dispatchPlan deprecation note points to. Alternatives are a typed node-agent RPC, or reviving ApplyPlan. This is a new capability, not a wiring change.'
+    source_files:
+      - golang/cluster_controller/cluster_controller_server/reconcile_nodes.go
+      - golang/workflow/engine/actors.go
+    evidence:
+      - '1.2.353 fresh cluster: first-join-from-clean-node FAILS on no_doctor_errors (expected 0, got 1); the single finding is ''Node c777633e etcd rendered config is invalid: initial-cluster contains only this node (10.10.0.11)''. Scenarios running after it inherit the error, so one undeliverable render fails four upgrade scenarios.'
+      - dispatchPlan is a no-op ('ApplyPlan RPC removed. Network config and auto-repair should use workflow-native paths'), and none of the 54 actions in engine.RegisterNodeAgentActions writes rendered config — so the workflow-native path it points to does not exist
