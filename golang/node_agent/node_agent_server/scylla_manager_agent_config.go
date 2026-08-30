@@ -117,7 +117,15 @@ func (srv *NodeAgentServer) ensureScyllaManagerAgentAuthToken(ctx context.Contex
 	// script) silently breaks `sctool cluster add` with HTTP 401 against the
 	// non-coordinator hosts. So compare against the derived cluster-wide
 	// value, not just "is anything there?".
-	derivedToken := deriveClusterScopedScyllaAuthToken()
+	// Fail closed: without both authority inputs the cluster-wide token cannot
+	// be computed, and writing a locally-derived stand-in would drift this node
+	// away from its peers. Keep whatever config is already on disk and retry on
+	// the next heartbeat.
+	derivedToken, tokenOK := deriveClusterScopedScyllaAuthToken()
+	if !tokenOK {
+		log.Printf("nodeagent: scylla-manager-agent reconcile deferred: cluster auth token not derivable yet (domain or CA unavailable) — leaving existing config untouched")
+		return
+	}
 	tokenMatches := currentAuthToken(content) == derivedToken
 	hasURL := hasScyllaAPIURL(content, nodeIP)
 	hasPorts := hasScyllaAgentPorts(content, nodeIP)
@@ -236,19 +244,45 @@ func selectScyllaManagerAgentConfigPath() string {
 	return scyllaAgentConfigPrimary
 }
 
-func deriveClusterScopedScyllaAuthToken() string {
+// deriveClusterScopedScyllaAuthToken returns the cluster-wide agent token and
+// whether it could be derived at all. It FAILS CLOSED: if either input is
+// unavailable it returns ok=false rather than a token built from a substitute.
+//
+// Both inputs used to be silently defaulted — the domain fell back to
+// "globular.internal" and the CA read discarded its error, so an absent or
+// unreadable CA hashed as EMPTY BYTES. Either substitution still produces 48
+// perfectly well-formed hex characters, which is what makes it dangerous: the
+// value looks like a token and is simply the WRONG one.
+//
+// And it is wrong per-node, which is the whole problem. This token's contract
+// is that it is IDENTICAL on every agent in the cluster — scylla-manager caches
+// one token per cluster and presents it to every host. A node that reconciles
+// while its PKI is not yet in place derives a different token than its peers,
+// which is `sctool cluster add` failing with HTTP 401 against exactly the hosts
+// that drifted (fm cluster.cross_node_file_drift), and a config rewrite plus an
+// agent restart on every flip between the substitute and the real value.
+//
+// Failing closed leaves the last good config in place and retries on the next
+// heartbeat, which is the correct behaviour for a value the node cannot yet
+// compute. See invariant identity.has_single_canonical_source_and_is_immutable
+// and forbidden_fix recompute_identity_from_secondary_source: a canonical
+// identity may not be reconstructed from a secondary or absent source.
+func deriveClusterScopedScyllaAuthToken() (string, bool) {
 	domain, err := config.GetDomain()
 	if err != nil || strings.TrimSpace(domain) == "" {
-		domain = "globular.internal"
+		return "", false
 	}
 	caPath := config.GetCACertificatePath()
-	caBytes, _ := os.ReadFile(caPath)
+	caBytes, err := os.ReadFile(caPath)
+	if err != nil || len(caBytes) == 0 {
+		return "", false
+	}
 	caHash := sha256.Sum256(caBytes)
 
 	seed := fmt.Sprintf("%s|%x", strings.ToLower(strings.TrimSpace(domain)), caHash[:])
 	sum := sha256.Sum256([]byte(seed))
 	// 48 hex chars (24 bytes) keeps token reasonably compact but strong.
-	return hex.EncodeToString(sum[:24])
+	return hex.EncodeToString(sum[:24]), true
 }
 
 // hasScyllaAPIURL returns true only when the config has exactly one scylla:

@@ -8327,3 +8327,16 @@ failure_modes:
         - 'controller journal: WORKFLOW_DEPENDENCY_BLOCKED: dependency=scylla reason=workflow circuit breaker open: 287 failures in 5m0s, retry after 20s, while the scenario had deliberately removed a node'
         - 'every functional assertion in the scenario passed: node reached a terminal outcome, cluster healthy after, no identity collision from stale state, liveness unaffected'
       contract: A workflow that correctly declines to run because a dependency is down must not be indistinguishable from a workflow that failed, and must not re-attempt fast enough to constitute a storm.
+    - id: failure.cluster_wide_scylla_agent_token_derived_from_substituted_inp
+      title: Cluster-wide Scylla agent token derived from substituted inputs when PKI is absent
+      description: 'Found while investigating the last ERROR-severity finding in the 1.2.353 upgrade suite (installed_state_runtime_mismatch on globular-scylla-manager-agent, ''runtime unit state=activating'', which for a Type=simple unit with Restart=on-failure means auto-restart — a crash loop). NOT yet proven to be the cause of that finding: the loop was not reproducible on the healthy cluster and the agent''s journal was never captured, which is a separate evidence gap now closed. It is recorded on its own merits — a cluster-wide shared secret must never be computed from a substituted input. The repair makes the derivation return (token, ok) and fail closed, and the caller defers the reconcile with a log line, leaving the last good config in place until the authority inputs are readable. Note the prior test asserted only that the token was non-empty, which the old code satisfied unconditionally — it could not distinguish a real derivation from one over empty bytes.'
+      protects:
+        files:
+          - golang/node_agent/node_agent_server/scylla_manager_agent_config.go
+      related_invariants:
+        - identity.has_single_canonical_source_and_is_immutable
+      required_tests:
+        - golang/node_agent/node_agent_server/scylla_manager_agent_config_test.go:TestDeriveClusterScopedScyllaAuthToken_Stable
+      evidence:
+        - deriveClusterScopedScyllaAuthToken defaulted the domain to globular.internal on error and read the CA with 'caBytes, _ := os.ReadFile(caPath)', discarding the error. An absent or unreadable CA therefore hashed as EMPTY BYTES and still produced 48 well-formed hex characters — a token that looks valid and is the wrong one, computed per node rather than per cluster.
+        - 'The file''s own contract says the token must be identical on every agent: scylla-manager caches one token per cluster and presents it to every host, so a node that reconciles before its PKI is in place drifts and answers sctool with HTTP 401 — the exact failure the derivation was introduced to prevent. Each flip between the substitute and the real value also rewrites the config and restarts the agent, since the reconciler restarts on any content change.'
