@@ -11689,3 +11689,12 @@ invariants:
   evidence:
     - '1.2.343 5-node cluster: three nodes held three different seed lists for one ring (node-1 self-only, node-2 ''11,12'', node-3 ''11,13''), each frozen at that node''s join instant, because the only dispatch site is recoverNode()'
   contract: The applied rendered config on a node is not authoritative. Whenever the controller's render of a node's config differs from what that node last applied, the difference is drift and must be re-dispatched — regardless of why it changed.
+- id: invariant.a_discarded_read_error_is_safe_only_when_absence_stays_disti
+  title: A discarded read error is safe only when absence stays distinguishable downstream
+  status: active
+  description: 'Not every ''x, _ := os.ReadFile(...)'' is a defect, and treating them as interchangeable produces both false alarms and missed bugs. The distinction is what absence BECOMES. Safe: the zero value remains recognisable as absence and every consumer tests for it — minio_systemd_reconcile.go and scylla_manager_agent_config.go read an existing file only to answer ''is there one already?'', where empty correctly means ''no''; domain/reconciler.go reads chain.pem with an explicit ''// optional'' marker; certificate.go publishes a possibly-empty CA into a CertBundle whose two readers both guard (certificate.go ''if len(bundle.CA) > 0'', etcd_kv.go ''if payload.CA != ""''), so a missing CA propagates as a missing CA. Unsafe: the zero value is CONSUMED into a derivation whose output is indistinguishable from a legitimate one. deriveClusterScopedScyllaAuthToken hashed empty CA bytes and returned 48 well-formed hex characters — nothing downstream could tell that token from the real one, so absence was laundered into a confident wrong answer. The test to apply when reviewing a discarded read error: can any consumer still tell that the input was missing? If yes it is a style question; if the value is folded into a hash, a token, an identity, or a checksum, absence has been erased and the read must fail closed. Sibling sweep over this repo (2026-08-30) found 4 discarded-error reads, 3 safe by this test and 1 unsafe — the token derivation, now fixed.'
+  protects:
+    files:
+      - golang/node_agent/node_agent_server/scylla_manager_agent_config.go
+  related_failure_modes:
+    - failure.cluster_wide_scylla_agent_token_derived_from_substituted_inp
