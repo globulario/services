@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -130,6 +131,7 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 	// files matter for the NEXT start, so they converge by being written.
 	withOpTimeout(15*time.Second, srv.reconcileScyllaSeeds)
 	withOpTimeout(15*time.Second, srv.refreshEtcdEndpointsFromSystemKey)
+	withOpTimeout(10*time.Second, srv.ensureMetricsPortPublished)
 
 	heartbeatDelay := 30 * time.Second
 	heartbeatTimer := time.NewTimer(0) // immediate first heartbeat
@@ -227,6 +229,7 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 		// would leave a freshly grown cluster reporting stale seeds for most of
 		// its bootstrap. Neither restarts its service.
 		withOpTimeout(10*time.Second, srv.reconcileScyllaSeeds)
+		withOpTimeout(10*time.Second, srv.ensureMetricsPortPublished)
 		withOpTimeout(10*time.Second, srv.refreshEtcdEndpointsFromSystemKey)
 	}
 
@@ -2315,4 +2318,67 @@ func assignEntrypointChecksumMetadata(pkg *node_agentpb.InstalledPackage, manife
 	if diskEntry != "" {
 		pkg.Metadata["entrypoint_checksum_disk_observed"] = diskEntry
 	}
+}
+
+
+// ensureMetricsPortPublished re-asserts this node's /node_agent_metrics_port key
+// so a single failed write cannot leave the node permanently invisible.
+//
+// The key is published once, at identity adoption, by a fire-and-forget
+// persistMetricsPort with a 3s etcd timeout — issued during a join, which is the
+// busiest and least reliable moment in a node's life. It logs on failure and is
+// never retried, and the 5-minute re-key timer it replaced has long expired by
+// then. One lost Put is therefore permanent.
+//
+// The key is load-bearing well beyond metrics. It is how a node's PRESENCE is
+// counted: probe_cluster_nodes greps /node_agent_metrics_port$, so a node that
+// misses this one write reads as absent while being entirely healthy. Observed
+// on 1.2.340 as all_nodes_heartbeating "expected >= 5, got 4" failing three
+// scenarios, and again on 1.2.353 where node c8a09d9e held every package key and
+// only this one was missing — failing compute-node-stop-restart at its
+// PRECONDITIONS and, through that, two later scenarios that inherited the count.
+//
+// Reconciling here is the node reporting an observation about ITSELF — the
+// bound port, under its own subtree — which is what the heartbeat is for
+// (intent runtime_health.requires_live_observation) and stays inside its own
+// layer (four_layer.layer_has_single_writing_actor). It writes no desired state
+// (infra.heartbeat_observer_only_not_authority).
+//
+// It is a read-then-write, not an unconditional Put: an already-correct key is
+// left untouched, so this cannot become an observe-time stomp
+// (forbidden_fix.bump_immutable_timestamp_on_observe). The value has one source,
+// boundMetricsPort — the port actually bound — never a guess or a default
+// (identity.has_single_canonical_source_and_is_immutable).
+func (srv *NodeAgentServer) ensureMetricsPortPublished(ctx context.Context) {
+	// A provisional id is one this node derived locally, not one the cluster
+	// granted. Publishing under it creates exactly the orphan subtree the sync
+	// path refuses to create.
+	if srv.nodeIDProvisional {
+		return
+	}
+	key := metricsPortEtcdKey(srv.nodeID)
+	if key == "" {
+		return
+	}
+	port := int(boundMetricsPort.Load())
+	if port <= 0 {
+		return // listener has not bound yet — nothing observed, so nothing to report
+	}
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return // transient; the next heartbeat retries
+	}
+	want := strconv.Itoa(port)
+	resp, err := cli.Get(ctx, key)
+	if err != nil {
+		return
+	}
+	if len(resp.Kvs) > 0 && string(resp.Kvs[0].Value) == want {
+		return // already correct — leave it alone
+	}
+	if _, err := cli.Put(ctx, key, want); err != nil {
+		log.Printf("metrics: cannot republish %s=%s: %v", key, want, err)
+		return
+	}
+	log.Printf("metrics: republished %s=%s (node presence key was missing or stale)", key, want)
 }
