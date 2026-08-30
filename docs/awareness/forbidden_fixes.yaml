@@ -4370,3 +4370,9 @@ forbidden_fixes:
   evidence:
     - '1.2.352: 6 doctor ERRORs after first-join, cluster at 1 visible node; 1.2.353 with the reconciler reverted: 1 ERROR (the original self-only initial-cluster), rejoin healthy'
     - golang/node_agent/node_agent_server/infra_truth/etcd_attestation.go:14 names cluster-controller reconcileServiceConfigs as the owner and forbids hand-editing
+- id: forbidden_fix.lengthen_waitactive_instead_of_confirming_the_unit_stayed_ac
+  title: Lengthen WaitActive instead of confirming the unit stayed active
+  summary: 'Raising supervisor.WaitActive''s timeout does not address this failure and cannot: WaitActive returns on the FIRST active reading, so a larger timeout only extends how long it is willing to wait for the unit to come up. It never re-checks afterwards. A unit that goes active at t=0 and exits at t=5s satisfies a 30s WaitActive and a 300s WaitActive identically. The two claims are ''it started'' and ''it is still running'', and no timeout on the first ever produces the second. Equally forbidden: treating a clean exit-0 as success because systemd reported ''Deactivated successfully'' — for etcd that string is how removal from the ring is reported.'
+  related_invariants:
+    - diagnostics.must_measure_reality
+  reason: 'Raising supervisor.WaitActive''s timeout does not address this failure and cannot: WaitActive returns on the FIRST active reading, so a larger timeout only extends how long it is willing to wait for the unit to come up. It never re-checks afterwards. A unit that goes active at t=0 and exits at t=5s satisfies a 30s WaitActive and a 300s WaitActive identically. The two claims are ''it started'' and ''it is still running'', and no timeout on the first ever produces the second. Equally forbidden: treating a clean exit-0 as success because systemd reported ''Deactivated successfully'' — for etcd that string is how removal from the ring is reported.'

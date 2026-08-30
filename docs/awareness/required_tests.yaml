@@ -6434,3 +6434,8 @@ required_tests:
   protects:
     failure_modes:
       - failure.rendered_service_config_is_never_re_pushed_after_membership
+- id: golang/node_agent/node_agent_server/grpc_workflow_settle_test.go:TestHoldsActive_RejectsUnitThatDiesDuringSettle
+  title: A unit that goes active then dies during the settle window is not a repair
+  protects:
+    failure_modes:
+      - failure.package_repair_reports_succeeded_for_a_unit_that_goes_active
