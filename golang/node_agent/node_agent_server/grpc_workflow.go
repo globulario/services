@@ -403,8 +403,8 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 				log.Printf("grpc-workflow: install-package %s: enable %s failed (proceeding to start): %v", pkgName, unit, enableErr)
 			}
 			if startErr := supervisor.Start(ctx, unit); startErr == nil {
-				if waitErr := supervisor.WaitActive(ctx, unit, 30*time.Second); waitErr == nil {
-					log.Printf("grpc-workflow: install-package %s: repair via Enable+Start succeeded", pkgName)
+				if waitErr := waitActiveAndStable(ctx, unit, 30*time.Second, repairSettleWindow); waitErr == nil {
+					log.Printf("grpc-workflow: install-package %s: repair via Enable+Start succeeded (still active after %s)", pkgName, repairSettleWindow)
 					srv.emitConvergenceResult(&installed_state.ConvergenceResultV1{
 						ActionID:        convergenceActionID(srv.nodeID, pkgKind, pkgName, desiredVersion),
 						WorkflowID:      wfID,
@@ -426,7 +426,7 @@ func (srv *NodeAgentServer) runInstallPackage(ctx context.Context, req *node_age
 					}, nil
 				}
 			}
-			log.Printf("grpc-workflow: install-package %s: repair via Start failed, proceeding with full reinstall", pkgName)
+			log.Printf("grpc-workflow: install-package %s: repair via Start did not hold, proceeding with full reinstall", pkgName)
 
 		case installSkipDeniedUnitGone:
 			log.Printf("grpc-workflow: %s", reason)
@@ -956,4 +956,77 @@ func cacheWorkflowDefsFromEtcd(destDir string) int {
 		log.Printf("workflow-resolver: no workflow definitions found in etcd")
 	}
 	return fetched
+}
+
+
+// repairSettleWindow is how long a repaired unit must STAY active before the
+// repair may be called a success.
+//
+// Observed 2026-08-30 (authority suite, node-5): etcd went active at 10:52:20,
+// the repair logged success at 10:52:20, and etcd was dead at 10:52:25 — five
+// seconds. A settle window shorter than that proves nothing.
+const repairSettleWindow = 15 * time.Second
+
+// waitActiveAndStable waits for unit to become active, then keeps watching for
+// settle to confirm it is still active. It exists because those are two
+// different claims and only the second one means "repaired".
+//
+// supervisor.WaitActive returns the moment it first observes active, which is
+// the correct semantic for "did it start". It is the wrong semantic for "is it
+// fixed" whenever a unit's failure mode is a clean early exit — and that is
+// precisely etcd's behaviour when the member has been removed from the ring: it
+// exits 0 after a few hundred milliseconds, systemd records "Deactivated
+// successfully", Restart=on-failure never fires, and nothing looks wrong.
+// Reporting SUCCEEDED there does more than miss a repair: it writes a
+// success-outcome convergence result for a package that is not running, so
+// Layer 3 disagrees with Layer 4 while convergence reports clean
+// (invariant diagnostics.must_measure_reality — claims are not proof).
+//
+// The window is a floor, not a guarantee: a unit that dies after it expires
+// still slips through, and the honest reading of a pass here is "it survived
+// the settle window", not "it is healthy". Deciding what to DO about a member
+// that cannot rejoin is the controller's call, not this node's
+// (intent node_agent.is_executor_not_cluster_brain) — the duty here is to stop
+// claiming success and let the failure surface.
+func waitActiveAndStable(ctx context.Context, unit string, timeout, settle time.Duration) error {
+	if err := supervisor.WaitActive(ctx, unit, timeout); err != nil {
+		return err
+	}
+	return holdsActive(ctx, unit, settle, supervisor.IsActive)
+}
+
+// holdsActive is the testable core of waitActiveAndStable: given a way to ask
+// whether a unit is active, confirm it stays active for the whole settle
+// window. Split out so the "went active then died" case can be proven in a
+// unit test rather than only in a scenario run — the behaviour is the entire
+// point of the change, so it needs an oracle that can actually fail.
+func holdsActive(ctx context.Context, unit string, settle time.Duration, isActive func(context.Context, string) (bool, error)) error {
+	if settle <= 0 {
+		return nil
+	}
+	started := time.Now()
+	deadline := started.Add(settle)
+	for {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return nil
+		}
+		pause := time.Second
+		if remaining < pause {
+			pause = remaining
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(pause):
+		}
+		active, err := isActive(ctx, unit)
+		if err != nil {
+			return err
+		}
+		if !active {
+			return fmt.Errorf("unit %s became active but went inactive again after %s — start is not proof of repair",
+				unit, time.Since(started).Round(time.Second))
+		}
+	}
 }
