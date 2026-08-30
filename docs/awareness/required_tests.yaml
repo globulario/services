@@ -6439,3 +6439,8 @@ required_tests:
   protects:
     failure_modes:
       - failure.package_repair_reports_succeeded_for_a_unit_that_goes_active
+- id: golang/cluster_controller/cluster_controller_server/release_phase_reentry_test.go:TestPendingIsUniversalReEntry
+  title: Every live release phase can re-enter at PENDING
+  protects:
+    failure_modes:
+      - failure.release_phase_machine_rejects_transitions_its_own_callers_ro
