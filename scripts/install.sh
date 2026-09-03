@@ -108,17 +108,33 @@ echo ""
 
 # Print a corrected bootstrap command using a detected node-agent gRPC port.
 # This supersedes stale script output that may omit the port suffix.
-NODE_IP="$(ip route get 8.8.8.8 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}')"
+# Every probe below is BEST-EFFORT and must stay that way. This block only
+# prints a friendlier bootstrap command after a Day-0 that has already finished;
+# it has an explicit fallback for each empty result, which is the author saying
+# "not finding this is normal". Under `set -euo pipefail` (line 31) that
+# intention was not actually expressed: a pipeline whose grep matches nothing
+# exits 1, an assignment takes its substitution's status, and the script dies.
+#
+# It killed a successful install. 2026-09-02, 1.2.356 on the 5-node sim: Day-0
+# printed "✓ INSTALLATION COMPLETE", then install.sh exited 1 with no message
+# and the quickstart wrapper reported "FATAL: Day-0 install.sh failed" — every
+# node stalled, 0/5 bootstrapped. globular-node-agent's ActiveEnterTimestamp was
+# 23:24:47, the same second install.sh died: the agent was still starting, so
+# `ss | grep '^11000$'` matched nothing. Day-0 itself tells the operator to start
+# the agent as a NEXT step, so "not listening yet" is the expected state here,
+# and this is a race the installer had been winning rather than a state it
+# handled. `|| true` makes the fallbacks reachable, as written.
+NODE_IP="$(ip route get 8.8.8.8 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}' || true)"
 if [[ -z "${NODE_IP}" ]]; then
-  NODE_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+  NODE_IP="$(hostname -I 2>/dev/null | awk '{print $1}' || true)"
 fi
 if [[ -z "${NODE_IP}" ]]; then
   die "Could not determine a routable node IP for the bootstrap command"
 fi
 
-NODE_AGENT_PORT="$(ss -ltnp 2>/dev/null | awk '/node_agent_serv/ {split($4,a,":"); p=a[length(a)]; if(p ~ /^[0-9]+$/){print p}}' | grep -E '^11000$' | head -n1)"
+NODE_AGENT_PORT="$(ss -ltnp 2>/dev/null | awk '/node_agent_serv/ {split($4,a,":"); p=a[length(a)]; if(p ~ /^[0-9]+$/){print p}}' | grep -E '^11000$' | head -n1 || true)"
 if [[ -z "${NODE_AGENT_PORT}" ]]; then
-  NODE_AGENT_PORT="$(ss -ltnp 2>/dev/null | awk '/node_agent_serv/ {split($4,a,":"); p=a[length(a)]; if(p ~ /^[0-9]+$/){print p}}' | head -n1)"
+  NODE_AGENT_PORT="$(ss -ltnp 2>/dev/null | awk '/node_agent_serv/ {split($4,a,":"); p=a[length(a)]; if(p ~ /^[0-9]+$/){print p}}' | head -n1 || true)"
 fi
 if [[ -z "${NODE_AGENT_PORT}" ]]; then
   NODE_AGENT_PORT="11000"
