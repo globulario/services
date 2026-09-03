@@ -974,6 +974,35 @@ func (m *etcdMemberManager) memberIsHealthy(ctx context.Context, peerURL string)
 	return false
 }
 
+// memberIsResponding reports whether a member is actually alive, by asking it.
+//
+// memberIsHealthy above answers a different question — "is this peer URL in the
+// member list" — which is membership, not liveness, and is therefore useless as
+// a guard on removing something FROM that list. This dials the member's own
+// client URL and asks for its status: only a running etcd answers.
+//
+// Fail-closed: an unreachable member, a member with no client URLs, or any error
+// returns false, which lets a genuine ghost be pruned. The guard exists to stop
+// the removal of members that demonstrably still serve, not to make removal
+// impossible.
+func (m *etcdMemberManager) memberIsResponding(ctx context.Context, member *etcdserverpb.Member) bool {
+	if m == nil || m.client == nil || member == nil {
+		return false
+	}
+	for _, clientURL := range member.ClientURLs {
+		if strings.TrimSpace(clientURL) == "" {
+			continue
+		}
+		sctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		_, err := m.client.Status(sctx, clientURL)
+		cancel()
+		if err == nil {
+			return true
+		}
+	}
+	return false
+}
+
 // etcdJoinsInProgressPrefix is the etcd key prefix the join script writes
 // to before issuing `etcdctl member add`. Keys are leased with a short TTL
 // so the lock self-cleans if the join crashes between member-add and the
@@ -1039,6 +1068,62 @@ func parseEtcdJoinLockKeys(keys []string) map[string]bool {
 // removeStaleMembers removes etcd members whose peer URL doesn't match any
 // desired etcd node. This handles node removal from the cluster.
 // Skips members that are mid-join (unnamed) to avoid interfering with the join flow.
+// staleMemberAction is what removeStaleMembers should do with one member,
+// decided from state alone so the decision can be tested without an etcd.
+type staleMemberAction int
+
+const (
+	// staleMemberSkip: some node record accounts for this member, or it is
+	// unstarted / mid-join. Leave it alone.
+	staleMemberSkip staleMemberAction = iota
+	// staleMemberUpdatePeerURL: the same logical node (hostname match) is
+	// registered at a different peer URL than the member carries. Update the
+	// member rather than remove it.
+	staleMemberUpdatePeerURL
+	// staleMemberCandidate: no node record claims this member. It MAY be a
+	// ghost — but that is an inference from the controller's node view, and the
+	// caller must confirm the member is not still serving before removing it.
+	staleMemberCandidate
+)
+
+// classifyStaleMemberAction decides the fate of one etcd member from the desired
+// sets alone. It never concludes "remove": the strongest verdict it returns is
+// staleMemberCandidate, because whether a member is really a ghost is a question
+// about the member, not about the controller's records.
+func classifyStaleMemberAction(
+	member *etcdserverpb.Member,
+	desiredPeerURLs map[string]bool,
+	desiredHostnames map[string]bool,
+	desiredPeerURLByHostname map[string]string,
+	joinInProgress map[string]bool,
+) (staleMemberAction, string) {
+	if member == nil || member.Name == "" {
+		return staleMemberSkip, "" // unstarted member — might be mid-join
+	}
+	if joinInProgress[member.Name] {
+		return staleMemberSkip, "" // Day-1 join in flight for this hostname
+	}
+	if expectedPeerURL, ok := desiredPeerURLByHostname[member.Name]; ok && expectedPeerURL != "" {
+		for _, purl := range member.PeerURLs {
+			if purl == expectedPeerURL {
+				return staleMemberSkip, "" // already at the expected peer URL
+			}
+		}
+		return staleMemberUpdatePeerURL, expectedPeerURL
+	}
+	for _, purl := range member.PeerURLs {
+		if desiredPeerURLs[purl] {
+			return staleMemberSkip, ""
+		}
+	}
+	// Fallback: match by sanitized hostname in case IP is temporarily empty
+	// in controller state but the node is still a legitimate cluster member.
+	if desiredHostnames[member.Name] {
+		return staleMemberSkip, ""
+	}
+	return staleMemberCandidate, ""
+}
+
 func (m *etcdMemberManager) removeStaleMembers(ctx context.Context, desiredEtcdNodes []memberNode) error {
 	if m == nil || m.client == nil {
 		return nil
@@ -1080,22 +1165,14 @@ func (m *etcdMemberManager) removeStaleMembers(ctx context.Context, desiredEtcdN
 	}
 
 	for _, member := range resp.Members {
-		if member.Name == "" {
-			continue // unstarted member — might be mid-join, don't remove
-		}
-		if joinInProgress[member.Name] {
-			// Day-1 join in flight for this hostname; don't evict.
+		action, expectedPeerURL := classifyStaleMemberAction(
+			member, desiredPeerURLs, desiredHostnames, desiredPeerURLByHostname, joinInProgress)
+
+		switch action {
+		case staleMemberSkip:
 			continue
-		}
-		if expectedPeerURL, ok := desiredPeerURLByHostname[member.Name]; ok && expectedPeerURL != "" {
-			hasExpected := false
-			for _, purl := range member.PeerURLs {
-				if purl == expectedPeerURL {
-					hasExpected = true
-					break
-				}
-			}
-			if !hasExpected {
+		case staleMemberUpdatePeerURL:
+			{
 				updCtx, updCancel := context.WithTimeout(ctx, 10*time.Second)
 				_, updErr := m.client.MemberUpdate(updCtx, member.ID, []string{expectedPeerURL})
 				updCancel()
@@ -1110,19 +1187,40 @@ func (m *etcdMemberManager) removeStaleMembers(ctx context.Context, desiredEtcdN
 			// Same logical node (hostname match): never treat as stale.
 			continue
 		}
-		isDesired := false
-		for _, purl := range member.PeerURLs {
-			if desiredPeerURLs[purl] {
-				isDesired = true
-				break
-			}
-		}
-		// Fallback: match by sanitized hostname in case IP is temporarily empty
-		// in controller state but the node is still a legitimate cluster member.
-		if !isDesired && desiredHostnames[member.Name] {
-			isDesired = true
-		}
-		if isDesired {
+
+		// action == staleMemberCandidate: no node record claims this member.
+		// A member that still answers is not stale — whatever the node view says.
+		//
+		// "Stale" here means a ghost: an entry for a node the cluster no longer
+		// has. It is inferred from the controller's node records, and those can be
+		// wrong. On 2026-09-02 the node-clone-identity-collision scenario proved
+		// how wrong: an impostor container claiming node-4's identity took over
+		// node-4's node record, the record's IP became the impostor's, and the
+		// live member for https://10.10.0.14:2380 then matched no desired peer URL
+		// and no desired hostname. This loop removed it. node-4 — untouched,
+		// healthy, a voting member of the ring — was evicted from etcd by a
+		// reconciler acting on a corrupted premise, and its etcd never came back
+		// (its data dir still carried the old member id, so the later re-add
+		// produced "rejected Raft message to mismatch member" and the unit
+		// exited). The ring went 5 -> 3 healthy on a cluster where one container
+		// had been started with a copied identity.
+		//
+		// So the removal is gated on evidence rather than on inference, per
+		// etcd.auto_rejoin_leader_guard_fails_open (same class: a quorum-reducing
+		// action that must fail closed) and delete_requires_explicit_intent_marker
+		// (a reconciler has no explicit intent to delete). A genuine ghost does not
+		// answer; refusing to prune the ones that do costs only that a deliberately
+		// removed-but-still-running node lingers in the ring — and deliberate
+		// removal has its own path (RemoveNode does its own membership remove),
+		// which does not depend on this sweep.
+		if m.memberIsResponding(ctx, member) {
+			log.Printf("etcd member-remove: REFUSING to prune member %s (id=%d, peer=%v) — "+
+				"it is a live, responding member and no node record claims it. "+
+				"The controller's node view disagrees with a healthy voter; "+
+				"removing it would reduce quorum on a premise that may be wrong. "+
+				"Investigate the node record (duplicate identity? lost heartbeat?) "+
+				"or remove the node explicitly.",
+				member.Name, member.ID, member.PeerURLs)
 			continue
 		}
 
