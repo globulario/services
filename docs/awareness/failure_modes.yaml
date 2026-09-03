@@ -8382,3 +8382,37 @@ failure_modes:
         - '155 blocked transitions across the 1.2.353 evidence bundles alone: AVAILABLE→RESOLVED 109, FAILED→AVAILABLE 23, FAILED→RESOLVED 14, RESOLVED→PENDING 5, DEFERRED→RESOLVED 4. Logged as ''release core@globular.io/<pkg>: BLOCKED: invalid phase transition X → Y'' by advancePhase in release_phase.go.'
         - 'Consequence observed on an isolated 1.2.354 cluster: crash-during-mutation-is-atomic FAILED with no_release_left_failed ''expected 0, got 15''. The releases were already FAILED at 18:35:18, the instant the scenario began, and could not clear: the workflow callback MarkReleaseResolved (workflow_release.go) patches straight to RESOLVED, which validPhaseTransitions does not allow from FAILED, so a FAILED release that receives a fresh workflow can never record progress.'
         - 'Not a regression from the 1.2.354 node-agent fixes: the identical blocks appear in 1.2.353 bundles from 00:10, 03:18 and 09:39, all predating those commits. The scenario passed once on 1.2.353 by timing, not because the defect was absent.'
+    - id: failure.a_deferred_release_is_never_re_enqueued_so_its_own_backoff_r
+      title: A DEFERRED release is never re-enqueued, so its own backoff-retry branch never runs
+      description: reconcileRelease has DEFERRED and WAITING branches that wait releaseWaitingBackoff and then re-enter PENDING via resumeDeferredRelease. Those branches only execute when something enqueues the release, and the release work queue is fed by etcd watch events. A release parked in DEFERRED writes nothing, emits no event, and is therefore never reconsidered — the rescue code is unreachable in exactly the state it exists to rescue. The retry appeared to work only while selectReleaseTargets kept re-deferring and writing a status change on every pass; once markOutOfScope stopped permanently-ineligible nodes from counting as deferrals, that watch-event ping-pong stopped standing in for a scheduler and one legitimate deferral became permanent.
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/release_reconciler.go
+      related_invariants:
+        - reconciliation.must_be_idempotent_and_bounded
+      required_tests:
+        - golang/cluster_controller/cluster_controller_server/release_deferred_requeue_test.go:TestRequeueReleases_DeferredPastBackoffIsRequeued
+      evidence:
+        - '1.2.355 five-node simulation, 2026-09-02: cluster-doctor, mcp, node-agent, resource and search entered DEFERRED at 19:12-19:14 UTC and were still DEFERRED at 19:44 with no intervening reconcile. Scenario platform-upgrade-release-boundary polled release.audit for 600s and failed the settle with failed=0 pending=5. Evidence bundle tests/reports/20260902T185046-upgrade/platform-upgrade-release-boundary in globular-quickstart.'
+    - id: failure.the_stale_member_prune_evicts_a_live_etcd_voter_when_an_impo
+      title: The stale-member prune evicts a live etcd voter when an impostor hijacks its node record
+      description: 'removeStaleMembers infers ''ghost'' from the controller''s node records: a member whose peer URL and hostname appear in no desired node record is removed. Those records can be wrong. A container started with a copy of another node''s identity takes over that node''s record, the record''s IP becomes the impostor''s, and the legitimate node''s live peer URL then matches nothing — so a healthy, voting member is removed by a reconciler acting on a corrupted premise. The node cannot come back either: the later re-add mints a new member id while its data dir still holds the old one, and etcd exits with ''rejected Raft message to mismatch member''. Same class as etcd.auto_rejoin_leader_guard_fails_open — a quorum-reducing action taken on an inference instead of on evidence.'
+      protects:
+        files:
+          - golang/cluster_controller/cluster_controller_server/etcd_members.go
+      related_invariants:
+        - meta.quorum_is_quality_not_constraint
+      required_tests:
+        - golang/cluster_controller/cluster_controller_server/etcd_stale_member_guard_test.go:TestClassifyStaleMemberAction_UnclaimedLiveMemberIsOnlyACandidate
+      evidence:
+        - '1.2.355 five-node simulation, 2026-09-02 22:37-22:49 UTC, scenario node-clone-identity-collision run in isolation on a freshly cold-booted cluster. Member list sampled every 15s: 22:37:22 five members; 22:42:18 ''removeStaleNodesLocked: removing duplicate/stale node 35ac3821 (same host as 6400b443)''; 22:42:24 ''etcd member-remove: removed stale member node-4 (id=2263181996067307296, peer=[https://10.10.0.14:2380])'' — node-4 was healthy and untouched by the scenario; 22:44:54 node-5''s member removed; 22:45:58 a NEW unstarted member 113b1bd9e0619ed6 added for 10.10.0.14; 22:47:21 node-4 etcd logs ''rejected Raft message to mismatch member (local-member-id 1f687008d9a6bf20, mismatch-member-id 113b1bd9e0619ed6)'' and the unit deactivates. Ring ended 4 members / 3 healthy endpoints; node-4 stayed down. Scenario postcondition cluster_returned_to_baseline failed with diffs [etcd_healthy_endpoints: baseline=5 now=3, etcd_member_count: baseline=5 now=4].'
+    - id: failure.a_best_effort_probe_in_install_sh_aborts_a_completed_day_0_w
+      title: A best-effort probe in install.sh aborts a completed Day-0 when it matches nothing
+      description: 'install.sh runs under ''set -euo pipefail'' and, after Day-0 has finished, probes for the node-agent''s listening port to print a friendlier bootstrap command. Each probe has an explicit empty-result fallback, so the author intended it as best-effort — but under pipefail a grep that matches nothing makes the pipeline exit 1, an assignment inherits its substitution''s status, and the script dies before reaching the fallback. Day-0 itself instructs the operator to start the node agent as a NEXT step, so ''not listening yet'' is the expected state at that point: the installer had been winning a race, not handling a state. The failure is silent (no message) and is reported by the caller as a Day-0 install failure, which sends every diagnosis to the wrong subsystem.'
+      protects:
+        files:
+          - scripts/install.sh
+      related_invariants:
+        - meta.quorum_is_quality_not_constraint
+      evidence:
+        - '1.2.356 five-node simulation, 2026-09-02 23:24:47 UTC. install-day0.sh printed the ''✓ INSTALLATION COMPLETE'' banner and its Next-steps block; install.sh then exited 1 without printing its own ''Corrected bootstrap command'' block, and the quickstart wrapper logged ''[bootstrap] FATAL: Day-0 install.sh failed''. All five nodes stalled at bootstrap-complete=0/5 for 35 minutes. globular-node-agent ActiveEnterTimestamp on node-1 was 23:24:47 — the same second — so ''ss -ltnp | awk ... | grep -E ^11000$ | head -n1'' matched nothing. The same six cold boots on 1.2.355 earlier the same day all won the race and passed. Reproduced in isolation: bash -c ''set -euo pipefail; P="$(echo | grep -E "^11000$" | head -n1)"'' exits 1; adding ''|| true'' exits 0 and reaches the fallback.'

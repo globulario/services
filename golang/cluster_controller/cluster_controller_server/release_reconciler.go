@@ -1001,10 +1001,18 @@ func infraRepoAddr(spec *cluster_controllerpb.InfrastructureReleaseSpec) string 
 }
 
 // requeueFailedReleases scans all ServiceRelease and InfrastructureRelease objects
-// for entries stuck in FAILED/ROLLED_BACK phase or in RESOLVED+transient-error
-// state that have exceeded their retry backoff. The watcher-driven work queue
-// only fires on etcd changes; without this, a FAILED or transiently-blocked
-// RESOLVED release that was processed at startup is never retried.
+// for entries parked in a non-terminal phase whose only way forward is another
+// reconcile pass, and re-enqueues those past their backoff:
+//
+//	FAILED / ROLLED_BACK   releaseRetryBackoff   (5m)
+//	DEFERRED / WAITING     releaseWaitingBackoff (2m)
+//	RESOLVED               NextRetryUnixMs (transient workflow error)
+//
+// The watcher-driven work queue only fires on etcd changes; a release parked in
+// one of these phases writes nothing, so without this scan the phase branch that
+// exists to rescue it is never reached. ApplicationRelease has the same DEFERRED
+// branch (reconcileAppRelease) and no periodic requeue at all — untouched here
+// because it has never been observed to park, but the gap is the same shape.
 // Called from the periodic-release-bridge every 2 minutes.
 func (srv *server) requeueFailedReleases(ctx context.Context) {
 	if srv.resources == nil || srv.releaseEnqueue == nil {
@@ -1043,6 +1051,35 @@ func (srv *server) requeueFailedReleases(ctx context.Context) {
 					transientBlocked++ // still inside backoff window
 					continue
 				}
+			case cluster_controllerpb.ReleasePhaseDeferred, cluster_controllerpb.ReleasePhaseWaiting:
+				// DEFERRED and WAITING are retry-after-backoff phases: reconcileRelease
+				// has a branch for each that waits releaseWaitingBackoff and then
+				// re-enters PENDING (resumeDeferredRelease / reconcilePending). Those
+				// branches only run when something enqueues the release — and the work
+				// queue is fed by etcd watch events. A release parked in DEFERRED
+				// changes nothing, so it emits no event, so it is never re-enqueued,
+				// so the backoff branch that was written to rescue it never runs. The
+				// retry existed only as long as the release kept re-deferring and
+				// writing a status change on every pass; once selectReleaseTargets
+				// stopped counting permanently-ineligible nodes as deferrals
+				// (markOutOfScope, workflow_release.go), the ping-pong that had been
+				// standing in for a scheduler stopped too, and a single legitimate
+				// deferral became permanent.
+				//
+				// Measured on the 5-node simulation, release 1.2.355, 2026-09-02:
+				// cluster-doctor, mcp, node-agent, resource and search entered
+				// DEFERRED at 19:12-19:14 UTC and were still DEFERRED at 19:44 with
+				// no intervening reconcile — platform-upgrade-release-boundary failed
+				// its settle with pending=5 after polling for 600s.
+				//
+				// The backoff is re-checked by the phase branch itself, so enqueueing
+				// early is harmless; this only guarantees the branch gets to run.
+				if rel.Status.LastTransitionUnixMs > 0 {
+					elapsed := now.Sub(time.UnixMilli(rel.Status.LastTransitionUnixMs))
+					if elapsed < releaseWaitingBackoff {
+						continue
+					}
+				}
 			default:
 				continue
 			}
@@ -1059,12 +1096,21 @@ func (srv *server) requeueFailedReleases(ctx context.Context) {
 				continue
 			}
 			phase := rel.Status.Phase
-			if phase != cluster_controllerpb.ReleasePhaseFailed && phase != cluster_controllerpb.ReleasePhaseRolledBack {
+			// Same dead-retry-branch gap as ServiceRelease above: reconcileInfraRelease
+			// has DEFERRED/WAITING backoff branches that nothing can reach without a
+			// periodic enqueue. They wait releaseWaitingBackoff rather than the longer
+			// releaseRetryBackoff that FAILED/ROLLED_BACK use.
+			backoff := releaseRetryBackoff
+			switch phase {
+			case cluster_controllerpb.ReleasePhaseFailed, cluster_controllerpb.ReleasePhaseRolledBack:
+			case cluster_controllerpb.ReleasePhaseDeferred, cluster_controllerpb.ReleasePhaseWaiting:
+				backoff = releaseWaitingBackoff
+			default:
 				continue
 			}
 			if rel.Status.LastTransitionUnixMs > 0 {
 				elapsed := now.Sub(time.UnixMilli(rel.Status.LastTransitionUnixMs))
-				if elapsed < releaseRetryBackoff {
+				if elapsed < backoff {
 					continue
 				}
 			}
@@ -1074,7 +1120,7 @@ func (srv *server) requeueFailedReleases(ctx context.Context) {
 		}
 	}
 	if requeued > 0 {
-		log.Printf("periodic-release-bridge: re-queued %d FAILED/ROLLED_BACK release(s) past retry backoff", requeued)
+		log.Printf("periodic-release-bridge: re-queued %d release(s) past retry backoff", requeued)
 	}
 }
 
