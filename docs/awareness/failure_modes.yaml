@@ -9558,3 +9558,15 @@ failure_modes:
   - golang/config/etcd_client_cert_source_test.go:TestEtcdClientCertSource_PicksUpRestoredCertWithoutRestart
   evidence:
   - '1.2.360 five-node simulation, 2026-09-03. (1) node-3 held a bad cached client cert for 37 minutes across 55 reconcile cycles of remediation_no_progress while the correct cert had been on disk within a minute; 591 ''tls: client didn''t provide a certificate'' rejections, 100% of them from node-3, to all five members. (2) upgrade/deploy-publish-then-converge PARTIAL and authority/rejoin-after-missed-generations lost 2 of 3 desired-state writes to Unauthenticated ''cluster_uid required after cluster initialization''; the failure rate is the fraction of repository-discovery rotations that leave the node, since loopback is exempt from the check.'
+- id: failure.a_certificate_re_issued_through_the_ca_gateway_carries_no_ip
+  title: A certificate re-issued through the CA gateway carries no IP SANs, so the repaired node is unreachable by every peer that dials it by address
+  description: 'reissueLeafViaCAGateway passed only spec.GetAlternateDomains() to security.InstallServerCertificates. The local issuance path in the same file collects gatherIPs() plus the ingress VIP; the gateway path passed no IP SANs at all, so a leaf re-issued on a NON-ISSUER node came back with DNS names only. The controller dials node agents by IP and etcd peers verify each other by IP, so the repaired certificate is unusable for exactly the traffic that matters. The agent detects this and logs ''repair reported success but certificate is still unusable: missing IP SAN: <ip>'' — a self-diagnosis that nothing acted on, because the covering scenario asserted only expiry and chain validity and reported PASS. The plumbing was never the obstacle: normalizeAltDomains already routes any alternate that parses as an IP into the SAN config''s IP.N block, so the IPs simply were not passed.'
+  protects:
+    files:
+      - golang/node_agent/node_agent_server/certificate.go
+  related_invariants:
+    - diagnostics.must_measure_reality
+  required_tests:
+    - golang/security/san_ip_coverage_test.go:TestSanConfig_DNSOnlyAlternatesProduceNoIPSANs
+  evidence:
+    - '1.2.360 five-node simulation, 2026-09-03: node-3 logged ''repair reported success but certificate is still unusable: missing IP SAN: 10.10.0.13'' at 17:10:27 while security/cert-expiry-detection reported PASS 12/12. Its cached etcd client then produced 591 ''tls: client didn''t provide a certificate'' rejections — 100% of all such rejections in the cluster — and the controller raised infra_unhealthy against a healthy etcd for 55 reconcile cycles. 1.2.361 with the strengthened assertion: security/cert-expiry-detection FAILS with "field ''node_ip_san_ok'': expected True, got False" against the same unfixed binary, making the defect reproducible rather than merely logged.'
