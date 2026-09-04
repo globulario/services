@@ -925,7 +925,8 @@ func downloadServiceArtifact(service, version, publisher string) (string, error)
 func dialRepository() (*grpc.ClientConn, error) {
 	if svcApplyRepoInsec {
 		// TLS with skip-verify — all services require TLS.
-		opts := []grpc.DialOption{grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true}))}
+		opts := append(clusterMetadataDialOptions(),
+			grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})))
 		if rootCfg.token != "" {
 			opts = append(opts, grpc.WithPerRPCCredentials(tokenCredentials{token: rootCfg.token}))
 		}
@@ -939,7 +940,7 @@ func dialRepository() (*grpc.ClientConn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("repository TLS: %w", err)
 	}
-	opts := []grpc.DialOption{grpc.WithTransportCredentials(creds)}
+	opts := append(clusterMetadataDialOptions(), grpc.WithTransportCredentials(creds))
 	if rootCfg.token != "" {
 		opts = append(opts, grpc.WithPerRPCCredentials(tokenCredentials{token: rootCfg.token}))
 	}

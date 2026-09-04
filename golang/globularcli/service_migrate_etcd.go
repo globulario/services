@@ -46,8 +46,10 @@ func loadClusterNodesEtcd(ctx context.Context, etcd *clientv3.Client) (map[strin
 	dialCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	conn, err := grpc.DialContext(dialCtx, endpoint,
-		grpc.WithTransportCredentials(creds),
-		grpc.WithBlock(),
+		append(clusterMetadataDialOptions(),
+			grpc.WithTransportCredentials(creds),
+			grpc.WithBlock(),
+		)...,
 	)
 	if err != nil {
 		return nil, nil, err
