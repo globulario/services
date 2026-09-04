@@ -920,9 +920,39 @@ func (srv *NodeAgentServer) reissueLeafViaCAGateway(spec *cluster_controllerpb.C
 		org = fmt.Sprintf("%v", gc["Organization"])
 	}
 
-	alts := make([]interface{}, 0, len(spec.GetAlternateDomains()))
+	// SANs for the re-issued leaf: alternate domains AND every address this
+	// node is actually dialled on.
+	//
+	// The IP SANs were missing here, and their absence is why this repair
+	// produced a certificate the node could not use. The local issuance path
+	// (ensureNetworkCerts) gathers gatherIPs() + the ingress VIP; this
+	// gateway path passed only spec.GetAlternateDomains(), so a leaf re-issued
+	// on a NON-ISSUER node came back with DNS SANs and no IP SANs at all.
+	//
+	// The controller dials node agents BY IP, and etcd peers verify each other
+	// by IP, so such a leaf is unusable for exactly the traffic that matters.
+	// Observed 2026-09-03 on node-3: the agent logged "repair reported success
+	// but certificate is still unusable: missing IP SAN: 10.10.0.13", its
+	// cached etcd client could no longer authenticate, and the controller then
+	// raised infra_unhealthy against a perfectly healthy etcd for 55 reconcile
+	// cycles. The scenario covering this passed 12/12 because it asserted only
+	// expiry and chain validity.
+	//
+	// security.normalizeAltDomains already routes any entry that parses as an
+	// IP into the SAN config's IP.N block, so passing them through this same
+	// list is all that is required — no signature change, no new plumbing.
+	ips := gatherIPs()
+	if vip := srv.lookupIngressVIP(); vip != "" {
+		ips = append(ips, vip)
+	}
+	alts := make([]interface{}, 0, len(spec.GetAlternateDomains())+len(ips))
 	for _, d := range spec.GetAlternateDomains() {
 		alts = append(alts, d)
+	}
+	for _, ip := range ips {
+		if strings.TrimSpace(ip) != "" {
+			alts = append(alts, ip)
+		}
 	}
 
 	tmp, err := os.MkdirTemp(filepath.Dir(config.GetCanonicalPKIDir()), "cert-reissue-*")
