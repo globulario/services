@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"log"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	node_agentpb "github.com/globulario/services/golang/node_agent/node_agentpb"
@@ -86,9 +88,27 @@ func (srv *server) probeInfraResultForNode(ctx context.Context, nodeID, endpoint
 		return infraProbeUnreachable
 	}
 
-	if resp.GetStatus() == "SUCCEEDED" {
+	if resp.GetStatus() == node_agentpb.ProbeStatusSucceeded {
 		return infraProbeHealthy
 	}
+
+	// The agent answered that it could not settle the question. That is a
+	// reduced harvest, not a verdict, and it belongs in the same bucket as a
+	// silent agent: we did not learn the component is down, we learned we
+	// could not find out.
+	//
+	// Treating it as UNHEALTHY is failure.an_unreachable_node_agent_is_reported_as_an_unhealthy_infra:
+	// in the 1.2.360 soak run a node agent whose own etcd client had lost its
+	// client certificate reported its perfectly healthy local etcd as FAILED,
+	// the controller raised infra_unhealthy on that member, and remediation
+	// ground against it for 55 reconcile cycles without progress — because no
+	// remediation of etcd can fix an agent's certificate.
+	if resp.GetStatus() == node_agentpb.ProbeStatusUnknown {
+		log.Printf("infra-probe: %s on %s returned status=UNKNOWN detail=%s — component state UNKNOWN, not unhealthy",
+			probeName, endpoint, resp.GetError())
+		return infraProbeUnreachable
+	}
+
 	log.Printf("infra-probe: %s on %s returned status=%s error=%s",
 		probeName, endpoint, resp.GetStatus(), resp.GetError())
 	return infraProbeUnhealthy
@@ -129,17 +149,140 @@ func (srv *server) probeMinioHealth(ctx context.Context, endpoint string) bool {
 // node in EtcdJoinRejoinInProgress that has a reachable node agent. The node
 // agent stops globular-etcd, wipes /var/lib/globular/etcd/member, and restarts
 // globular-etcd so it joins the cluster with the fresh MemberAdd config.
+// etcdRejoinDispatchCooldown bounds how often the same node may be sent the
+// destructive wipe-and-rejoin workflow.
+//
+// Without it the dispatch below fires on EVERY reconcile tick for as long as the
+// node sits in RejoinInProgress — and the phase only leaves that state once the
+// node is BOTH a ring member and running, which is strictly after a wipe has
+// succeeded. A wipe that was working would therefore be re-issued on top of
+// itself every tick, re-wiping an etcd that had just rejoined: the shape of
+// objectstore.minio.transition_wipe_loop, where a destructive step re-runs each
+// cycle and the thing it creates is never allowed to become stable.
+//
+// This did not bite before only because the RPC was cancelled immediately (see
+// below) and never actually ran, so the guard lands together with the fix that
+// makes the loop reachable.
+const etcdRejoinDispatchCooldown = 3 * time.Minute
+
+// etcdRejoinConfigInput is the RunWorkflow input key under which the live ring's
+// membership travels to the node agent, as the value of etcd.yaml's
+// initial-cluster. The node agent refuses the wipe without it — see
+// runWipeEtcdAndRejoin, which also explains why this is the membership rather
+// than a whole rendered file.
+const etcdRejoinConfigInput = "etcd_initial_cluster"
+
+// etcdInitialClusterFromRenderedConfig pulls the initial-cluster VALUE out of a
+// rendered etcd.yaml. It matches "initial-cluster:" exactly, never the
+// -state or -token keys that share its prefix, and returns "" for a config that
+// does not carry one — which the caller treats as "nothing lawful to send".
+func etcdInitialClusterFromRenderedConfig(rendered string) string {
+	for _, line := range strings.Split(rendered, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "initial-cluster:") {
+			continue
+		}
+		value := strings.TrimSpace(strings.TrimPrefix(trimmed, "initial-cluster:"))
+		if unquoted, err := strconv.Unquote(value); err == nil {
+			return unquoted
+		}
+		return value
+	}
+	return ""
+}
+
+// etcdRejoinHoldLogged rate-limits the "holding the wipe" line to once per node
+// per etcdRejoinDispatchCooldown.
+var etcdRejoinHoldLogged sync.Map // nodeID -> time.Time
+
+func logEtcdRejoinHold(nodeID, hostname string) {
+	now := time.Now()
+	if last, ok := etcdRejoinHoldLogged.Load(nodeID); ok {
+		if at, isTime := last.(time.Time); isTime && now.Sub(at) < etcdRejoinDispatchCooldown {
+			return
+		}
+	}
+	etcdRejoinHoldLogged.Store(nodeID, now)
+	log.Printf("etcd auto-rejoin: %s (%s) — holding the wipe: no initial-cluster could be rendered "+
+		"(node not yet in the live ring, or no routable IP). A wipe without current membership "+
+		"leaves etcd unable to start at all.", nodeID, hostname)
+}
+
 func (srv *server) dispatchEtcdWipeAndRejoin(ctx context.Context, nodes []*nodeState) {
 	for _, node := range nodes {
 		if node == nil || node.EtcdJoinPhase != EtcdJoinRejoinInProgress {
+			// Not repairing — forget any past dispatch, so a LATER repair episode
+			// for this node is not suppressed by a stale timestamp.
+			if node != nil {
+				srv.etcdRejoinDispatch.Delete(node.NodeID)
+			}
 			continue
 		}
 		endpoint := node.AgentEndpoint
 		if endpoint == "" {
 			continue
 		}
-		wCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
-		go func(ep, nodeID, hostname string) {
+		if last, ok := srv.etcdRejoinDispatch.Load(node.NodeID); ok {
+			if at, isTime := last.(time.Time); isTime && time.Since(at) < etcdRejoinDispatchCooldown {
+				continue // a wipe is in flight or was just issued
+			}
+		}
+
+		// The membership the node must come back with travels WITH the request.
+		//
+		// The wipe makes this node an uninitialized etcd member, and an
+		// uninitialized member takes its whole membership from initial-cluster in
+		// /var/lib/globular/config/etcd.yaml. That file is written by Day-0 and by
+		// the join script and is refreshed by nothing afterwards — dispatchPlan,
+		// which used to carry renderEtcdConfig's output to the node, is a no-op
+		// stub. So the file on disk is a snapshot of the ring as it was when this
+		// node last joined, and etcd refuses to start against a ring of a
+		// different size: "error validating peerURLs ...: member count is
+		// unequal". The node then crash-loops forever while this repair reports
+		// SUCCEEDED every cooldown.
+		//
+		// renderEtcdConfig renders initial-cluster from the LIVE RING (it returns
+		// !ok for a node that is not in it), which is the same set etcd validates
+		// against. Taking the membership from that render — rather than computing
+		// it a second way here — keeps ONE authority for "who is in this ring",
+		// and closes the gap between MemberAdd and the restart without reviving a
+		// general config-push path.
+		initialCluster := ""
+		if rendered := srv.renderedConfigForNode(node); rendered != nil {
+			initialCluster = etcdInitialClusterFromRenderedConfig(rendered[etcdConfigPath])
+		}
+		if initialCluster == "" {
+			// No lawful membership to send — do NOT stamp the cooldown, so the
+			// dispatch happens on the first pass that can render one (typically
+			// the tick right after MemberAdd lands in the ring). Wiping a node we
+			// cannot configure is the unrecoverable case.
+			//
+			// This branch is re-entered on EVERY reconcile tick for as long as the
+			// node cannot be rendered, so the line is rate-limited: a guard against
+			// an unrecoverable repair must not become a log storm of its own.
+			logEtcdRejoinHold(node.NodeID, node.Identity.Hostname)
+			continue
+		}
+		srv.etcdRejoinDispatch.Store(node.NodeID, time.Now())
+
+		// Detach from the caller's context.
+		//
+		// ctx belongs to the reconcile workflow ACTION
+		// (engine.reconcileAdvanceInfraJoins); the engine cancels it as soon as
+		// that handler returns, which this function does immediately after
+		// launching the goroutine below. Every RunWorkflow call therefore died
+		// with "rpc error: code = Canceled desc = context canceled" before the
+		// node agent could act — measured on the 5-node simulation, 1.2.358,
+		// 2026-09-03: node-5 got its MemberAdd, sat in the ring as an *unstarted*
+		// member, and the dispatch failed with that error on every tick while
+		// etcd_healthy_endpoints stayed at 4.
+		//
+		// The leader context is the lifetime this work belongs to. It is the
+		// idiom the neighbouring detached repair already uses (the Scylla ring
+		// cleanup in removeStaleNodesLocked), and it is cancelled on loss of
+		// leadership — exactly when a repair should stop.
+		wCtx, cancel := context.WithTimeout(srv.getLeaderCtx(), 3*time.Minute)
+		go func(ep, nodeID, hostname, cfg string) {
 			defer cancel()
 			conn, _, err := srv.dialNodeAgentForNode(nodeID, ep)
 			if err != nil {
@@ -150,6 +293,7 @@ func (srv *server) dispatchEtcdWipeAndRejoin(ctx context.Context, nodes []*nodeS
 			client := node_agentpb.NewNodeAgentServiceClient(conn)
 			resp, err := client.RunWorkflow(wCtx, &node_agentpb.RunWorkflowRequest{
 				WorkflowName: "wipe-etcd-and-rejoin",
+				Inputs:       map[string]string{etcdRejoinConfigInput: cfg},
 			})
 			if err != nil {
 				log.Printf("etcd auto-rejoin: wipe-etcd-and-rejoin on %s (%s) RPC error: %v", nodeID, hostname, err)
@@ -157,7 +301,7 @@ func (srv *server) dispatchEtcdWipeAndRejoin(ctx context.Context, nodes []*nodeS
 			}
 			log.Printf("etcd auto-rejoin: wipe-etcd-and-rejoin on %s (%s) status=%s error=%s",
 				nodeID, hostname, resp.GetStatus(), resp.GetError())
-		}(endpoint, node.NodeID, node.Identity.Hostname)
+		}(endpoint, node.NodeID, node.Identity.Hostname, initialCluster)
 	}
 }
 

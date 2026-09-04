@@ -26,6 +26,7 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/node_agent/node_agentpb"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 // ---------------------------------------------------------------------------
@@ -385,37 +386,121 @@ func (srv *NodeAgentServer) runProbeEtcdHealth(ctx context.Context, req *node_ag
 	// IMPORTANT: GetEtcdClient returns a shared singleton. Do NOT close it here;
 	// closing would tear down other in-flight etcd operations and create retry storms.
 
-	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	probeCtx, cancel := context.WithTimeout(ctx, etcdHealthProbeBudget)
 	defer cancel()
 
-	// Prefer probing the local node endpoint directly.
+	// Probe THIS node's member, and judge only that.
 	// Use interface IP (not DNS), excluding VIP which etcd doesn't bind to.
 	vip := srv.lookupIngressVIP()
 	localIP := config.GetLocalInterfaceIPv4(vip)
 	if localIP == "" {
 		localIP = config.GetRoutableIPv4()
 	}
-	if localIP != "" {
-		localEndpoint := fmt.Sprintf("https://%s:2379", localIP)
-		if _, err := cli.Maintenance.Status(probeCtx, localEndpoint); err == nil {
-			return probeOK(start), nil
-		}
+	if localIP == "" {
+		// Without a local address there is no local member to judge. That is a
+		// gap in the harvest, not evidence that etcd is unhealthy.
+		return probeUnknown(start, "cannot determine this node's interface IP; "+
+			"no local etcd member to probe"), nil
 	}
 
-	// Fallback: any reachable configured etcd endpoint implies etcd control
-	// plane is healthy enough for cluster operations.
+	localEndpoint := fmt.Sprintf("https://%s:2379", localIP)
+	localCtx, cancelLocal := context.WithTimeout(probeCtx, etcdHealthLocalAttemptBudget)
+	_, localErr := cli.Maintenance.Status(localCtx, localEndpoint)
+	cancelLocal()
+	if localErr == nil {
+		return probeOK(start), nil
+	}
+
+	// The local member did not answer. Ask the peers ONE question — "is the
+	// ring up?" — because it separates the two causes this probe used to
+	// conflate, and report which one we are in.
+	//
+	// What we must NOT do is what this code did before: treat any answering
+	// peer as proof that THIS node is healthy. That reports node-3 healthy
+	// because node-1 answered, which is what
+	// infra.node_specific_truth_must_be_observed_via_node_local_client forbids
+	// and what etcd_runtime.go's observeEtcdRuntime already gets right.
+	peersAnswered, peerErrs := srv.probeEtcdPeers(probeCtx, cli, localEndpoint)
+	return classifyEtcdProbe(start, localEndpoint, localErr, peersAnswered, peerErrs), nil
+}
+
+// classifyEtcdProbe turns the two observations the probe can make — did MY
+// member answer, did any peer answer — into a verdict.
+//
+// It is a named function so the decision is testable without a live etcd; the
+// alternative is a test that re-implements the rule and then agrees with
+// itself. localErr is non-nil by construction here: the caller returns
+// SUCCEEDED before reaching this.
+func classifyEtcdProbe(start time.Time, localEndpoint string, localErr error, peersAnswered int, peerErrs []string) *node_agentpb.RunWorkflowResponse {
+	// Every call this client makes fails, peers included. The client itself is
+	// the most likely broken party — a node agent that cannot reach ANY member
+	// while the ring serves other nodes is an unreachable observer, not an
+	// unhealthy etcd (failure.an_unreachable_node_agent_is_reported_as_an_unhealthy_infra).
+	// Saying UNKNOWN keeps the controller from raising infra_unhealthy on a
+	// member that is fine, and keeps remediation off a component it cannot fix.
+	if peersAnswered == 0 {
+		return probeUnknown(start, fmt.Sprintf(
+			"this node agent's etcd client reached no member, including its own (%s: %v)%s — "+
+				"cannot distinguish a local etcd fault from a broken client; "+
+				"check this node's service certificate before treating etcd as unhealthy",
+			localEndpoint, localErr, formatPeerErrs(peerErrs)))
+	}
+
+	// Peers answer, this node's member does not: a genuine local etcd fault,
+	// and the only case that earns a FAILED verdict.
+	return probeFail(start, fmt.Sprintf(
+		"local etcd member %s did not answer (%v) while %d peer(s) did",
+		localEndpoint, localErr, peersAnswered))
+}
+
+// etcdHealthProbeBudget bounds the whole probe.
+//
+// etcdHealthLocalAttemptBudget bounds the LOCAL attempt specifically, so a
+// stalled local member cannot consume the entire budget and leave the peer
+// questions with an already-expired context. When that happened, every peer
+// returned "context deadline exceeded" without a call being made, and the probe
+// reported "etcd status failed on all endpoints" — five identical errors, four
+// of which were never measured. That message sent the 1.2.360 soak
+// investigation to the wrong component.
+const (
+	etcdHealthProbeBudget        = 10 * time.Second
+	etcdHealthLocalAttemptBudget = 4 * time.Second
+	etcdHealthPeerAttemptBudget  = 2 * time.Second
+)
+
+// probeEtcdPeers asks each non-local endpoint whether it is serving. It returns
+// how many answered and the errors from those that did not. Each attempt gets
+// its own budget so one unreachable peer cannot silence the rest.
+func (srv *NodeAgentServer) probeEtcdPeers(ctx context.Context, cli *clientv3.Client, localEndpoint string) (int, []string) {
+	var answered int
 	var errs []string
 	for _, ep := range cli.Endpoints() {
-		if _, err := cli.Maintenance.Status(probeCtx, ep); err == nil {
-			return probeOK(start), nil
-		} else {
-			errs = append(errs, fmt.Sprintf("%s: %v", ep, err))
+		if ep == localEndpoint {
+			continue
 		}
+		if ctx.Err() != nil {
+			// Out of budget. Record that we stopped asking rather than
+			// recording a failure we did not observe.
+			errs = append(errs, fmt.Sprintf("%s: not attempted (probe budget exhausted)", ep))
+			continue
+		}
+		epCtx, cancel := context.WithTimeout(ctx, etcdHealthPeerAttemptBudget)
+		_, err := cli.Maintenance.Status(epCtx, ep)
+		cancel()
+		if err == nil {
+			answered++
+			continue
+		}
+		errs = append(errs, fmt.Sprintf("%s: %v", ep, err))
 	}
+	return answered, errs
+}
+
+func formatPeerErrs(errs []string) string {
 	if len(errs) == 0 {
-		return probeFail(start, "no etcd endpoints available for health probe"), nil
+		return ""
 	}
-	return probeFail(start, "etcd status failed on all endpoints: "+strings.Join(errs, "; ")), nil
+	return "; peers: " + strings.Join(errs, "; ")
 }
 
 // runProbeMinioHealth checks whether MinIO is healthy on this node.
@@ -466,6 +551,29 @@ func probeOK(start time.Time) *node_agentpb.RunWorkflowResponse {
 		StepsTotal:     1,
 		StepsSucceeded: 1,
 		DurationMs:     time.Since(start).Milliseconds(),
+	}
+}
+
+// probeUnknown reports a reduced harvest: the probe ran but could not
+// establish the component's state. It is NOT a failure verdict.
+//
+// The controller already models this three ways (healthy / unhealthy /
+// unreachable) and already says "component state UNKNOWN, not unhealthy" when
+// an agent does not answer. This lets an agent that DID answer say the same
+// thing about a question it could not settle, instead of being forced to pick
+// between "SUCCEEDED" and a FAILED verdict it cannot support.
+//
+// Without it, a node agent whose own etcd client is broken reports its healthy
+// local etcd as FAILED, the controller raises infra_unhealthy on that member,
+// and remediation grinds against a component that was never at fault — 55
+// reconcile cycles in the 1.2.360 soak run.
+// See ops.always.doctor.reduced-harvest-honesty.
+func probeUnknown(start time.Time, msg string) *node_agentpb.RunWorkflowResponse {
+	return &node_agentpb.RunWorkflowResponse{
+		Status:     node_agentpb.ProbeStatusUnknown,
+		StepsTotal: 1,
+		Error:      msg,
+		DurationMs: time.Since(start).Milliseconds(),
 	}
 }
 

@@ -131,3 +131,39 @@ func TestArtifactKindLookupAsksMoreThanOneInstance(t *testing.T) {
 			"refused promptly; attempts=%d", artifactKindLookupAttempts)
 	}
 }
+
+// An RPC failure during the kind lookup must be reported as an RPC failure.
+//
+// lookupArtifactKindOnce used to swallow every GetArtifactVersions error and
+// return the same (UNSPECIFIED, nil) it returns for a package that was never
+// published, so the gate chose the "no published version with a resolvable
+// kind — publish it, then retry" message for a transport problem. Measured on
+// the 5-node simulation, 1.2.359, 2026-09-03: 2 of 15 consecutive
+// `services desired set ai-watcher` calls were refused that way while the
+// package was published and installed on all five nodes.
+//
+// The verdict is unchanged — both cases are refused, fail-closed — but the two
+// causes must not share one message.
+func TestServiceDesiredKindGate_RPCErrorIsNotReportedAsUnpublished(t *testing.T) {
+	rpcErr := errors.New("rpc error: code = Unavailable desc = connection refused")
+
+	err := serviceDesiredKindGateAt("dns", repositorypb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED, rpcErr, "10.10.0.11:443")
+	if err == nil {
+		t.Fatal("gate must refuse an unverifiable kind")
+	}
+	if !strings.Contains(err.Error(), "repository unreachable") {
+		t.Errorf("error %q does not attribute the failure to the repository being unreachable", err)
+	}
+	if strings.Contains(err.Error(), "publish it, then retry") {
+		t.Errorf("error %q advises publishing a package whose kind simply could not be looked up", err)
+	}
+
+	// The genuinely-unpublished case keeps its own advice.
+	err = serviceDesiredKindGateAt("dns", repositorypb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED, nil, "10.10.0.11:443")
+	if err == nil {
+		t.Fatal("gate must refuse an unknown kind")
+	}
+	if !strings.Contains(err.Error(), "no published version with a resolvable kind") {
+		t.Errorf("error %q lost the genuinely-unpublished wording", err)
+	}
+}

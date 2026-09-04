@@ -48,9 +48,30 @@ func clientStreamInterceptor(_ Client) func(ctx context.Context, desc *grpc.Stre
 				ctx = metadata.AppendToOutgoingContext(ctx, "cluster_id", clusterID)
 			}
 		}
-		// Additive dual-emit: also carry the opaque membership UUID when minted.
-		// Best-effort — omit on absence, never fall back to the domain. Nothing
-		// validates cluster_uid yet (Phase-2 dual-accept).
+		// Carry the opaque membership UUID. Omit on absence, never fall back to
+		// the domain.
+		//
+		// This is best-effort in mechanism only — it is NOT optional in effect.
+		// The comment here used to say "nothing validates cluster_uid yet
+		// (Phase-2 dual-accept)". That has been false since the server began
+		// enforcing it: interceptors/ServerInterceptors.go returns
+		// Unauthenticated("cluster_uid required after cluster initialization")
+		// once the cluster is initialized, for any request that is not
+		// bootstrap, mTLS, JWT, loopback, or an allowlisted method.
+		//
+		// So a silent omission here is a request the caller knows will be
+		// refused. It is invisible for local calls (loopback is exempt) and
+		// fails only when the callee happens to be remote, which is how it
+		// reached production as an "intermittent" fault: 2 of 15 `services
+		// desired set` calls on 1.2.359, and one `deploy-publish-then-converge`
+		// failure on 1.2.360 — all of them rotations that left the node.
+		//
+		// GetLocalClusterUID reads the UUID through the etcd client, which needs
+		// the cluster service keypair, which an unprivileged CLI may not be able
+		// to read. A caller that is not already privileged therefore cannot
+		// obtain the badge that proves it is a member. Fixing that circularity
+		// is an authorization-boundary decision, not a change to make here —
+		// see the scratch note defect-5-cluster-uid.md.
 		if md, ok := metadata.FromOutgoingContext(ctx); !ok || len(md.Get("cluster_uid")) == 0 {
 			if uid, err := security.GetLocalClusterUID(); err == nil && uid != "" {
 				ctx = metadata.AppendToOutgoingContext(ctx, "cluster_uid", uid)
@@ -96,9 +117,30 @@ func clientInterceptor(client_ Client) func(ctx context.Context, method string, 
 				ctx = metadata.AppendToOutgoingContext(ctx, "cluster_id", clusterID)
 			}
 		}
-		// Additive dual-emit: also carry the opaque membership UUID when minted.
-		// Best-effort — omit on absence, never fall back to the domain. Nothing
-		// validates cluster_uid yet (Phase-2 dual-accept).
+		// Carry the opaque membership UUID. Omit on absence, never fall back to
+		// the domain.
+		//
+		// This is best-effort in mechanism only — it is NOT optional in effect.
+		// The comment here used to say "nothing validates cluster_uid yet
+		// (Phase-2 dual-accept)". That has been false since the server began
+		// enforcing it: interceptors/ServerInterceptors.go returns
+		// Unauthenticated("cluster_uid required after cluster initialization")
+		// once the cluster is initialized, for any request that is not
+		// bootstrap, mTLS, JWT, loopback, or an allowlisted method.
+		//
+		// So a silent omission here is a request the caller knows will be
+		// refused. It is invisible for local calls (loopback is exempt) and
+		// fails only when the callee happens to be remote, which is how it
+		// reached production as an "intermittent" fault: 2 of 15 `services
+		// desired set` calls on 1.2.359, and one `deploy-publish-then-converge`
+		// failure on 1.2.360 — all of them rotations that left the node.
+		//
+		// GetLocalClusterUID reads the UUID through the etcd client, which needs
+		// the cluster service keypair, which an unprivileged CLI may not be able
+		// to read. A caller that is not already privileged therefore cannot
+		// obtain the badge that proves it is a member. Fixing that circularity
+		// is an authorization-boundary decision, not a change to make here —
+		// see the scratch note defect-5-cluster-uid.md.
 		if md, ok := metadata.FromOutgoingContext(ctx); !ok || len(md.Get("cluster_uid")) == 0 {
 			if uid, err := security.GetLocalClusterUID(); err == nil && uid != "" {
 				ctx = metadata.AppendToOutgoingContext(ctx, "cluster_uid", uid)

@@ -382,6 +382,95 @@ func classifyStuckEtcdJoin(node *nodeState, namedURLs map[string]bool, now time.
 	return !nodeHasEtcdRunning(node)
 }
 
+// etcdMemberVanished reports the physical situation "the cluster believes this
+// node should be an etcd member, and it is neither in the ring nor running".
+// Both callers below act on exactly this; keeping it in one place is what stops
+// them from drifting apart.
+func etcdMemberVanished(node *nodeState, existingURLs map[string]bool) bool {
+	if node == nil {
+		return false
+	}
+	return !nodeAnyIPIsEtcdMember(node, existingURLs) && !nodeHasEtcdRunning(node)
+}
+
+// nodeReturnedWithoutMembership recognises a node that FINISHED its join, was
+// later dropped from the ring, and came back without membership.
+//
+// This shape had no detector. classifyStuckEtcdJoin covers the node that never
+// finished joining — it requires BootstrapPhase == etcd_joining — and the
+// "member disappeared" cooldown in the EtcdJoinVerified branch covers the node
+// whose phase is still verified. A node loses that phase whenever its record is
+// re-created (removeStaleNodesLocked deletes the record of a node whose identity
+// another claimant took over, and the next heartbeat re-creates it at
+// EtcdJoinNone), and it is workload_ready rather than etcd_joining. So it
+// matched neither detector and fell through every branch, permanently.
+//
+// Measured on the 5-node simulation, 1.2.357, 2026-09-03: after
+// authority/node-clone-identity-collision, node-5 sat at
+// etcd_join_phase="" / bootstrap_phase=workload_ready with globular-etcd
+// inactive and no ring entry, while the controller logged
+// "renderEtcdConfig: … is not an etcd member yet — skipping etcd.yaml render
+// until MemberAdd puts it in the ring" every ~15s indefinitely. The whole repair
+// chain behind rejoin_required — MemberAdd, then the node agent's
+// wipe-etcd-and-rejoin workflow — was already implemented and wired; nothing
+// ever entered it.
+//
+// The safety gates are NOT here: the cooldown is applied by
+// confirmVanishedEtcdMember, and the destructive step stays behind
+// validateEtcdRejoinPreconditions (quorum-safe, agent reachable) and the
+// never-rejoin-the-leader guard in reconcileEtcdAutoRejoin.
+func nodeReturnedWithoutMembership(node *nodeState, existingURLs map[string]bool) bool {
+	if node == nil {
+		return false
+	}
+	switch node.EtcdJoinPhase {
+	case EtcdJoinNone, EtcdJoinFailed:
+		// only classify from these base states
+	default:
+		return false
+	}
+	// Only a node that COMPLETED bootstrap. A node still in etcd_joining is
+	// mid-join and belongs to classifyStuckEtcdJoin, which applies its own
+	// (longer) threshold; treating it here would race the join script.
+	if node.BootstrapPhase != BootstrapWorkloadReady {
+		return false
+	}
+	return etcdMemberVanished(node, existingURLs)
+}
+
+// confirmVanishedEtcdMember applies the shared cooldown and quorum gate to a
+// node whose etcd membership has vanished, and returns the phase it should move
+// to once confirmed — or "" while the cooldown is still running.
+//
+// Cooldown: 3 consecutive cycles of "missing + not running", so a transient etcd
+// restart or a brief partition cannot trigger a destructive repair.
+//
+// Quorum gate: auto-rejoin is only proposed when OTHER healthy members remain.
+// With none, the node is reset to EtcdJoinNone for the ordinary join flow rather
+// than having its data directory wiped — wiping the last surviving member's data
+// is the unrecoverable case (etcd.auto_rejoin_leader_guard_fails_open is the
+// same lesson).
+func confirmVanishedEtcdMember(node *nodeState, nodes []*nodeState) EtcdJoinPhase {
+	node.EtcdMissingCycles++
+	if node.EtcdMissingCycles < 3 {
+		return ""
+	}
+	healthyPeers := 0
+	for _, n := range nodes {
+		if n == nil || n.NodeID == node.NodeID {
+			continue
+		}
+		if n.EtcdJoinPhase == EtcdJoinVerified && nodeHasEtcdRunning(n) {
+			healthyPeers++
+		}
+	}
+	node.EtcdMissingCycles = 0
+	if healthyPeers > 0 {
+		return EtcdJoinRejoinRequired
+	}
+	return EtcdJoinNone
+}
+
 // memberAdd calls etcd MemberAdd for the given peer URL.
 // Returns the new member's ID (for rollback) and any error.
 func (m *etcdMemberManager) memberAdd(ctx context.Context, peerURL string) (uint64, error) {
@@ -701,6 +790,35 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 					node.NodeID, node.Identity.Hostname, node.EtcdJoinError)
 				continue
 			}
+			// A node that finished its join, lost its ring entry, and came back
+			// without one. Same physical situation as the "member disappeared"
+			// path in the EtcdJoinVerified branch below, reached from a base
+			// phase because the node's record was re-created; it gets the same
+			// cooldown and the same quorum gate.
+			if nodeReturnedWithoutMembership(node, existingURLs) {
+				next := confirmVanishedEtcdMember(node, nodes)
+				dirty = true
+				if next == "" {
+					log.Printf("etcd join: node %s (%s) returned without ring membership, cycle %d/3 (cooldown)",
+						node.NodeID, node.Identity.Hostname, node.EtcdMissingCycles)
+					continue
+				}
+				node.EtcdJoinPhase = next
+				if next == EtcdJoinRejoinRequired {
+					node.EtcdJoinError = "node completed bootstrap but is absent from the etcd ring " +
+						"with etcd not running for 3 consecutive cycles; auto-rejoin triggered"
+				} else {
+					node.EtcdJoinError = ""
+				}
+				log.Printf("etcd join: node %s (%s) returned without ring membership, transitioning to %s",
+					node.NodeID, node.Identity.Hostname, node.EtcdJoinPhase)
+				continue
+			}
+			if node.EtcdMissingCycles > 0 {
+				// Recovered on its own — reset the cooldown counter.
+				node.EtcdMissingCycles = 0
+				dirty = true
+			}
 			// Node is not yet an etcd member — waiting for the join script to
 			// run MemberAdd + start etcd. Nothing to do here.
 
@@ -871,40 +989,24 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 			}
 			// Detect if the member has disappeared (node removal).
 			// Must check ALL IPs to avoid false resets on multi-IP nodes.
-			if !nodeAnyIPIsEtcdMember(node, existingURLs) && !nodeHasEtcdRunning(node) {
-				// Cooldown: require 3 consecutive cycles of "missing + not running"
-				// before triggering rejoin. This prevents false positives from
-				// transient etcd restarts or brief network partitions.
-				node.EtcdMissingCycles++
+			if etcdMemberVanished(node, existingURLs) {
+				// Shared cooldown + quorum gate — see confirmVanishedEtcdMember.
+				next := confirmVanishedEtcdMember(node, nodes)
 				dirty = true
-				if node.EtcdMissingCycles < 3 {
+				if next == "" {
 					log.Printf("etcd join: node %s (%s) member missing, cycle %d/3 (cooldown)",
 						node.NodeID, node.Identity.Hostname, node.EtcdMissingCycles)
 					continue
 				}
-
-				// Member disappeared for 3+ consecutive cycles.
-				// Count remaining healthy peers to decide the recovery path.
-				healthyPeers := 0
-				for _, n := range nodes {
-					if n == nil || n.NodeID == node.NodeID {
-						continue
-					}
-					if n.EtcdJoinPhase == EtcdJoinVerified && nodeHasEtcdRunning(n) {
-						healthyPeers++
-					}
-				}
-				if healthyPeers > 0 {
-					// Other healthy members remain — safe to auto-rejoin.
-					node.EtcdJoinPhase = EtcdJoinRejoinRequired
-					node.EtcdJoinError = fmt.Sprintf("member disappeared from live cluster for %d consecutive cycles while etcd was not running; auto-rejoin triggered", node.EtcdMissingCycles)
+				node.EtcdJoinPhase = next
+				if next == EtcdJoinRejoinRequired {
+					node.EtcdJoinError = "member disappeared from live cluster for 3 consecutive cycles " +
+						"while etcd was not running; auto-rejoin triggered"
 				} else {
 					// Sole surviving member or unknown state — reset to None
 					// to allow the normal join flow without risking quorum loss.
-					node.EtcdJoinPhase = EtcdJoinNone
 					node.EtcdJoinError = ""
 				}
-				node.EtcdMissingCycles = 0
 				log.Printf("etcd join: node %s (%s) member disappeared after %d cycles, transitioning to %s",
 					node.NodeID, node.Identity.Hostname, 3, node.EtcdJoinPhase)
 			} else if node.EtcdMissingCycles > 0 {

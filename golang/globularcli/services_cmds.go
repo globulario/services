@@ -684,6 +684,31 @@ func lookupArtifactKindOnce(cmd *cobra.Command, name string) (repositorypb.Artif
 	// Platforms to try — fall back to "" (any).
 	platforms := []string{runtime.GOOS + "_" + runtime.GOARCH, ""}
 
+	// An RPC error is NOT an answer.
+	//
+	// This loop used to `continue` past every GetArtifactVersions error and end
+	// at (UNSPECIFIED, nil) — the same value it returns for a package that is
+	// genuinely unpublished. The gate then chose the "no published version with
+	// a resolvable kind" message, whose advice is "publish it, then retry", and
+	// an operator or a scenario reading that goes looking for a publishing
+	// defect that is not there. Two of the graph's own entries describe this
+	// exact misattribution (desired_state.refusal_message_misattributes_cause,
+	// desired_state.transient_kind_lookup_reported_as_unpublished).
+	//
+	// Measured on the 5-node simulation, 1.2.359, 2026-09-03: 2 of 15
+	// consecutive `services desired set ai-watcher` calls were refused as
+	// unpublished while the package was published and installed on all five
+	// nodes; the refusals named three different repository instances, and the
+	// same instances answered correctly on the surrounding attempts — so it was
+	// never "that replica has not synced", which is what the message claimed.
+	// The scenario authority/rejoin-after-missed-generations lost all three of
+	// its desired-state writes to it and its evidence recorded a publishing
+	// problem that did not exist.
+	//
+	// Keeping the last error changes no verdict — an unresolvable kind is still
+	// refused, fail-closed — but it makes the refusal say which of the two very
+	// different causes actually happened.
+	var rpcErr error
 	for _, n := range names {
 		for _, p := range platforms {
 			rsp, err := client.GetArtifactVersions(ctx, &repositorypb.GetArtifactVersionsRequest{
@@ -692,8 +717,13 @@ func lookupArtifactKindOnce(cmd *cobra.Command, name string) (repositorypb.Artif
 				Platform:    p,
 			})
 			if err != nil {
+				rpcErr = err
 				continue
 			}
+			// A successful answer is evidence about THIS name/platform, and it
+			// clears an earlier error: the package resolves under one of the
+			// spellings we try, and the misses are expected, not failures.
+			rpcErr = nil
 			for _, v := range rsp.GetVersions() {
 				if k := v.GetRef().GetKind(); k != repositorypb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED {
 					return k, nil
@@ -701,7 +731,7 @@ func lookupArtifactKindOnce(cmd *cobra.Command, name string) (repositorypb.Artif
 			}
 		}
 	}
-	return 0, nil
+	return 0, rpcErr
 }
 
 // ─── desired remove ──────────────────────────────────────────────────────────

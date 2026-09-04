@@ -187,6 +187,20 @@ type server struct {
 	leaderCtx                  context.Context    // cancelled when leadership is lost
 	leaderCancel               context.CancelFunc // called by setLeader(false, ...)
 	leaderCtxMu                sync.Mutex         // guards leaderCtx/leaderCancel
+	// etcdRejoinDispatch records nodeID -> time of the last wipe-and-rejoin
+	// dispatch, so the destructive repair is not re-issued on every reconcile
+	// tick while it is still in flight (see etcdRejoinDispatchCooldown).
+	// In-memory by design: a controller that has just taken leadership SHOULD
+	// dispatch once for a node still sitting in RejoinInProgress.
+	etcdRejoinDispatch sync.Map
+	// releaseDispatchHold records releaseID -> the earliest time that release may
+	// be dispatched again. The release work queue is fed by etcd watch events and
+	// a dispatch WRITES to the release record (wave state), so a dispatch whose
+	// workflow returns without doing anything re-triggers itself immediately —
+	// an unbounded loop at watch speed, not at reconcile-tick speed.
+	// In-memory by design, like etcdRejoinDispatch: a new leader should evaluate
+	// every release once on takeover.
+	releaseDispatchHold sync.Map
 	resignCh                   chan struct{}      // signal leader election to resign
 	lastHeartbeatProcessed     atomic.Int64       // UnixNano of last successful ReportNodeStatus
 	reconcileRunning           atomic.Bool

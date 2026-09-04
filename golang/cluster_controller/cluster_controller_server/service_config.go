@@ -241,6 +241,13 @@ func peerHostFromURL(peerURL string) string {
 	return strings.Trim(rest, "[]")
 }
 
+// etcdConfigPath is where the rendered etcd configuration lands on a node. It
+// is the key under which renderEtcdConfig's output appears in the rendered-config
+// map, so any consumer that needs THIS node's membership (notably the etcd
+// auto-rejoin repair, which must ship it with the destructive request) looks it
+// up here rather than repeating the literal.
+const etcdConfigPath = "/var/lib/globular/config/etcd.yaml"
+
 // renderEtcdConfig generates the etcd configuration YAML for a node.
 // File path: /var/lib/globular/config/etcd.yaml
 //
@@ -843,7 +850,7 @@ var renderers = []rendererSpec{
 	{
 		name:         "etcd",
 		profiles:     profilesForEtcd,
-		outputs:      []string{"/var/lib/globular/config/etcd.yaml"},
+		outputs:      []string{etcdConfigPath},
 		restartUnits: []string{"globular-etcd.service"},
 		render:       renderEtcdConfig,
 	},

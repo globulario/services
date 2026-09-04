@@ -6,6 +6,7 @@ import (
 	"log"
 	"math"
 	"strconv"
+	"sync"
 	"strings"
 	"time"
 
@@ -20,6 +21,125 @@ import (
 )
 
 var getInstalledPackageForReleaseTarget = installed_state.GetInstalledPackage
+
+// ── release dispatch hold ────────────────────────────────────────────────────
+//
+// The release work queue is fed by etcd WATCH EVENTS, and a dispatch WRITES to
+// the release record (wave state). A dispatch that changes nothing therefore
+// re-triggers itself immediately, and the loop runs at watch speed rather than
+// at the reconcile tick — there is no tick in this path to bound it.
+//
+// These two bounds close that: a floor under the re-dispatch rate for every
+// release, and an exact deadline when the workflow service has told us one.
+
+// minReleaseRedispatchInterval is the floor under how often one release may be
+// dispatched. It matches the reconcile tick, so a release that genuinely needs
+// another attempt loses at most one cycle.
+const minReleaseRedispatchInterval = 30 * time.Second
+
+// maxReleaseRedispatchHold caps a hold derived from a workflow-supplied
+// deadline. A malformed or far-future timestamp must not park a release
+// indefinitely — a hold is a delay, never an abandonment.
+const maxReleaseRedispatchHold = 10 * time.Minute
+
+// releaseDispatchHoldLogged rate-limits the "held" log line to once per release
+// per minReleaseRedispatchInterval, so the guard against a log storm does not
+// become one.
+var releaseDispatchHoldLogged sync.Map // releaseID -> time.Time
+
+// releaseDispatchHeldUntil reports whether this release is still inside a hold.
+func (srv *server) releaseDispatchHeldUntil(releaseID string) (time.Time, bool) {
+	if releaseID == "" {
+		return time.Time{}, false
+	}
+	v, ok := srv.releaseDispatchHold.Load(releaseID)
+	if !ok {
+		return time.Time{}, false
+	}
+	until, ok := v.(time.Time)
+	if !ok {
+		return time.Time{}, false
+	}
+	if !time.Now().Before(until) {
+		srv.releaseDispatchHold.Delete(releaseID)
+		return time.Time{}, false
+	}
+	return until, true
+}
+
+// holdReleaseDispatch extends the hold on a release. It only ever moves the
+// deadline later, so the shorter floor cannot shorten a longer deadline the
+// workflow service asked for.
+func (srv *server) holdReleaseDispatch(releaseID string, until time.Time) {
+	if releaseID == "" {
+		return
+	}
+	if max := time.Now().Add(maxReleaseRedispatchHold); until.After(max) {
+		until = max
+	}
+	if cur, ok := srv.releaseDispatchHold.Load(releaseID); ok {
+		if curUntil, isTime := cur.(time.Time); isTime && curUntil.After(until) {
+			return
+		}
+	}
+	srv.releaseDispatchHold.Store(releaseID, until)
+}
+
+func logReleaseDispatchHold(releaseID string, until time.Time) {
+	now := time.Now()
+	if last, ok := releaseDispatchHoldLogged.Load(releaseID); ok {
+		if at, isTime := last.(time.Time); isTime && now.Sub(at) < minReleaseRedispatchInterval {
+			return
+		}
+	}
+	releaseDispatchHoldLogged.Store(releaseID, now)
+	log.Printf("release-workflow: %s dispatch held for another %s (bounded re-dispatch)",
+		releaseID, time.Until(until).Round(time.Second))
+}
+
+// parseDeferredDispatchSkip recognises the workflow service's "I did not run
+// this" answer and extracts the deadline it named.
+//
+// The message is produced by exactly one site — the WF-DEFER B2 branch in
+// workflow_server/executor.go — as:
+//
+//	dispatch skipped: prior run <id> deferred until <unix-ms> (defer_count=N): <reason>
+//
+// It arrives with Status set to the DEFERRED run's status (typically FAILED),
+// which is why the string is what distinguishes "nothing ran" from "a run
+// failed". If the prefix is present but the timestamp cannot be read, the skip
+// is still recognised and the caller falls back to the ordinary floor: an
+// unparsable deadline must not be read as "dispatch immediately".
+func parseDeferredDispatchSkip(errMsg string) (time.Time, bool) {
+	const marker = "dispatch skipped: prior run "
+	const untilMarker = " deferred until "
+	if !strings.Contains(errMsg, marker) {
+		return time.Time{}, false
+	}
+	idx := strings.Index(errMsg, untilMarker)
+	if idx < 0 {
+		return time.Now().Add(minReleaseRedispatchInterval), true
+	}
+	rest := errMsg[idx+len(untilMarker):]
+	end := strings.IndexFunc(rest, func(r rune) bool { return r < '0' || r > '9' })
+	if end == 0 {
+		return time.Now().Add(minReleaseRedispatchInterval), true
+	}
+	if end > 0 {
+		rest = rest[:end]
+	}
+	ms, err := strconv.ParseInt(rest, 10, 64)
+	if err != nil || ms <= 0 {
+		return time.Now().Add(minReleaseRedispatchInterval), true
+	}
+	until := time.UnixMilli(ms)
+	// A deadline already in the past means the cooldown expired between the
+	// service's check and our read; wait the floor rather than spinning.
+	if !until.After(time.Now()) {
+		return time.Now().Add(minReleaseRedispatchInterval), true
+	}
+	return until, true
+}
 
 const (
 	waveStatePending   = "WAVE_PENDING"
@@ -39,6 +159,14 @@ const (
 // refuses verified SUCCESS without it. An empty value is permitted only when
 // the manifest itself has no checksum (legacy artifacts). NEVER synthesize.
 func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, releaseName, pkgName, pkgKind, version, desiredHash, resolvedBuildID, resolvedEntrypointChecksum string, resolvedBuildNumber int64, candidateNodes []string, opts ...int64) (*workflowpb.ExecuteWorkflowResponse, error) {
+	// A dispatch this release is not allowed to make yet does nothing at all —
+	// no wave state, no RPC. See releaseDispatchHeldUntil for why the hold
+	// exists and why it must be checked BEFORE the first publishWaveState.
+	if until, held := srv.releaseDispatchHeldUntil(releaseID); held {
+		logReleaseDispatchHold(releaseID, until)
+		return nil, nil
+	}
+
 	var dispatchGen int64
 	if len(opts) > 0 {
 		dispatchGen = opts[0]
@@ -82,6 +210,13 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 	// Publish legacy event for ai-watcher compatibility.
 	srv.reportRunStart(pkgName, pkgKind, version, releaseID, len(candidateNodes))
 
+	// Floor the re-dispatch rate for THIS release before the call, not after:
+	// whatever happens next — success, error, panic — a second dispatch of the
+	// same release within minReleaseRedispatchInterval is never useful work, and
+	// the queue that would order it is fed by etcd watch events rather than by a
+	// tick (invariant:convergence.no_infinite_retry).
+	srv.holdReleaseDispatch(releaseID, time.Now().Add(minReleaseRedispatchInterval))
+
 	start := time.Now()
 	resp, err := srv.executeWorkflowCentralized(ctx, "release.apply.package", correlationID, inputs, router)
 	elapsed := time.Since(start)
@@ -93,6 +228,28 @@ func (srv *server) RunPackageReleaseWorkflow(ctx context.Context, releaseID, rel
 		srv.reportRunDone("", pkgName, true,
 			fmt.Sprintf("%s FAILED after %s: %v", releaseName, elapsed.Round(time.Millisecond), err))
 		return nil, err
+	}
+
+	// "dispatch skipped: prior run … deferred until <ms>" is not an outcome.
+	//
+	// The workflow service refuses to start a run while a prior run for the same
+	// correlation is in defer cooldown (WF-DEFER B2) and answers with the DEFERRED
+	// run's status — which reads as FAILED here. Treating that as a finished
+	// workflow is what produced the storm: no callback ever fires, so the release
+	// stays RESOLVED, the wave-state write below fires a watch event, the work
+	// queue re-enters reconcileResolved, and the whole cycle repeats at watch
+	// speed. Measured on the 5-node simulation, 1.2.359, 2026-09-03: 169 dispatches
+	// of InfrastructureRelease core@globular.io/etcd in five minutes, up to 118
+	// controller log lines per second, while node-5's etcd was down.
+	//
+	// forbidden_fix:blind_reconcile_retry names exactly this shape — retrying the
+	// same action every cycle without classifying the failure. So classify it: the
+	// answer carries a deadline, and the controller honours it.
+	if until, ok := parseDeferredDispatchSkip(resp.GetError()); ok {
+		srv.holdReleaseDispatch(releaseID, until)
+		log.Printf("release-workflow: %s not dispatched — the workflow service has a deferred prior run; holding re-dispatch for %s",
+			releaseName, time.Until(until).Round(time.Second))
+		return resp, nil
 	}
 
 	failed := resp.Status != "SUCCEEDED"

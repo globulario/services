@@ -25,6 +25,16 @@ var allowed = map[string]struct{}{
 	"disable":       {},
 	"status":        {},
 	"daemon-reload": {},
+	// reset-failed clears a unit's failure record and its start-rate limiter.
+	// It destroys no data and starts nothing — but it changes what systemd will
+	// permit next, so it belongs inside this boundary rather than beside it.
+	//
+	// It exists because a repair that fixes the CAUSE of a crash-loop is still
+	// refused by systemd's start limit ("start request repeated too quickly"),
+	// which counts the failures the repair just removed. Without a way to clear
+	// that counter, a correct repair reports failure on a unit that would now
+	// start — the repair is judged on the state it was sent to fix.
+	"reset-failed": {},
 }
 
 // ApplyUnitAction executes the requested action for the given unit via systemctl.
@@ -198,6 +208,17 @@ func Stop(ctx context.Context, unit string) error {
 // Restart restarts the unit.
 func Restart(ctx context.Context, unit string) error {
 	_, err := ApplyUnitAction(ctx, unit, "restart")
+	return err
+}
+
+// ResetFailed clears the unit's failed state and start-rate limiter, so a unit
+// that crash-looped before its cause was repaired can be started again.
+//
+// This is not a repair on its own and must never stand in for one: it only
+// stops systemd from refusing an attempt. Call it immediately before a Start
+// whose precondition you have just fixed.
+func ResetFailed(ctx context.Context, unit string) error {
+	_, err := ApplyUnitAction(ctx, unit, "reset-failed")
 	return err
 }
 

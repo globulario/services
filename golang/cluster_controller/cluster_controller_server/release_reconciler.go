@@ -1105,6 +1105,24 @@ func (srv *server) requeueFailedReleases(ctx context.Context) {
 			case cluster_controllerpb.ReleasePhaseFailed, cluster_controllerpb.ReleasePhaseRolledBack:
 			case cluster_controllerpb.ReleasePhaseDeferred, cluster_controllerpb.ReleasePhaseWaiting:
 				backoff = releaseWaitingBackoff
+			case cluster_controllerpb.ReleasePhaseResolved:
+				// RESOLVED means "dispatch is still owed". ServiceRelease reaches
+				// this branch through NextRetryUnixMs; InfrastructureReleaseStatus
+				// has no such field, so before this case an infra release in
+				// RESOLVED was re-entered ONLY by a watch event — which is exactly
+				// the coupling the dispatch hold removes. Without a periodic
+				// enqueue the hold would trade a dispatch storm for a parked
+				// release, which is the same defect this file already documents
+				// twice (a phase whose only way forward is another reconcile pass,
+				// and nothing to schedule one).
+				//
+				// The dispatch hold itself re-checks the deadline, so enqueueing
+				// early is harmless: it only guarantees the pass happens.
+				if _, held := srv.releaseDispatchHeldUntil("InfrastructureRelease/" + rel.Meta.Name); held {
+					transientBlocked++
+					continue
+				}
+				backoff = 0
 			default:
 				continue
 			}
