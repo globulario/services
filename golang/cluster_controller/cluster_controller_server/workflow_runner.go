@@ -159,14 +159,15 @@ func (srv *server) waitBootstrapCondition(ctx context.Context, nodeID, condition
 		case "envoy_active":
 			return nodeHasUnitActive(node, "globular-envoy.service")
 		case "storage_verified":
-			allOK := true
-			if nodeHasMinioProfile(node) && node.MinioJoinPhase != MinioJoinVerified && node.MinioJoinPhase != MinioJoinNonMember {
-				allOK = false
-			}
-			if nodeHasScyllaProfile(node) && node.ScyllaJoinPhase != ScyllaJoinVerified {
-				allOK = false
-			}
-			return allOK
+			// Defers to the same rule the reconciler's storage gate uses:
+			// ScyllaDB blocks without a deadline, MinIO only until its phase
+			// budget expires. This condition used to demand a verified MinIO
+			// outright, and because maybe_wait_storage gates mark_workload_ready
+			// and the workflow's onFailure marks the node failed, an object
+			// store that would not converge failed the node's bootstrap — the
+			// same violation of minio.is_commodity_not_a_pillar that the
+			// reconciler gate had.
+			return storageGateSatisfied(node, time.Now())
 		default:
 			log.Printf("bootstrap-workflow: unknown condition %q for node %s", condition, nodeID)
 			return false

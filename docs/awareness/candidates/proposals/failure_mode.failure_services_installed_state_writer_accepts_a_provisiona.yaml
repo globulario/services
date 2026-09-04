@@ -1,0 +1,26 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: failure_mode
+    id: failure.services.installed_state_writer_accepts_a_provisional_node_id_and_the
+    title: Installed-state writer accepts a provisional node id, and the ghost cleanup that would undo it is operator-only
+    description: 'Two admission-side guards now refuse a partial identity basis: the node-agent will not derive its own id from hostname-without-IPs (services 865ea7f8) and the controller will not admit a join on that basis (services 05f5eeae). Both shipped and were verified present in the 1.2.334 binaries, and the phantom count dropped from seven to six but did NOT reach five. The residue arrives by a THIRD path: the installed-state writer. The surviving phantom subtree contains only Layer-3 content and no join or membership record, so the write is the package-inventory path rather than admission. The controller node list returns to exactly five afterwards, so the phantom is transient in membership while its package records persist. A typed RPC to remove exactly this already exists, CleanupGhostNodePackages, which refuses ids that ARE members, but nothing invokes it automatically; its only caller is a globularcli operator command. The system knows how to undo the state and never does so on its own.'
+    severity: high
+    source_files:
+        - golang/cluster_controller/cluster_controller_server/cleanup_ghost_node_packages.go
+        - golang/node_agent/node_agent_server/heartbeat.go
+    related_invariants:
+        - identity.has_single_canonical_source_and_is_immutable
+    evidence:
+        - 'globular-quickstart 5-node sim, release 1.2.334 with both identity guards verified present in the shipped binaries by string match, 2026-08-25: training/restart-storm-awareness reported count=6 with phantom b68457f5-bfb6-5452-bccc-cc36f29d1bbc alongside the five canonical ids'
+        - 'Phantom count across releases: 1.2.330 six, 1.2.332 six, 1.2.333 seven, 1.2.334 six — the admission guards reduced but did not eliminate it'
+        - etcdctl on the phantom prefix returned /globular/nodes/b68457f5-.../packages/COMMAND/etcdctl, /packages/INFRASTRUCTURE/envoy and node_agent_metrics_port — installed-state keys only, no join or membership record
+        - 'b68457f5-bfb6-5452-bccc-cc36f29d1bbc is the SAME id observed on 1.2.330, confirming the derivation is deterministic: the same partial basis reproduces the same phantom, so the orphan recurs rather than accumulating new ones'
+        - globular cluster nodes list returned exactly 5 canonical ids at the same moment the phantom subtree existed
+        - CleanupGhostNodePackages exists in cluster_controller and validates that its target is not a member; grep shows its only caller is golang/globularcli/state_cmds.go, an operator command
+    domain: github.com/globulario/services
+    contract: Layer-3 installed state is keyed by canonical node id and owned by node-agent. A package record may not exist under an id that is not a cluster member, and if one is created the system must reconcile it away rather than wait for an operator to notice.

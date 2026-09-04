@@ -284,18 +284,20 @@ func (m *etcdMemberManager) snapshotEtcdMembers(ctx context.Context) (*etcdMembe
 	state := &etcdMemberState{
 		Bootstrapped:   len(resp.Members) > 0,
 		MemberPeerURLs: make(map[string]string, len(resp.Members)),
+		RingPeerURLs:   make([]string, 0, len(resp.Members)),
 	}
 	for _, member := range resp.Members {
-		name := member.Name
-		if name == "" {
-			// Unstarted member (added but not yet started) — use first peer URL.
-			if len(member.PeerURLs) > 0 {
-				name = member.PeerURLs[0]
-			}
+		if len(member.PeerURLs) == 0 {
 			continue
 		}
-		if len(member.PeerURLs) > 0 {
-			state.MemberPeerURLs[name] = member.PeerURLs[0]
+		// Every member counts toward the ring, named or not. An unstarted
+		// member (MemberAdd ran, the process never booted) reports an empty
+		// Name, but etcd's own membership validation still counts it — so it
+		// must survive into RingPeerURLs or every initial-cluster rendered
+		// from this snapshot will be one short.
+		state.RingPeerURLs = append(state.RingPeerURLs, member.PeerURLs[0])
+		if member.Name != "" {
+			state.MemberPeerURLs[member.Name] = member.PeerURLs[0]
 		}
 	}
 	return state, nil
@@ -378,6 +380,95 @@ func classifyStuckEtcdJoin(node *nodeState, namedURLs map[string]bool, now time.
 		return false // already a healthy named member
 	}
 	return !nodeHasEtcdRunning(node)
+}
+
+// etcdMemberVanished reports the physical situation "the cluster believes this
+// node should be an etcd member, and it is neither in the ring nor running".
+// Both callers below act on exactly this; keeping it in one place is what stops
+// them from drifting apart.
+func etcdMemberVanished(node *nodeState, existingURLs map[string]bool) bool {
+	if node == nil {
+		return false
+	}
+	return !nodeAnyIPIsEtcdMember(node, existingURLs) && !nodeHasEtcdRunning(node)
+}
+
+// nodeReturnedWithoutMembership recognises a node that FINISHED its join, was
+// later dropped from the ring, and came back without membership.
+//
+// This shape had no detector. classifyStuckEtcdJoin covers the node that never
+// finished joining — it requires BootstrapPhase == etcd_joining — and the
+// "member disappeared" cooldown in the EtcdJoinVerified branch covers the node
+// whose phase is still verified. A node loses that phase whenever its record is
+// re-created (removeStaleNodesLocked deletes the record of a node whose identity
+// another claimant took over, and the next heartbeat re-creates it at
+// EtcdJoinNone), and it is workload_ready rather than etcd_joining. So it
+// matched neither detector and fell through every branch, permanently.
+//
+// Measured on the 5-node simulation, 1.2.357, 2026-09-03: after
+// authority/node-clone-identity-collision, node-5 sat at
+// etcd_join_phase="" / bootstrap_phase=workload_ready with globular-etcd
+// inactive and no ring entry, while the controller logged
+// "renderEtcdConfig: … is not an etcd member yet — skipping etcd.yaml render
+// until MemberAdd puts it in the ring" every ~15s indefinitely. The whole repair
+// chain behind rejoin_required — MemberAdd, then the node agent's
+// wipe-etcd-and-rejoin workflow — was already implemented and wired; nothing
+// ever entered it.
+//
+// The safety gates are NOT here: the cooldown is applied by
+// confirmVanishedEtcdMember, and the destructive step stays behind
+// validateEtcdRejoinPreconditions (quorum-safe, agent reachable) and the
+// never-rejoin-the-leader guard in reconcileEtcdAutoRejoin.
+func nodeReturnedWithoutMembership(node *nodeState, existingURLs map[string]bool) bool {
+	if node == nil {
+		return false
+	}
+	switch node.EtcdJoinPhase {
+	case EtcdJoinNone, EtcdJoinFailed:
+		// only classify from these base states
+	default:
+		return false
+	}
+	// Only a node that COMPLETED bootstrap. A node still in etcd_joining is
+	// mid-join and belongs to classifyStuckEtcdJoin, which applies its own
+	// (longer) threshold; treating it here would race the join script.
+	if node.BootstrapPhase != BootstrapWorkloadReady {
+		return false
+	}
+	return etcdMemberVanished(node, existingURLs)
+}
+
+// confirmVanishedEtcdMember applies the shared cooldown and quorum gate to a
+// node whose etcd membership has vanished, and returns the phase it should move
+// to once confirmed — or "" while the cooldown is still running.
+//
+// Cooldown: 3 consecutive cycles of "missing + not running", so a transient etcd
+// restart or a brief partition cannot trigger a destructive repair.
+//
+// Quorum gate: auto-rejoin is only proposed when OTHER healthy members remain.
+// With none, the node is reset to EtcdJoinNone for the ordinary join flow rather
+// than having its data directory wiped — wiping the last surviving member's data
+// is the unrecoverable case (etcd.auto_rejoin_leader_guard_fails_open is the
+// same lesson).
+func confirmVanishedEtcdMember(node *nodeState, nodes []*nodeState) EtcdJoinPhase {
+	node.EtcdMissingCycles++
+	if node.EtcdMissingCycles < 3 {
+		return ""
+	}
+	healthyPeers := 0
+	for _, n := range nodes {
+		if n == nil || n.NodeID == node.NodeID {
+			continue
+		}
+		if n.EtcdJoinPhase == EtcdJoinVerified && nodeHasEtcdRunning(n) {
+			healthyPeers++
+		}
+	}
+	node.EtcdMissingCycles = 0
+	if healthyPeers > 0 {
+		return EtcdJoinRejoinRequired
+	}
+	return EtcdJoinNone
 }
 
 // memberAdd calls etcd MemberAdd for the given peer URL.
@@ -699,6 +790,35 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 					node.NodeID, node.Identity.Hostname, node.EtcdJoinError)
 				continue
 			}
+			// A node that finished its join, lost its ring entry, and came back
+			// without one. Same physical situation as the "member disappeared"
+			// path in the EtcdJoinVerified branch below, reached from a base
+			// phase because the node's record was re-created; it gets the same
+			// cooldown and the same quorum gate.
+			if nodeReturnedWithoutMembership(node, existingURLs) {
+				next := confirmVanishedEtcdMember(node, nodes)
+				dirty = true
+				if next == "" {
+					log.Printf("etcd join: node %s (%s) returned without ring membership, cycle %d/3 (cooldown)",
+						node.NodeID, node.Identity.Hostname, node.EtcdMissingCycles)
+					continue
+				}
+				node.EtcdJoinPhase = next
+				if next == EtcdJoinRejoinRequired {
+					node.EtcdJoinError = "node completed bootstrap but is absent from the etcd ring " +
+						"with etcd not running for 3 consecutive cycles; auto-rejoin triggered"
+				} else {
+					node.EtcdJoinError = ""
+				}
+				log.Printf("etcd join: node %s (%s) returned without ring membership, transitioning to %s",
+					node.NodeID, node.Identity.Hostname, node.EtcdJoinPhase)
+				continue
+			}
+			if node.EtcdMissingCycles > 0 {
+				// Recovered on its own — reset the cooldown counter.
+				node.EtcdMissingCycles = 0
+				dirty = true
+			}
 			// Node is not yet an etcd member — waiting for the join script to
 			// run MemberAdd + start etcd. Nothing to do here.
 
@@ -869,40 +989,24 @@ func (m *etcdMemberManager) reconcileEtcdJoinPhases(ctx context.Context, nodes [
 			}
 			// Detect if the member has disappeared (node removal).
 			// Must check ALL IPs to avoid false resets on multi-IP nodes.
-			if !nodeAnyIPIsEtcdMember(node, existingURLs) && !nodeHasEtcdRunning(node) {
-				// Cooldown: require 3 consecutive cycles of "missing + not running"
-				// before triggering rejoin. This prevents false positives from
-				// transient etcd restarts or brief network partitions.
-				node.EtcdMissingCycles++
+			if etcdMemberVanished(node, existingURLs) {
+				// Shared cooldown + quorum gate — see confirmVanishedEtcdMember.
+				next := confirmVanishedEtcdMember(node, nodes)
 				dirty = true
-				if node.EtcdMissingCycles < 3 {
+				if next == "" {
 					log.Printf("etcd join: node %s (%s) member missing, cycle %d/3 (cooldown)",
 						node.NodeID, node.Identity.Hostname, node.EtcdMissingCycles)
 					continue
 				}
-
-				// Member disappeared for 3+ consecutive cycles.
-				// Count remaining healthy peers to decide the recovery path.
-				healthyPeers := 0
-				for _, n := range nodes {
-					if n == nil || n.NodeID == node.NodeID {
-						continue
-					}
-					if n.EtcdJoinPhase == EtcdJoinVerified && nodeHasEtcdRunning(n) {
-						healthyPeers++
-					}
-				}
-				if healthyPeers > 0 {
-					// Other healthy members remain — safe to auto-rejoin.
-					node.EtcdJoinPhase = EtcdJoinRejoinRequired
-					node.EtcdJoinError = fmt.Sprintf("member disappeared from live cluster for %d consecutive cycles while etcd was not running; auto-rejoin triggered", node.EtcdMissingCycles)
+				node.EtcdJoinPhase = next
+				if next == EtcdJoinRejoinRequired {
+					node.EtcdJoinError = "member disappeared from live cluster for 3 consecutive cycles " +
+						"while etcd was not running; auto-rejoin triggered"
 				} else {
 					// Sole surviving member or unknown state — reset to None
 					// to allow the normal join flow without risking quorum loss.
-					node.EtcdJoinPhase = EtcdJoinNone
 					node.EtcdJoinError = ""
 				}
-				node.EtcdMissingCycles = 0
 				log.Printf("etcd join: node %s (%s) member disappeared after %d cycles, transitioning to %s",
 					node.NodeID, node.Identity.Hostname, 3, node.EtcdJoinPhase)
 			} else if node.EtcdMissingCycles > 0 {
@@ -967,6 +1071,35 @@ func (m *etcdMemberManager) memberIsHealthy(ctx context.Context, peerURL string)
 			if purl == peerURL {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+// memberIsResponding reports whether a member is actually alive, by asking it.
+//
+// memberIsHealthy above answers a different question — "is this peer URL in the
+// member list" — which is membership, not liveness, and is therefore useless as
+// a guard on removing something FROM that list. This dials the member's own
+// client URL and asks for its status: only a running etcd answers.
+//
+// Fail-closed: an unreachable member, a member with no client URLs, or any error
+// returns false, which lets a genuine ghost be pruned. The guard exists to stop
+// the removal of members that demonstrably still serve, not to make removal
+// impossible.
+func (m *etcdMemberManager) memberIsResponding(ctx context.Context, member *etcdserverpb.Member) bool {
+	if m == nil || m.client == nil || member == nil {
+		return false
+	}
+	for _, clientURL := range member.ClientURLs {
+		if strings.TrimSpace(clientURL) == "" {
+			continue
+		}
+		sctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		_, err := m.client.Status(sctx, clientURL)
+		cancel()
+		if err == nil {
+			return true
 		}
 	}
 	return false
@@ -1037,6 +1170,62 @@ func parseEtcdJoinLockKeys(keys []string) map[string]bool {
 // removeStaleMembers removes etcd members whose peer URL doesn't match any
 // desired etcd node. This handles node removal from the cluster.
 // Skips members that are mid-join (unnamed) to avoid interfering with the join flow.
+// staleMemberAction is what removeStaleMembers should do with one member,
+// decided from state alone so the decision can be tested without an etcd.
+type staleMemberAction int
+
+const (
+	// staleMemberSkip: some node record accounts for this member, or it is
+	// unstarted / mid-join. Leave it alone.
+	staleMemberSkip staleMemberAction = iota
+	// staleMemberUpdatePeerURL: the same logical node (hostname match) is
+	// registered at a different peer URL than the member carries. Update the
+	// member rather than remove it.
+	staleMemberUpdatePeerURL
+	// staleMemberCandidate: no node record claims this member. It MAY be a
+	// ghost — but that is an inference from the controller's node view, and the
+	// caller must confirm the member is not still serving before removing it.
+	staleMemberCandidate
+)
+
+// classifyStaleMemberAction decides the fate of one etcd member from the desired
+// sets alone. It never concludes "remove": the strongest verdict it returns is
+// staleMemberCandidate, because whether a member is really a ghost is a question
+// about the member, not about the controller's records.
+func classifyStaleMemberAction(
+	member *etcdserverpb.Member,
+	desiredPeerURLs map[string]bool,
+	desiredHostnames map[string]bool,
+	desiredPeerURLByHostname map[string]string,
+	joinInProgress map[string]bool,
+) (staleMemberAction, string) {
+	if member == nil || member.Name == "" {
+		return staleMemberSkip, "" // unstarted member — might be mid-join
+	}
+	if joinInProgress[member.Name] {
+		return staleMemberSkip, "" // Day-1 join in flight for this hostname
+	}
+	if expectedPeerURL, ok := desiredPeerURLByHostname[member.Name]; ok && expectedPeerURL != "" {
+		for _, purl := range member.PeerURLs {
+			if purl == expectedPeerURL {
+				return staleMemberSkip, "" // already at the expected peer URL
+			}
+		}
+		return staleMemberUpdatePeerURL, expectedPeerURL
+	}
+	for _, purl := range member.PeerURLs {
+		if desiredPeerURLs[purl] {
+			return staleMemberSkip, ""
+		}
+	}
+	// Fallback: match by sanitized hostname in case IP is temporarily empty
+	// in controller state but the node is still a legitimate cluster member.
+	if desiredHostnames[member.Name] {
+		return staleMemberSkip, ""
+	}
+	return staleMemberCandidate, ""
+}
+
 func (m *etcdMemberManager) removeStaleMembers(ctx context.Context, desiredEtcdNodes []memberNode) error {
 	if m == nil || m.client == nil {
 		return nil
@@ -1078,22 +1267,14 @@ func (m *etcdMemberManager) removeStaleMembers(ctx context.Context, desiredEtcdN
 	}
 
 	for _, member := range resp.Members {
-		if member.Name == "" {
-			continue // unstarted member — might be mid-join, don't remove
-		}
-		if joinInProgress[member.Name] {
-			// Day-1 join in flight for this hostname; don't evict.
+		action, expectedPeerURL := classifyStaleMemberAction(
+			member, desiredPeerURLs, desiredHostnames, desiredPeerURLByHostname, joinInProgress)
+
+		switch action {
+		case staleMemberSkip:
 			continue
-		}
-		if expectedPeerURL, ok := desiredPeerURLByHostname[member.Name]; ok && expectedPeerURL != "" {
-			hasExpected := false
-			for _, purl := range member.PeerURLs {
-				if purl == expectedPeerURL {
-					hasExpected = true
-					break
-				}
-			}
-			if !hasExpected {
+		case staleMemberUpdatePeerURL:
+			{
 				updCtx, updCancel := context.WithTimeout(ctx, 10*time.Second)
 				_, updErr := m.client.MemberUpdate(updCtx, member.ID, []string{expectedPeerURL})
 				updCancel()
@@ -1108,19 +1289,40 @@ func (m *etcdMemberManager) removeStaleMembers(ctx context.Context, desiredEtcdN
 			// Same logical node (hostname match): never treat as stale.
 			continue
 		}
-		isDesired := false
-		for _, purl := range member.PeerURLs {
-			if desiredPeerURLs[purl] {
-				isDesired = true
-				break
-			}
-		}
-		// Fallback: match by sanitized hostname in case IP is temporarily empty
-		// in controller state but the node is still a legitimate cluster member.
-		if !isDesired && desiredHostnames[member.Name] {
-			isDesired = true
-		}
-		if isDesired {
+
+		// action == staleMemberCandidate: no node record claims this member.
+		// A member that still answers is not stale — whatever the node view says.
+		//
+		// "Stale" here means a ghost: an entry for a node the cluster no longer
+		// has. It is inferred from the controller's node records, and those can be
+		// wrong. On 2026-09-02 the node-clone-identity-collision scenario proved
+		// how wrong: an impostor container claiming node-4's identity took over
+		// node-4's node record, the record's IP became the impostor's, and the
+		// live member for https://10.10.0.14:2380 then matched no desired peer URL
+		// and no desired hostname. This loop removed it. node-4 — untouched,
+		// healthy, a voting member of the ring — was evicted from etcd by a
+		// reconciler acting on a corrupted premise, and its etcd never came back
+		// (its data dir still carried the old member id, so the later re-add
+		// produced "rejected Raft message to mismatch member" and the unit
+		// exited). The ring went 5 -> 3 healthy on a cluster where one container
+		// had been started with a copied identity.
+		//
+		// So the removal is gated on evidence rather than on inference, per
+		// etcd.auto_rejoin_leader_guard_fails_open (same class: a quorum-reducing
+		// action that must fail closed) and delete_requires_explicit_intent_marker
+		// (a reconciler has no explicit intent to delete). A genuine ghost does not
+		// answer; refusing to prune the ones that do costs only that a deliberately
+		// removed-but-still-running node lingers in the ring — and deliberate
+		// removal has its own path (RemoveNode does its own membership remove),
+		// which does not depend on this sweep.
+		if m.memberIsResponding(ctx, member) {
+			log.Printf("etcd member-remove: REFUSING to prune member %s (id=%d, peer=%v) — "+
+				"it is a live, responding member and no node record claims it. "+
+				"The controller's node view disagrees with a healthy voter; "+
+				"removing it would reduce quorum on a premise that may be wrong. "+
+				"Investigate the node record (duplicate identity? lost heartbeat?) "+
+				"or remove the node explicitly.",
+				member.Name, member.ID, member.PeerURLs)
 			continue
 		}
 

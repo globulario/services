@@ -35,3 +35,5 @@ ldap:0.0.2:linux_amd64=1
 ai_memory:0.0.2:linux_amd64=2
 ai_router:0.0.2:linux_amd64=1
 node_agent:0.0.1:linux_amd64=1
+ai_memory:1.2.317:linux_amd64=1
+cluster_controller:1.2.317:linux_amd64=1

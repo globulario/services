@@ -1,0 +1,37 @@
+# Immutable adoption record written by `sensei principle-pack refresh`.
+# Written BEFORE the mirror is replaced, and never rewritten: its terminal
+# disposition is derived by digesting the mirror, not stored here. Evidence
+# that an upstream-authored pack reached this project — not an authority for
+# the principles themselves.
+schema_version: 1
+kind: principle_pack_adoption
+source:
+    authority: github.com/globulario/sensei
+    sensei_revision: f21e33c69064d957404a8230321daa41d454cdc6
+    pack_digest_sha256: 40e0981df299d09a9a3ae85dc9d6d6e8fc38b9291874a936120122de15993b82
+    principle_count: 138
+target:
+    path: docs/awareness/meta_principles.yaml
+    previous_digest_sha256: 0c819e48fbff6d452a9024da569e33b3192a352ae4cf86107c6b217f2d09d2a3
+    resulting_digest_sha256: 40e0981df299d09a9a3ae85dc9d6d6e8fc38b9291874a936120122de15993b82
+change:
+    added_ids:
+        - meta.existence_checks_must_not_substitute_for_cardinality_proofs
+        - meta.omission_is_an_invisible_state_mapping
+        - meta.quorum_is_quality_not_constraint
+        - meta.single_derivation_path_must_reach_its_consumer
+        - meta.validation_must_govern_construction_not_merely_detect
+    changed_ids:
+        - meta.fail_safe_defaults_when_authority_is_uncertain
+        - meta.harvest_and_yield_are_distinct_availability_dimensions
+        - meta.load_redirection_must_be_explicit_capacity_planning
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
+    removed_ids: []
+    conflicting_ids:
+        - meta.fail_safe_defaults_when_authority_is_uncertain
+        - meta.harvest_and_yield_are_distinct_availability_dimensions
+        - meta.load_redirection_must_be_explicit_capacity_planning
+        - meta.state_mutations_must_be_durably_committed_before_side_effects
+authorization: reconcile_legacy
+disposition_is: derived
+disposition_rule: applied when the mirror digests to resulting_digest_sha256; intent_open when it digests to previous_digest_sha256; conflict otherwise

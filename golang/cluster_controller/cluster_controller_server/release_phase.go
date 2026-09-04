@@ -45,7 +45,22 @@ var validPhaseTransitions = map[string]map[string]bool{
 		cluster_controllerpb.ReleasePhaseDeferred:   true, // workflow found no dispatchable targets; retry later
 		cluster_controllerpb.ReleasePhaseFailed:     true, // workflow finished: failure
 		cluster_controllerpb.ReleasePhaseRolledBack: true,
-		ReleasePhaseRemoving:                        true,
+		// Re-resolve. PENDING is this machine's universal re-entry point and
+		// every other non-terminal phase already returns to it: WAITING ("retry
+		// after backoff"), DEFERRED ("retry target selection after backoff"),
+		// AVAILABLE ("drift re-resolve"), FAILED and ROLLED_BACK ("re-apply").
+		// RESOLVED was the sole exception, which reads as an omission rather
+		// than a rule — nothing about "the artifact resolved" makes re-resolving
+		// it unlawful, and the phase is not terminal (REMOVED is the only
+		// terminal phase, and it alone has no outgoing edges).
+		//
+		// The omission had teeth on the enforcing path: release_reconciler.go
+		// abandons the patch when advancePhase refuses, so a release sitting in
+		// RESOLVED could not be returned to PENDING for re-resolution and stayed
+		// where it was. Observed 5 times across the 1.2.353 bundles as
+		// "invalid phase transition RESOLVED → PENDING".
+		cluster_controllerpb.ReleasePhasePending: true,
+		ReleasePhaseRemoving:                     true,
 	},
 	// APPLYING is a legacy label kept only for API boundary compatibility.
 	// Internal code never writes this phase (use workflow run state instead).
@@ -108,16 +123,42 @@ func advancePhase(current, target string) error {
 	return nil
 }
 
-// emitPhaseTransition validates a phase transition, emits a cluster event, and
-// returns an error on invalid transitions (hard enforcement). The event is
-// always emitted for audit, even when the transition is invalid.
+// emitPhaseTransition validates a phase transition and emits a cluster event.
+// The event is always emitted for audit, even when the transition is invalid.
+//
+// It returns the validation error, but it does NOT itself enforce anything —
+// enforcement depends entirely on what the caller does with that error, and the
+// two caller families differ:
+//
+//   - release_reconciler.go (3 sites) enforces: it returns the error and
+//     abandons the patch, so the write really is blocked.
+//   - workflow_release.go patchReleasePhase does not: it has already assigned
+//     rel.Status.Phase before calling here, discards the error, and persists
+//     through applyWorkflowRelease. The write proceeds.
+//
+// So the same state machine is binding for one writer and advisory for the
+// other. Do not read a rejected transition as "the phase did not change" without
+// checking which path emitted it — see the wording of the log line below, which
+// exists precisely because that misreading has already happened.
 func (srv *server) emitPhaseTransition(releaseName, from, to, reason string) error {
 	if from == to {
 		return nil
 	}
 	transitionErr := advancePhase(from, to)
 	if transitionErr != nil {
-		log.Printf("release %s: BLOCKED: %v", releaseName, transitionErr)
+		// Deliberately not the word "BLOCKED". This function does not block
+		// anything; only a caller that honours the returned error does, and one
+		// of the two caller families does not. Logging "BLOCKED" here stated an
+		// outcome this code cannot know, and it was read — by a reader working
+		// only from these logs — as proof that writes were being dropped and
+		// releases stranded. They were not: on the workflow path the phase had
+		// already been assigned and was persisted immediately afterwards.
+		//
+		// Say what is actually true (this transition is not in the declared
+		// model) and leave the consequence to the caller that decides it.
+		log.Printf("release %s: phase transition not in declared model: %v "+
+			"(enforcement is the caller's; this line alone does not mean the write was dropped)",
+			releaseName, transitionErr)
 	}
 
 	severity := "INFO"

@@ -23,3 +23,12 @@
 - id: condition.prog.no_tests_cover_change
   title: The changed code path has no covering test
   detect_spec: coverage delta shows the changed lines are unexercised
+- id: condition.prog.diagnosing_a_failure
+  title: Investigating why something failed, before changing code
+  detect_spec: a defect, failing test, bad metric or unexpected status is being explained; no fix has been chosen yet
+- id: condition.prog.verifying_a_fix
+  title: A fix has been applied and its effect is being assessed
+  detect_spec: code has changed and a measurement is being read to decide whether the change worked
+- id: condition.prog.intermittent_result
+  title: The same code produces different outcomes across runs
+  detect_spec: a test, scenario or check has both passed and failed without an intervening code change

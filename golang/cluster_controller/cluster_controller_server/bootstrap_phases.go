@@ -258,20 +258,45 @@ func reconcileBootstrapPhases(nodes []*nodeState, poolNodes []string, emitter ev
 			// Verify storage services are active and healthy.
 			// MinIO: globular-minio.service must be active.
 			// ScyllaDB: ScyllaJoinPhase must be verified (gossip ring joined).
+			// MinIO and ScyllaDB are NOT the same kind of dependency, and this
+			// phase used to treat them identically.
+			//
+			// ScyllaDB is a pillar: it holds cluster state and the workflow lease
+			// table. A node that cannot join the ring has not finished joining the
+			// cluster, so blocking — and ultimately failing — is correct.
+			//
+			// MinIO is a commodity object-store tier
+			// (invariant:minio.is_commodity_not_a_pillar — "must not gate a primary
+			// service's health nor block node convergence"). Blocking on it did
+			// exactly what that invariant forbids: a MinIO that would not converge
+			// held the node at storage_joining and then FAILED its bootstrap
+			// outright, so an object-store problem became a cluster-membership
+			// problem. That is the recorded failure mode
+			// bootstrap.held_minio_nonmember_stranded_at_none — a held non-member
+			// stranded at MinioJoinNone wedges this phase.
+			//
+			// Two phases earlier this file already models the right shape for a
+			// non-pillar dependency: the awareness bundle "times out gracefully and
+			// advances — the bundle is not a hard cluster dependency… The node is
+			// not blocked; it simply operates with a degraded awareness graph."
+			// MinIO gets that treatment now. It is not silenced: the objectstore
+			// state stays visible to cluster-doctor's objectstore rules, which is
+			// where an object-store verdict belongs
+			// (forbidden_fix:bypass_doctor_for_cross_layer_health_finding).
 			allReady := true
 			var waiting string
+			minioWaiting := ""
 
-			if nodeHasMinioProfile(node) {
-				if node.MinioJoinPhase != MinioJoinVerified && node.MinioJoinPhase != MinioJoinNonMember {
-					allReady = false
-					waiting = "globular-minio.service (join phase: " + string(node.MinioJoinPhase) + ")"
-				}
+			if nodeHasMinioProfile(node) && !minioJoinSettled(node) {
+				allReady = false
+				minioWaiting = "globular-minio.service (join phase: " + string(node.MinioJoinPhase) + ")"
+				waiting = minioWaiting
 			}
-			if nodeHasScyllaProfile(node) {
-				if node.ScyllaJoinPhase != ScyllaJoinVerified {
-					allReady = false
-					waiting = "scylla-server.service (join phase: " + string(node.ScyllaJoinPhase) + ")"
-				}
+			scyllaWaiting := ""
+			if nodeHasScyllaProfile(node) && !scyllaJoinSettled(node) {
+				allReady = false
+				scyllaWaiting = "scylla-server.service (join phase: " + string(node.ScyllaJoinPhase) + ")"
+				waiting = scyllaWaiting
 			}
 
 			if allReady {
@@ -290,6 +315,29 @@ func reconcileBootstrapPhases(nodes []*nodeState, poolNodes []string, emitter ev
 				node.BootstrapError = ""
 				dirty = true
 			} else if phaseTimedOut(node, now) {
+				// Only ScyllaDB may fail a bootstrap. If MinIO is the sole reason
+				// this node has not converged, advance it degraded rather than
+				// refusing it membership over a commodity tier.
+				if scyllaWaiting == "" && minioWaiting != "" {
+					log.Printf("bootstrap: node %s (%s) advancing with DEGRADED objectstore — "+
+						"timed out on %s; MinIO is a commodity tier and must not block node "+
+						"convergence (minio.is_commodity_not_a_pillar). cluster-doctor reports "+
+						"the objectstore state.",
+						node.NodeID, node.Identity.Hostname, minioWaiting)
+					if bootstrapOK, reason := bootstrapRequiredInfraRuntimeConverged(node, now, poolNodes); !bootstrapOK {
+						node.BlockedReason = "day1_infra_runtime_blocked"
+						node.BlockedDetails = reason
+						node.BootstrapError = reason
+						break
+					}
+					node.BlockedReason = ""
+					node.BlockedDetails = ""
+					node.BootstrapPhase = BootstrapWorkloadReady
+					node.BootstrapStartedAt = now
+					node.BootstrapError = ""
+					dirty = true
+					break
+				}
 				failBootstrap(node, "timeout waiting for storage service: "+waiting)
 				dirty = true
 			}
@@ -316,6 +364,46 @@ func reconcileBootstrapPhases(nodes []*nodeState, poolNodes []string, emitter ev
 
 // phaseTimedOut returns true if the node has been in its current bootstrap
 // phase longer than bootstrapPhaseTimeout.
+// minioJoinSettled reports whether MinIO has reached a terminal join state.
+// "Verified" and "non-member" are both terminal and both lawful: a node held out
+// of the pool on purpose is finished, not stalled.
+func minioJoinSettled(node *nodeState) bool {
+	return node.MinioJoinPhase == MinioJoinVerified || node.MinioJoinPhase == MinioJoinNonMember
+}
+
+// scyllaJoinSettled reports whether ScyllaDB has joined the gossip ring. Unlike
+// MinIO there is no lawful "held out" state — a storage-profile node either
+// joined the ring or it did not.
+func scyllaJoinSettled(node *nodeState) bool {
+	return node.ScyllaJoinPhase == ScyllaJoinVerified
+}
+
+// storageGateSatisfied is the single rule every storage gate obeys, so the
+// reconciler (reconcileBootstrapPhases) and the bootstrap workflow's
+// storage_verified condition cannot drift apart on what "storage is ready"
+// means. They previously disagreed only by accident; the asymmetry below is
+// deliberate and belongs in one place.
+//
+// ScyllaDB is a pillar. It holds cluster state and the workflow lease table, so
+// a node that has not joined the ring has not joined the cluster. It blocks
+// without a deadline.
+//
+// MinIO is a commodity tier (invariant:minio.is_commodity_not_a_pillar — "must
+// not gate a primary service's health nor block node convergence"). It may delay
+// convergence for at most one phase budget; after that the node proceeds with a
+// degraded object store rather than being refused membership over it. The
+// objectstore verdict stays with cluster-doctor
+// (forbidden_fix:bypass_doctor_for_cross_layer_health_finding).
+func storageGateSatisfied(node *nodeState, now time.Time) bool {
+	if nodeHasScyllaProfile(node) && !scyllaJoinSettled(node) {
+		return false
+	}
+	if nodeHasMinioProfile(node) && !minioJoinSettled(node) && !phaseTimedOut(node, now) {
+		return false
+	}
+	return true
+}
+
 func phaseTimedOut(node *nodeState, now time.Time) bool {
 	if node.BootstrapStartedAt.IsZero() {
 		return false

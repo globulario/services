@@ -53,12 +53,34 @@ func TestCurrentAuthToken(t *testing.T) {
 // deterministic — every node calling this with the same domain + CA on disk
 // must produce the same token. Without this, sctool cluster add succeeds on
 // the coordinator host and returns HTTP 401 on every other host.
+//
+// It also pins FAIL-CLOSED behaviour, which is the property the previous
+// version of this test could not see. That version asserted only that the
+// token was non-empty — and the old derivation defaulted the domain and
+// discarded the CA read error, so it returned 48 hex characters
+// unconditionally, including on a machine with no CA at all. The assertion held
+// for every possible input, which makes it an oracle match rather than a test:
+// the one behaviour worth pinning — never invent a cluster-wide secret from a
+// substitute input — was exactly the behaviour it could not distinguish.
 func TestDeriveClusterScopedScyllaAuthToken_Stable(t *testing.T) {
-	a := deriveClusterScopedScyllaAuthToken()
-	b := deriveClusterScopedScyllaAuthToken()
-	if a == "" {
-		t.Fatal("derived token must not be empty")
+	a, okA := deriveClusterScopedScyllaAuthToken()
+	b, okB := deriveClusterScopedScyllaAuthToken()
+
+	if okA != okB {
+		t.Fatalf("derivability must be stable across calls: %v vs %v", okA, okB)
 	}
+
+	if !okA {
+		// No domain or no CA on this host (the normal case in CI). The contract
+		// is that nothing is invented: the caller must receive an empty token so
+		// it defers rather than writing a locally-derived stand-in that would
+		// disagree with every peer.
+		if a != "" {
+			t.Fatalf("derivation failed but returned token %q — must fail closed and return empty", a)
+		}
+		return
+	}
+
 	if a != b {
 		t.Fatalf("derivation must be deterministic across calls: %q vs %q", a, b)
 	}

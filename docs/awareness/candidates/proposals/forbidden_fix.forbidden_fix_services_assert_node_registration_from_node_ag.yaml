@@ -1,0 +1,17 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: forbidden_fix
+    id: forbidden_fix.services.assert_node_registration_from_node_agent_metrics_port
+    title: Assert node registration from node_agent_metrics_port
+    description: 'Do not treat the presence of /globular/nodes/{uuid}/node_agent_metrics_port as proof that a node is registered. startMetricsServer persists that key using the node id held when the metrics listener binds; after a wipe and rejoin that is a PRE-JOIN id, not the canonical one. A fully registered, healthy, etcd-member node then reads as unregistered. Confirmed 2026-08-23 on release 1.2.329: node-5''s state.json carried canonical id 35ac3821-6b90-52eb-a800-41130471770b while its metrics-port key sat under 2da500c8-32d8-5ffc-8452-6d8af5c02038 — node-5''s id from an earlier incarnation of the same container — and the other four nodes had their keys under their canonical ids. upgrade/first-join-from-clean-node failed node_registered_in_etcd on that basis, having PASSED in an earlier run, so the shape is a race and not a deterministic path. Read the node''s own record subtree instead, and report the metrics-port key separately so the mis-keying stays visible rather than being masked.'
+    source_files:
+        - golang/node_agent/node_agent_server/main.go
+    related_invariants:
+        - identity.has_single_canonical_source_and_is_immutable
+    domain: github.com/globulario/services
+    contract: A check named for a fact must measure that fact. Registration is the presence of the node's record under its canonical id. node_agent_metrics_port is a side effect written by a different code path at a different time, under whatever node id that path happened to hold.

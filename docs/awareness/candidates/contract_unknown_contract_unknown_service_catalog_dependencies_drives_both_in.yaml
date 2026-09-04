@@ -1,0 +1,11 @@
+contract_unknown:
+  - id: contract_unknown.service_catalog_dependencies_drives_both_install_placement_a
+    kind: contract_unknown
+    title: service_catalog dependencies drives both install placement and systemd After= ordering
+    description: golang/deploy/specgen.go renders service_catalog.yaml's per-service 'dependencies' list into a systemd After= line. node_agent declares dependencies [etcd, cluster_controller], so the generated unit orders the node agent AFTER the two components it is itself responsible for installing and starting during Day-0 bootstrap — a boot-order inversion. It does not bite today only because the shipped units come from specgen.sh, which emits a shorter After= line than the Go generator. The divergence stayed invisible because golang/deploy's TestGenerateSpec_MatchesExisting reads gitignored build output (generated/specs) and t.Skipf's when absent, so it only runs after a full-regenerate build. One list appears to be read with two different meanings — install-time placement and systemd boot ordering.
+    revision_request: Decide whether service_catalog.yaml 'dependencies' means install/placement ordering, systemd boot ordering, or both — and if both, whether node_agent is exempt because it is the executor that brings up its own declared dependencies. Then make specgen.sh and golang/deploy/specgen.go agree, and make the deploy test fail loudly instead of skipping when generated/specs is absent.
+    source_files:
+      - golang/service_catalog.yaml
+      - golang/deploy/specgen.go
+    evidence:
+      - 'go test ./deploy/ -run TestGenerateSpec_MatchesExisting after a --full-regenerate build: node_agent line 78 differs — generated ''After=network-online.target globular-event.service globular-etcd.service globular-cluster-controller.service'' vs existing ''After=network-online.target globular-event.service globular-cluster-controller.service''. golang/service_catalog.yaml declares node_agent dependencies [etcd, cluster_controller]. docs/operators/installation.md Phase 2 states the Node Agent starts etcd during bootstrap.'

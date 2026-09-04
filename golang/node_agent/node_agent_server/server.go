@@ -120,16 +120,23 @@ const (
 type NodeAgentServer struct {
 	node_agentpb.UnimplementedNodeAgentServiceServer
 
-	mu                       sync.Mutex
-	stateMu                  sync.Mutex
-	controllerConnMu         sync.Mutex
-	operations               map[string]*operation
-	joinToken                string
-	bootstrapToken           string
-	controllerEndpoint       string
-	agentVersion             string
-	bootstrapPlan            []string
-	nodeID                   string
+	mu                 sync.Mutex
+	stateMu            sync.Mutex
+	controllerConnMu   sync.Mutex
+	operations         map[string]*operation
+	joinToken          string
+	bootstrapToken     string
+	controllerEndpoint string
+	agentVersion       string
+	bootstrapPlan      []string
+	nodeID             string
+	// nodeIDProvisional is true when nodeID was DERIVED locally rather than
+	// restored from stored state or assigned by the controller in a JoinPlan.
+	// A derived id is this node's GUESS about its own identity; the controller
+	// is the authority (installed_state.owned_by_node_agent is a split-authority
+	// model, and node_agent.is_executor_not_cluster_brain). Observations written
+	// under a guess become orphans the moment the real id arrives.
+	nodeIDProvisional        bool
 	controllerConn           *grpc.ClientConn
 	controllerClient         cluster_controllerpb.ClusterControllerServiceClient
 	statePath                string
@@ -292,15 +299,45 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState, cfg NodeAgentCo
 		state.NodeID = nodeID
 	}
 
-	// If no node ID is stored, derive one from hardware (MAC-based stable ID).
+	// A pre-authorized JoinPlan already CARRIES this node's assigned id, and it
+	// outranks anything we could derive locally.
+	//
+	// On the v2 join path the installer calls /join/authorize before the
+	// node-agent ever starts, and the controller mints AssignedNodeID then. If
+	// we ignore it and self-derive, the node runs for the whole join window
+	// under a provisional id and writes node-scoped keys — the metrics port,
+	// installed state — under an identity the cluster never agreed to. Observed
+	// 2026-08-18 on node-3: "no node ID stored; using stable ID 12944a1b" at
+	// 01:49:01, then "node identity set: principal=node_a166b992" 35 seconds
+	// later, leaving a heartbeat key filed under the id nobody else used.
+	//
+	// The plan is on local disk at this point, so the assigned id is knowable
+	// BEFORE anything is written. Reading it is not identity recovery from a
+	// secondary source — it is reading the canonical value from the authority
+	// that minted it, which is exactly what the invariant asks for.
+	if nodeID == "" && len(state.JoinPlanJSON) > 0 {
+		if plan, err := validateNodeJoinPlan(state.JoinPlanJSON, NodeJoinPlanParams{
+			SkipSignatureVerification: !joinPlanKeystoreReady(),
+		}); err == nil && strings.TrimSpace(plan.AssignedNodeID) != "" {
+			nodeID = strings.TrimSpace(plan.AssignedNodeID)
+			state.NodeID = nodeID
+			log.Printf("node-agent: adopting assigned node ID %s from pre-authorized JoinPlan", nodeID)
+		}
+	}
+
+	// Only with no stored id AND no assigned id in a plan do we derive one from
+	// hardware (MAC-based stable ID). This is provisional by nature.
 	// Do NOT override a controller-assigned ID — even if it differs from the
 	// stable ID. The controller may have derived the ID from hostname+IPs
 	// when the MAC wasn't available in the join request.
+	nodeIDProvisional := false
 	if nodeID == "" {
 		if stableID, err := identity.StableNodeID(); err == nil {
-			log.Printf("node-agent: no node ID stored; using stable ID %s", stableID)
+			log.Printf("node-agent: no node ID stored; using stable ID %s (PROVISIONAL — "+
+				"installed-state reporting is suppressed until the controller assigns an id)", stableID)
 			nodeID = stableID
 			state.NodeID = stableID
+			nodeIDProvisional = true
 		}
 	}
 
@@ -334,6 +371,7 @@ func NewNodeAgentServer(statePath string, state *nodeAgentState, cfg NodeAgentCo
 		agentVersion:             cfg.AgentVersion,
 		bootstrapPlan:            nil,
 		nodeID:                   nodeID,
+		nodeIDProvisional:        nodeIDProvisional,
 		statePath:                statePath,
 		state:                    state,
 		joinRequestID:            state.RequestID,
@@ -1508,7 +1546,20 @@ func (srv *NodeAgentServer) joinRequestLabels() map[string]string {
 	for k, v := range srv.cfg.Labels {
 		labels[k] = v
 	}
-	if mac, err := identity.SelectBestMAC(); err == nil && mac != "" {
+	// Advertise the MAC ONLY when this node's own id actually derives from it.
+	//
+	// The controller mints AssignedNodeID with deterministicNodeID, which uses
+	// nodeid.FromMAC when labels["node.mac"] is set and nodeid.FromHostAndIPs
+	// otherwise. Calling SelectBestMAC() directly here asked the question a
+	// second time, at a different moment from the StableNodeID call that fixed
+	// this node's own id — and SelectBestMAC is not time-invariant, so the two
+	// answers could disagree and mint two ids for one machine.
+	//
+	// Reading the process-wide basis keeps both parties on one computation: a
+	// MAC-derived node advertises its MAC and the controller derives the same
+	// id; a node with no usable MAC advertises none and holds the controller to
+	// the identical hostname+IPs fallback.
+	if mac := identity.IdentityBasisMAC(); mac != "" {
 		labels["node.mac"] = mac
 	}
 	if len(labels) == 0 {
@@ -1524,6 +1575,17 @@ func (srv *NodeAgentServer) applyApprovedNodeID(nodeID string) {
 	}
 	srv.stateMu.Lock()
 	srv.nodeID = nodeID
+	// The id is no longer DERIVED — the controller granted it. Release the
+	// suppressions that were waiting on exactly this moment.
+	//
+	// nodeIDProvisional gates two writers: syncInstalledStateToEtcd (services
+	// 0dd286dd) and the metrics-port persister (dd38635c). Both were added to
+	// stop a node filing records under an identity the cluster had not granted.
+	// Neither cleared the flag, so on any node that started provisional the
+	// suppression LATCHED: installed state never synced and no metrics-port key
+	// was ever written, for the life of the process. A guard with no exit is not
+	// a guard, it is an outage with good intentions.
+	srv.nodeIDProvisional = false
 	srv.state.NodeID = nodeID
 	srv.state.RequestID = ""
 	srv.state.JoinID = ""        // clear v2 join_id so auto-join doesn't re-fire on restart
@@ -1534,6 +1596,29 @@ func (srv *NodeAgentServer) applyApprovedNodeID(nodeID string) {
 	if err := srv.saveState(); err != nil {
 		log.Printf("warn: persist approved node id: %v", err)
 	}
+	// Persist the metrics port under the id we were just granted.
+	//
+	// startMetricsServer binds long before a Day-1 node has joined, so the port
+	// was either written under a pre-join id or (with the provisional guard) not
+	// written at all. rekeyMetricsPortWhenIdentitySettles exists to correct that,
+	// but it is a 5-minute timer racing a join that routinely takes twenty, so it
+	// expires first and the node ends with NO metrics-port key under its
+	// canonical subtree.
+	//
+	// That key is load-bearing beyond metrics: the quickstart harness counts
+	// cluster members by it (probe_cluster_nodes greps
+	// /node_agent_metrics_port$), so a node missing it reads as absent. On
+	// 1.2.340 that surfaced as all_nodes_heartbeating "expected >= 5, got 4",
+	// failing three functional scenarios on a cluster where all five agents were
+	// up with zero restarts. Before the provisional guard the orphan key under
+	// the pre-join id was counted instead, so the total still reached five and
+	// hid this entirely.
+	//
+	// Adoption is the deterministic event the timer was approximating. Do it here.
+	if port := boundMetricsPort.Load(); port > 0 {
+		persistMetricsPortFn(nodeID, int(port))
+	}
+
 	// Now that we have a node ID, immediately sync installed packages to etcd.
 	go srv.syncInstalledStateToEtcd(context.Background())
 }

@@ -571,6 +571,26 @@ func runDesiredSet(cmd *cobra.Command, args []string) error {
 // rather than silently passed through. There is deliberately no --force bypass —
 // the xds incident was `globular services desired set xds --force`.
 func serviceDesiredKindGate(name string, kind repositorypb.ArtifactKind, lookupErr error) error {
+	return serviceDesiredKindGateAt(name, kind, lookupErr, svcApplyRepoAddr)
+}
+
+// serviceDesiredKindGateAt is serviceDesiredKindGate with the repository
+// endpoint that answered, so an UNSPECIFIED kind can be attributed correctly.
+//
+// "publish the package first" is the wrong advice when the package IS
+// published: kind resolution goes to whichever repository instance discovery
+// selects, and an instance on a freshly-joined node registers before it has
+// synced its artifact index. Observed 2026-08-23 — three `desired set` calls
+// were refused with "no published version with a resolvable kind" for dns,
+// ai-watcher and authentication while `pkg info dns` reported kind SERVICE,
+// publisher core@globular.io, version 1.2.317, installed on all five nodes.
+// Six consecutive lookups auto-discovered six different endpoints and all
+// resolved SERVICE once the cluster settled.
+//
+// The gate still fails closed — that part is right. Only the attribution
+// changes: name the instance that answered and give the operator the second
+// possible cause instead of only the one that is usually wrong.
+func serviceDesiredKindGateAt(name string, kind repositorypb.ArtifactKind, lookupErr error, repoAddr string) error {
 	switch {
 	case kind == repositorypb.ArtifactKind_SERVICE:
 		return nil // verified SERVICE — proceed
@@ -581,7 +601,16 @@ func serviceDesiredKindGate(name string, kind repositorypb.ArtifactKind, lookupE
 	case lookupErr != nil:
 		return fmt.Errorf("cannot verify the kind of %s (repository unreachable: %v); `services desired set` fails closed on an unverifiable kind per desired.keyed_by_kind_and_name — retry when the repository is reachable", name, lookupErr)
 	default: // ArtifactKind_UNSPECIFIED — reachable, but no published version with a resolvable kind
-		return fmt.Errorf("cannot verify %s is a SERVICE package (no published version with a resolvable kind); `services desired set` fails closed on an unknown kind per desired.keyed_by_kind_and_name — publish the package first, then retry", name)
+		where := "the repository"
+		if repoAddr != "" {
+			where = "repository instance " + repoAddr
+		}
+		return fmt.Errorf("cannot verify %s is a SERVICE package: %s reported no published version with a resolvable kind. "+
+			"`services desired set` fails closed on an unknown kind per desired.keyed_by_kind_and_name. "+
+			"Either the package is genuinely unpublished (publish it, then retry), or that instance has not finished "+
+			"syncing its artifact index — a repository on a recently joined node registers before it is populated. "+
+			"Check with `globular pkg info %s`, which prints the instance it asked; if that shows the package, retry",
+			name, where, name)
 	}
 }
 
@@ -595,6 +624,45 @@ func serviceDesiredKindGate(name string, kind repositorypb.ArtifactKind, lookupE
 //     typically uses '-' (e.g. "yt-dlp").
 //   - Platform-any packages exist, but some only publish per-OS/arch.
 func lookupArtifactKind(cmd *cobra.Command, name string) (repositorypb.ArtifactKind, error) {
+	// Ask more than one repository instance before concluding the kind is
+	// unknown.
+	//
+	// Discovery selects ONE instance per resolution, and consecutive
+	// resolutions rotate across the registered set. An instance on a
+	// freshly-joined node registers before it has synced its artifact index,
+	// so a lookup routed there sees nothing and the caller fails closed on a
+	// package that is published everywhere else. Observed 2026-08-23: three
+	// `desired set` calls refused dns, ai-watcher and authentication while
+	// `pkg info dns` reported kind SERVICE on every one of six consecutively
+	// resolved endpoints.
+	//
+	// A genuinely unpublished package still returns UNSPECIFIED from every
+	// attempt, so the gate's fail-closed behaviour is unchanged — this only
+	// stops one lagging replica from speaking for the whole repository.
+	var lastErr error
+	for attempt := 0; attempt < artifactKindLookupAttempts; attempt++ {
+		kind, err := lookupArtifactKindOnce(cmd, name)
+		if err == nil && kind != repositorypb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED {
+			return kind, nil
+		}
+		if err != nil {
+			lastErr = err
+		}
+		// No need to clear svcApplyRepoAddr: resolveRepositoryAddr re-resolves
+		// on every call, and discovery hands back a different instance. Clearing
+		// it would be actively wrong — when the operator passed --repository
+		// explicitly, resolveRepositoryAddr returns early and the cleared value
+		// would never be restored, silently retargeting the lookup away from the
+		// repository they named.
+	}
+	return repositorypb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED, lastErr
+}
+
+// artifactKindLookupAttempts bounds how many repository instances are asked
+// before an unknown kind is accepted as unknown.
+const artifactKindLookupAttempts = 3
+
+func lookupArtifactKindOnce(cmd *cobra.Command, name string) (repositorypb.ArtifactKind, error) {
 	resolveRepositoryAddr(cmd)
 	conn, err := dialRepository()
 	if err != nil {
@@ -616,6 +684,31 @@ func lookupArtifactKind(cmd *cobra.Command, name string) (repositorypb.ArtifactK
 	// Platforms to try — fall back to "" (any).
 	platforms := []string{runtime.GOOS + "_" + runtime.GOARCH, ""}
 
+	// An RPC error is NOT an answer.
+	//
+	// This loop used to `continue` past every GetArtifactVersions error and end
+	// at (UNSPECIFIED, nil) — the same value it returns for a package that is
+	// genuinely unpublished. The gate then chose the "no published version with
+	// a resolvable kind" message, whose advice is "publish it, then retry", and
+	// an operator or a scenario reading that goes looking for a publishing
+	// defect that is not there. Two of the graph's own entries describe this
+	// exact misattribution (desired_state.refusal_message_misattributes_cause,
+	// desired_state.transient_kind_lookup_reported_as_unpublished).
+	//
+	// Measured on the 5-node simulation, 1.2.359, 2026-09-03: 2 of 15
+	// consecutive `services desired set ai-watcher` calls were refused as
+	// unpublished while the package was published and installed on all five
+	// nodes; the refusals named three different repository instances, and the
+	// same instances answered correctly on the surrounding attempts — so it was
+	// never "that replica has not synced", which is what the message claimed.
+	// The scenario authority/rejoin-after-missed-generations lost all three of
+	// its desired-state writes to it and its evidence recorded a publishing
+	// problem that did not exist.
+	//
+	// Keeping the last error changes no verdict — an unresolvable kind is still
+	// refused, fail-closed — but it makes the refusal say which of the two very
+	// different causes actually happened.
+	var rpcErr error
 	for _, n := range names {
 		for _, p := range platforms {
 			rsp, err := client.GetArtifactVersions(ctx, &repositorypb.GetArtifactVersionsRequest{
@@ -624,8 +717,13 @@ func lookupArtifactKind(cmd *cobra.Command, name string) (repositorypb.ArtifactK
 				Platform:    p,
 			})
 			if err != nil {
+				rpcErr = err
 				continue
 			}
+			// A successful answer is evidence about THIS name/platform, and it
+			// clears an earlier error: the package resolves under one of the
+			// spellings we try, and the misses are expected, not failures.
+			rpcErr = nil
 			for _, v := range rsp.GetVersions() {
 				if k := v.GetRef().GetKind(); k != repositorypb.ArtifactKind_ARTIFACT_KIND_UNSPECIFIED {
 					return k, nil
@@ -633,7 +731,7 @@ func lookupArtifactKind(cmd *cobra.Command, name string) (repositorypb.ArtifactK
 			}
 		}
 	}
-	return 0, nil
+	return 0, rpcErr
 }
 
 // ─── desired remove ──────────────────────────────────────────────────────────
@@ -827,7 +925,8 @@ func downloadServiceArtifact(service, version, publisher string) (string, error)
 func dialRepository() (*grpc.ClientConn, error) {
 	if svcApplyRepoInsec {
 		// TLS with skip-verify — all services require TLS.
-		opts := []grpc.DialOption{grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true}))}
+		opts := append(clusterMetadataDialOptions(),
+			grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})))
 		if rootCfg.token != "" {
 			opts = append(opts, grpc.WithPerRPCCredentials(tokenCredentials{token: rootCfg.token}))
 		}
@@ -841,7 +940,7 @@ func dialRepository() (*grpc.ClientConn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("repository TLS: %w", err)
 	}
-	opts := []grpc.DialOption{grpc.WithTransportCredentials(creds)}
+	opts := append(clusterMetadataDialOptions(), grpc.WithTransportCredentials(creds))
 	if rootCfg.token != "" {
 		opts = append(opts, grpc.WithPerRPCCredentials(tokenCredentials{token: rootCfg.token}))
 	}

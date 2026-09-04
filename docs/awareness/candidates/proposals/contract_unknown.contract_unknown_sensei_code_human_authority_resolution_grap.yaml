@@ -1,0 +1,24 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: contract_unknown
+    id: contract_unknown.sensei_code.human_authority_resolution_graph_coverage_is_absent_for_the
+    title: 'Human authority resolution: graph coverage is absent for the planned files'
+    description: |-
+        Level-3 authority resolution.
+        Question: Architectural authority reached a human-owned boundary.
+        Certifiability condition: graph coverage is absent for the planned files
+        Chosen: Authorize the architectural change described above (option 2)
+        Task: task-1786929227938945137
+        Decided at: 2026-08-17T01:15:52Z
+    evidence:
+        - sensei-code task task-1786929227938945137
+        - session session-20260817T011347.937766022Z
+        - 'certifiability condition: graph coverage is absent for the planned files'
+        - base commit da512eb61c82
+    domain: github.com/globulario/sensei-code
+    proposed_contract: 'When graph coverage is absent for the planned files, the human authority for this repository decided: Authorize the architectural change described above.'

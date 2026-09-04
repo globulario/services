@@ -1,0 +1,22 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: failure_mode
+    id: failure.services.workflow_outcome_recorder_is_denied_workflow_admin_so_reconc
+    title: Workflow outcome recorder is denied workflow.admin, so reconcile runs fail on the record step
+    description: 'The cluster-reconcile workflow fails at its outcome-recording step because the recorder lacks the workflow.admin permission: "workflow recorder: RecordOutcome failed: rpc error: code = PermissionDenied desc = permission denied: workflow.admin — assign a role". The reconcile run itself is then reported FAILED ("reconcile-workflow: cluster.reconcile FAILED: ExecuteWorkflow cluster.reconcile"), so an RBAC gap in the bookkeeping path is indistinguishable, to every observer downstream, from the reconcile work having failed. Consequences: cluster.reconcile_clean reports the cluster dirty, doctor-style consumers see a failed reconcile lane, and an operator investigating is pointed at reconcile rather than at a missing role binding. Distinct from a genuine reconcile fault — the work may well have completed.'
+    severity: high
+    source_files:
+        - golang/cluster_controller/cluster_controller_server/reconcile_actions.go
+    related_invariants:
+        - diagnostics.must_measure_reality
+    evidence:
+        - 'globular-quickstart 5-node sim, release 1.2.332, 2026-08-24 23:36:16. Controller journal, consecutive lines: ''reconcile-workflow: cluster.reconcile FAILED: ExecuteWorkflow cluster.reconcile: rpc error: code = Unknown desc = run reconcile:1787...'' immediately followed by ''workflow recorder: RecordOutcome failed: rpc error: code = PermissionDenied desc = permission denied: workflow.admin — assign a rol...'''
+        - 'Occurred on an otherwise healthy cluster: 5/5 nodes ready, doctor 0 error / 0 warn at the surrounding settle checks, and the resilience suite immediately before had passed 13/13'
+        - Surfaced as a cluster.reconcile_clean failure in upgrade/desired-state-refuses-what-it-cannot-resolve, i.e. it is already costing scenario signal
+    domain: github.com/globulario/services
+    contract: A service account that a control-plane loop calls on its normal path must hold the permission that path requires. RBAC denying the workflow recorder is not a security success — it converts a completed reconcile into a FAILED run for a reason unrelated to what the run did.

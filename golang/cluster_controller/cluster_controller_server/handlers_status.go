@@ -463,8 +463,45 @@ func (srv *server) ReportNodeStatus(ctx context.Context, req *cluster_controller
 					}
 				}
 				if !found {
+					// A heartbeat may only bootstrap an EMPTY pool. Joining an
+					// existing pool is admission, and admission is not something
+					// a status report gets to perform.
+					//
+					// Without this guard, any node whose profile passes the
+					// (very broad) profilesForMinio list walks straight into an
+					// established erasure pool on its first heartbeat —
+					// bypassing `objectstore disk approve`, bypassing the
+					// explicit-member check in minio_pools.go, and bypassing the
+					// "once a pool exists, a non-member is HELD" contract gate
+					// that the same file applies a few lines later. The sibling
+					// append in minio_pools.go already refuses a non-empty pool
+					// for exactly this reason; this writer did not.
+					//
+					// Observed 2026-08-24 on release 1.2.331: after node-5 was
+					// wiped and rejoined, this line logged
+					//   "ReportNodeStatus: added 10.10.0.15 (node-5) to MinIO pool"
+					// and /globular/objectstore/config became a DISTRIBUTED pool
+					// of four nodes whose paths disagreed —
+					//   10.10.0.11/.12/.13 -> /var/lib/minio/d1  (admitted)
+					//   10.10.0.15         -> /var/lib/globular/minio (never admitted)
+					// node-5 does not even carry the storage profile. Erasure-set
+					// membership is a data-placement decision, so an unadmitted
+					// member can attract placement onto storage nobody approved.
+					// intent:objectstore.destructive_changes_require_approval.
+					//
+					// Day-0 is unaffected: the founding node meets an empty pool
+					// and still creates it, which is what keeps the objectstore
+					// endpoint resolvable — the reason this block exists.
+					if len(srv.state.MinioPoolNodes) > 0 {
+						log.Printf("ReportNodeStatus: NOT adding %s (%s) to the existing MinIO pool — "+
+							"pool membership requires admission (`globular objectstore disk approve` "+
+							"then apply a topology generation), not a heartbeat",
+							poolIP, node.Identity.Hostname)
+						continue
+					}
 					srv.state.MinioPoolNodes = append(srv.state.MinioPoolNodes, poolIP)
-					log.Printf("ReportNodeStatus: added %s (%s) to MinIO pool", poolIP, node.Identity.Hostname)
+					log.Printf("ReportNodeStatus: added %s (%s) to MinIO pool (pool was empty — Day-0 bootstrap)",
+						poolIP, node.Identity.Hostname)
 				}
 			}
 		}

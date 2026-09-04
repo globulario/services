@@ -88,12 +88,40 @@ func (srv *NodeAgentServer) RunWorkflowDefinition(ctx context.Context, defPath s
 			if skipIfAlreadyInstalled(ctx, pkg.Name, existing, supervisor.IsActive) {
 				return nil
 			}
-			// Runtime fast path: if installed-state is missing/stale but the unit
-			// is already active, treat the package as satisfied for Day-1 join.
+			// A running unit is NOT proof of a completed install.
+			//
+			// This used to be a fast path: if installed-state was missing or
+			// stale but the unit was already active, the package was treated
+			// as satisfied and the action returned success. That skipped the
+			// only step that produces an install receipt, so the package ended
+			// up with no owner-produced proof — installreceipt.Stamp never ran,
+			// and the heartbeat observer later backfilled a record carrying
+			// only entrypoint_checksum. cluster-doctor then raised a CRITICAL
+			// unit_receipt_drift.installed_state_missing_or_unproven that never
+			// cleared, because nothing re-stamps a receipt afterwards and
+			// nothing may do so from disk evidence.
+			//
+			// The condition fired exactly when installed-state was ABSENT —
+			// precisely the case where a receipt most needs creating — which is
+			// why a wipe-and-rejoin left units permanently unprovable while
+			// every functional check passed.
+			//
+			// Two invariants forbid the shortcut:
+			//   install.join_path_must_complete_install_contract — every install
+			//     path must complete the contract, not report success early.
+			//   installed_state_requires_successful_owner_install_receipt —
+			//     installed state requires an owner-PRODUCED receipt; an active
+			//     unit is an observation, not a receipt.
+			// It is also health_gate_trusts_systemd_active_blind_to_runtime:
+			// `systemctl is-active` says a process is up, not that this node
+			// installed the artifact the cluster intends it to run.
+			//
+			// So fall through to the reinstall below. It reuses the staged
+			// local cache (no re-download in the common case) and, critically,
+			// runs the receipt-stamping install path.
 			if unit := packageUnit(pkg.Name); unit != "" {
 				if active, _ := supervisor.IsActive(ctx, unit); active {
-					log.Printf("workflow-runner: %s unit %s already active (installed-state missing/stale), skipping reinstall", pkg.Name, unit)
-					return nil
+					log.Printf("workflow-runner: %s unit %s is active but installed-state is missing/stale — reinstalling to produce an install receipt (an active unit is not proof of install)", pkg.Name, unit)
 				}
 			}
 			// If installed but inactive, try to start the unit before falling back

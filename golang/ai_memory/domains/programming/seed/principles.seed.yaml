@@ -100,3 +100,80 @@
   promotion_reason: a secret committed to version history is effectively leaked and difficult to erase completely; prevention must have universal reach
   source_refs:
     - seed:programming/security-boundary
+- id: principle.prog.diagnose_from_an_artifact_not_an_aggregate
+  title: Diagnose from a single artifact, not from an aggregate
+  applies_when:
+    - condition.always
+    - condition.prog.diagnosing_a_failure
+  authorities:
+    - authority.prog.runtime.truth_plane
+  required_evidence:
+    - evidence.prog.artifact_level_observation
+  forbidden_moves:
+    - forbidden.prog.diagnose_from_aggregate_alone
+  recommended_action: >-
+    When a count, status field or audit total looks wrong, do not form a causal theory
+    from it. Go to one concrete artifact that can be checked mechanically — the record
+    for the single stuck item, the log line naming the entity, a value that can be
+    recomputed — and prefer the artifact that can falsify the theory in one step.
+  risk_level: low
+  revocation_rule: narrow if the artifact is genuinely unavailable and waiting for it blocks work an aggregate could safely unblock
+  promotion_reason: >-
+    Five successive wrong diagnoses in one campaign, each reasoned from an aggregate,
+    each corrected by one artifact. "23 succeeded / 1 pending" produced three different
+    wrong causes; the release record showing every node AVAILABLE while the release was
+    DEFERRED settled it immediately. A phantom node id looked like etcd corruption until
+    nodeid.FromMAC("02:42:0a:0a:00:0c") was computed and matched it exactly.
+  source_refs:
+    - seed:programming/simulation-campaign-2026-08
+- id: principle.prog.confirm_the_fixed_path_executed
+  title: Confirm the fixed path executed before claiming a fix works
+  applies_when:
+    - condition.always
+    - condition.prog.verifying_a_fix
+  authorities:
+    - authority.prog.runtime.truth_plane
+  required_evidence:
+    - evidence.prog.fixed_path_executed
+  forbidden_moves:
+    - forbidden.prog.claim_fix_without_confirming_path_executed
+  recommended_action: >-
+    After deploying a fix, verify the new path ran — a log line it emits, a counter, a
+    state only it produces — before attributing any improvement to it. A green
+    measurement after a deploy is equally consistent with the fix working, the fix being
+    inert, and unrelated timing.
+  risk_level: low
+  revocation_rule: narrow for changes with no observable executable branch, such as a pure deletion
+  promotion_reason: >-
+    A release-finalize fix was announced as "the livelock is gone, direct proof: 24/24".
+    The measurement was real; the attribution was not. The running controller showed 20
+    DEFERRED finalizations and ZERO hits on the new path — the fix was inert on that
+    cluster and something else explained the result. One grep for the emitted string
+    would have caught it before the claim was made.
+  source_refs:
+    - seed:programming/simulation-campaign-2026-08
+- id: principle.prog.explain_a_flake_before_widening_a_budget
+  title: A flaky result is a symptom to explain, not a budget to widen
+  applies_when:
+    - condition.always
+    - condition.prog.intermittent_result
+  authorities:
+    - authority.prog.runtime.truth_plane
+  required_evidence:
+    - evidence.prog.flake_mechanism_explained
+  forbidden_moves:
+    - forbidden.prog.widen_budget_to_hide_flake
+  recommended_action: >-
+    When a check passes and fails across identical code, explain the mechanism before
+    touching timeouts. Aligning a wait with the predicate actually asserted is
+    legitimate; enlarging it so red turns green is not.
+  risk_level: low
+  revocation_rule: revoke once a mechanism is identified AND is genuinely a scheduling mismatch with no underlying defect, where calibrating the budget is the correct fix
+  promotion_reason: >-
+    A scenario gave PASS, FAIL, FAIL, FAIL, PASS over identical code and was nearly
+    written off as test-design flakiness. The mechanism turned out to be a real
+    control-plane defect: a ghost node in a release's node list made that release
+    permanently unconvergeable, so a cluster-wide audit could never be clean. Widening
+    the budget would have buried the bug as noise.
+  source_refs:
+    - seed:programming/simulation-campaign-2026-08

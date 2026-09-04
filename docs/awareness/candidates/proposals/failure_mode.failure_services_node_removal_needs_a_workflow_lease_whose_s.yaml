@@ -1,0 +1,22 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: failure_mode
+    id: failure.services.node_removal_needs_a_workflow_lease_whose_serial_consistency
+    title: Node removal needs a workflow lease whose SERIAL consistency an offline node can prevent, and --force does not bypass it
+    description: '`globular cluster nodes remove <id> --force --drain=false` dispatches a node.remove workflow, and the workflow executor claims a lease before running. The lease store is ScyllaDB and the claim uses consistency level SERIAL. When a node is down, the claim can fail with "lease claim failed — refusing unfenced execution: Cannot achieve consistency level for cl SERIAL. Requires 2, alive 1" and the removal is refused. Refusing unfenced execution is right in principle; the problem is the coupling — deregistering an unreachable node is precisely what an operator does while a node is unreachable, and --force does not reach past the lease. Practical consequence: the node cannot be deregistered, so a wiped node''s fresh join is then refused with "node identity conflict: hostname already present", and the node is stuck out of the cluster until the storage layer recovers enough replicas for the lease.'
+    severity: high
+    source_files:
+        - golang/cluster_controller/cluster_controller_server/cluster_controller_server.go
+    related_invariants:
+        - node_recovery.fence_before_destructive_reseed
+    evidence:
+        - 'Reproduced verbatim on 2026-08-23 in the globular-quickstart 5-node sim: `globular cluster nodes remove 2da500c8-32d8-5ffc-8452-6d8af5c02038 --controller 10.10.0.11:12000 --insecure --timeout 120s --force --drain=false` returned ''Error: rpc error: code = Internal desc = dispatch node.remove workflow: dispatch node.remove: ExecuteWorkflow node.remove: rpc error: code = Unknown desc = run node-remove-...: lease claim failed — refusing unfenced execution: claim run node-remove-...: Cannot achieve consistency level for cl SERIAL. Requires 2, alive 1'''
+        - '2026-08-24 in upgrade/first-join-from-clean-node: the scenario stopped node-5, then ops.remove_node exited 1; node-5''s controller record survived and its subsequent clean join was denied with ''node identity conflict: hostname already present''. The identical command succeeded minutes later once the cluster had recovered.'
+        - The same removal succeeds reliably when every other node is up, which is why this only appears in flows that stop a node before deregistering it — the order clean-node.sh prescribes.
+    domain: github.com/globulario/services
+    contract: The operation an operator needs DURING a node outage must not be gated on a quorum that the outage itself removes. `cluster nodes remove --force` is documented as "Force removal even if node is unreachable", so an unreachable node is its expected input, not an error condition.

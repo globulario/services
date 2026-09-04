@@ -83,11 +83,53 @@ func (srv *server) RequestJoin(ctx context.Context, req *cluster_controllerpb.Re
 		srv.unlock()
 		return nil, status.Error(codes.PermissionDenied, "token expired")
 	}
-	if jt.Uses >= jt.MaxUses {
+	// A use is one node admission, not one attempt — see priorJoinAdmissionLocked.
+	// A node already admitted under this token is retrying, so it is not charged
+	// again and is not blocked by an exhausted budget it is already inside.
+	identity := protoToStoredIdentity(req.GetIdentity())
+
+	// A node must state a complete identity basis before it is granted an id.
+	//
+	// The assigned node id is DERIVED (deterministicNodeID): MAC when the node
+	// reports one, otherwise hostname + sorted IPs. Deriving from a hostname
+	// with an empty IP list yields an id the same node can never reproduce once
+	// its interfaces are up — nodeid.FromHostAndIPs keys on BOTH halves — so the
+	// cluster gains a member that will never heartbeat again under that id while
+	// the real node arrives separately under its canonical one.
+	//
+	// Observed on releases 1.2.330, 1.2.332 and 1.2.333: a restart storm left
+	// the controller reporting six, then seven members for a five-node cluster.
+	// The phantoms were not inert — /globular/nodes/{phantom}/ carried
+	// cluster-controller, etcd, repository and scylladb records. Because the
+	// derivation is deterministic, the same partial basis reproduces the SAME
+	// phantom id every time (12944a1b-..., 2da500c8-...), so the orphans recur
+	// instead of being one-offs.
+	//
+	// Placed BEFORE priorJoinAdmissionLocked and before jt.Uses++ deliberately:
+	// a refusal must not charge a token use, or a node retrying until its
+	// interfaces come up would exhaust its own join token
+	// (failure.join_token_use_charged_per_attempt_and_a_retrying_node_conflicts).
+	//
+	// Mirrors the node-agent's StableNodeID guard so both parties refuse the
+	// same input (intent:node_identity.hostname_ip_for_membership_domain_mac_for_other_axes).
+	if strings.TrimSpace(req.GetLabels()["node.mac"]) == "" {
+		if strings.TrimSpace(identity.Hostname) == "" || len(identity.Ips) == 0 {
+			srv.unlock()
+			return nil, status.Errorf(codes.FailedPrecondition,
+				"incomplete node identity: no node.mac label, and the hostname+IPs "+
+					"basis is partial (hostname=%q ips=%d) — an id derived from half "+
+					"this basis could never be reproduced once interfaces are up; "+
+					"retry when the node can report its addresses (no join-token use "+
+					"was charged)",
+				identity.Hostname, len(identity.Ips))
+		}
+	}
+
+	priorAdmission := srv.priorJoinAdmissionLocked(token, identity)
+	if priorAdmission == nil && jt.Uses >= jt.MaxUses {
 		srv.unlock()
 		return nil, status.Error(codes.PermissionDenied, "token uses exhausted")
 	}
-	jt.Uses++
 	reqID := uuid.NewString()
 	caps := req.GetCapabilities()
 
@@ -112,7 +154,7 @@ func (srv *server) RequestJoin(ctx context.Context, req *cluster_controllerpb.Re
 	jr := &joinRequestRecord{
 		RequestID:         reqID,
 		Token:             token,
-		Identity:          protoToStoredIdentity(req.GetIdentity()),
+		Identity:          identity,
 		Labels:            copyLabels(req.GetLabels()),
 		RequestedAt:       time.Now(),
 		Status:            "pending",
@@ -132,6 +174,12 @@ func (srv *server) RequestJoin(ctx context.Context, req *cluster_controllerpb.Re
 		// control-plane,core,gateway,storage. Empty stays nil, so a node that
 		// declares nothing still gets the deduced/default chain unchanged.
 		srv.approveJoinRecordLocked(jr, requestedProfiles)
+		// Charge the token only now, and only for a node this token has not
+		// already admitted. A blocked preflight costs nothing: it admitted
+		// nobody.
+		if priorAdmission == nil {
+			jt.Uses++
+		}
 	} else {
 		jr.Status = "blocked"
 		jr.LifecyclePhase = JoinPhaseBlocked
@@ -157,6 +205,119 @@ func (srv *server) RequestJoin(ctx context.Context, req *cluster_controllerpb.Re
 		Status:    jr.Status,
 		Message:   jr.statusMessage(),
 	}, nil
+}
+
+// joinAdmissionKey is the canonical identity of a node ATTEMPTING to join:
+// hostname plus its advertised IPs. It is deliberately the same shape the join
+// preflight uses to detect conflicts, so "is this the same node coming back"
+// and "does this node collide with an existing one" cannot drift apart.
+//
+// Returns "" when there is nothing stable to key on. An unkeyable request is
+// treated as a brand-new admission — never as a retry — so an identity-less
+// caller can never ride in on someone else's token use.
+func joinAdmissionKey(id storedIdentity) string {
+	host := strings.ToLower(strings.TrimSpace(id.Hostname))
+	ips := make([]string, 0, len(id.Ips))
+	seen := make(map[string]bool, len(id.Ips))
+	for _, raw := range id.Ips {
+		ip := strings.TrimSpace(raw)
+		if ip == "" || seen[ip] {
+			continue
+		}
+		seen[ip] = true
+		ips = append(ips, ip)
+	}
+	sort.Strings(ips)
+	if host == "" && len(ips) == 0 {
+		return ""
+	}
+	return host + "|" + strings.Join(ips, ",")
+}
+
+// sameMachineIdentity reports whether two identities describe the same physical
+// node: same hostname, and at least one routable IP in common.
+//
+// Requiring a shared IP is what keeps this from being a rename loophole — a
+// second machine that merely claims an existing hostname shares no address with
+// it and is still rejected.
+func sameMachineIdentity(a, b storedIdentity) bool {
+	ha := strings.ToLower(strings.TrimSpace(a.Hostname))
+	hb := strings.ToLower(strings.TrimSpace(b.Hostname))
+	if ha == "" || ha != hb {
+		return false
+	}
+	for _, rawA := range a.Ips {
+		ipA := strings.TrimSpace(rawA)
+		if ipA == "" {
+			continue
+		}
+		parsed := net.ParseIP(ipA)
+		if parsed == nil || parsed.IsLoopback() {
+			continue
+		}
+		for _, rawB := range b.Ips {
+			if strings.TrimSpace(rawB) == ipA {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// joinAdmissionStillLive reports whether a join request record still represents
+// an admission the node may be retrying. Terminal outcomes (rejected, removed,
+// or a node that already made it to active) do not.
+func joinAdmissionStillLive(jr *joinRequestRecord) bool {
+	phase := effectiveLifecyclePhase(jr)
+	if phase.Terminal() {
+		return false
+	}
+	// Removing is not terminal — the removal is still in flight — but a node on
+	// its way out is not retrying a join, so it holds no admission open.
+	return phase != JoinPhaseRemoving
+}
+
+// priorJoinAdmissionLocked finds an in-flight admission this token already
+// granted to this same node, or nil.
+//
+// WHY THIS EXISTS — a token use is one NODE ADMISSION, not one HTTP request.
+//
+// Both join handlers used to charge a use the moment a token validated, before
+// preflight and long before the node finished bootstrapping. A join that died
+// partway — and phase [2.3] "Generating service certificate" dies whenever
+// sign_ca_certificate answers non-2xx — had already spent it. The installer
+// then retried, spent another, and a MaxUses=1 token was gone after the first
+// failed attempt. cleanupJoinStateLocked then DELETED the exhausted token, so
+// the next attempt did not even get "uses exhausted", it got "join token not
+// found", and the node was permanently unjoinable — a full state wipe did not
+// help, because the exhaustion lived on the controller.
+//
+// Charging on retry also breaks the security property it looks like it is
+// protecting: MaxUses is meant to bound how many DISTINCT nodes a token admits.
+// Counting attempts instead of nodes makes the bound depend on how flaky the
+// network was, which is not a security boundary at all.
+//
+// So: the same node retrying continues the admission it already paid for, and a
+// DIFFERENT node still cannot get in once the budget is spent.
+//
+// Must be called with the server lock held.
+func (srv *server) priorJoinAdmissionLocked(token string, identity storedIdentity) *joinRequestRecord {
+	key := joinAdmissionKey(identity)
+	if key == "" {
+		return nil
+	}
+	for _, jr := range srv.state.JoinRequests {
+		if jr == nil || jr.Token != token {
+			continue
+		}
+		if !joinAdmissionStillLive(jr) {
+			continue
+		}
+		if joinAdmissionKey(jr.Identity) == key {
+			return jr
+		}
+	}
+	return nil
 }
 
 func (srv *server) evaluateJoinPreflightLocked(jr *joinRequestRecord) (bool, string) {
@@ -187,6 +348,31 @@ func (srv *server) evaluateJoinPreflightLocked(jr *joinRequestRecord) (bool, str
 
 	for _, n := range srv.state.Nodes {
 		if n == nil {
+			continue
+		}
+		// A node mid-join is not in conflict with ITSELF.
+		//
+		// This scan asks "does a DIFFERENT machine already hold this identity",
+		// but it used to ask "does this hostname exist anywhere" — and once the
+		// first authorization registers the node, the answer for that node's own
+		// retry is yes. A join that died partway (the certificate phase, a
+		// dropped connection, a reboot) could then never be retried: every
+		// attempt was refused as a conflict with the record its own previous
+		// attempt had just created.
+		//
+		// The exemption is deliberately narrow — it covers ONLY a node still
+		// bootstrapping. An already-active member re-requesting a join is still
+		// refused, because approveJoinRecordLocked would otherwise overwrite its
+		// nodeState with a fresh converging/BootstrapAdmitted record and throw
+		// away the placement generation and runtime progress it has earned. That
+		// refusal is now harmless: a blocked preflight no longer charges a token
+		// use, so a node looping against this costs nothing.
+		//
+		// Same hostname AND a shared routable IP is the same machine coming
+		// back. Same hostname with NO shared IP is a genuine collision — two
+		// machines claiming one name — and still fails, as does a shared IP
+		// under a different hostname.
+		if n.JoinLifecyclePhase == JoinPhaseBootstrapping && sameMachineIdentity(n.Identity, jr.Identity) {
 			continue
 		}
 		if strings.EqualFold(strings.TrimSpace(n.Identity.Hostname), hostname) {
@@ -301,6 +487,39 @@ func (srv *server) approveJoinRecordLocked(jr *joinRequestRecord, profiles []str
 	jr.Profiles = profiles
 
 	nodeID := deterministicNodeID(jr.Identity, jr.Labels)
+
+	// An id, once assigned to a machine, is reused — never re-derived into a
+	// second one.
+	//
+	// deterministicNodeID prefers labels["node.mac"] and falls back to
+	// hostname+IPs, mirroring the agent's identity.StableNodeID. Both are stable
+	// WITHIN a process (IdentityBasisMAC is sync.Once) and neither is stable
+	// ACROSS restarts: SelectBestMAC requires an interface that is up with a
+	// routable IP, so an agent restarting before its interface is ready
+	// advertises no MAC and derives the hostname id, and after it is ready
+	// advertises one and derives a different id. A restart storm therefore
+	// re-presents the same machine under a basis that resolves elsewhere, and
+	// without this guard the cluster admits it twice.
+	//
+	// Observed on the sim: node-2 held canonical c8a09d9e (hostname+IPs) and was
+	// admitted again as b68457f5, which is exactly FromMAC of its own container
+	// eth0 MAC 02:42:0a:0a:00:0c; node-5 likewise as 2da500c8 from :0f. Each
+	// phantom then carried per-node records, cluster-doctor reported CRITICAL on
+	// a healthy cluster
+	// (failure_mode:cluster.node_removal_leaves_orphaned_per_node_records), and
+	// every scenario asserting zero doctor errors failed. One of them also
+	// wedged a release permanently, because a release judged against a node that
+	// does not exist can never converge.
+	//
+	// The match is deliberately strict — same hostname AND a shared IP — so two
+	// genuinely different machines are never merged onto one id. A weaker
+	// predicate here would be far worse than a duplicate.
+	if existing := srv.existingNodeIDForIdentityLocked(jr.Identity, nodeID); existing != "" {
+		log.Printf("join: %s (%s) derives id %s but this machine is already a member as %s — "+
+			"reusing the assigned id rather than minting a second identity",
+			jr.Identity.Hostname, jr.Identity.Ips, nodeID, existing)
+		nodeID = existing
+	}
 	jr.AssignedNodeID = nodeID
 	jr.Status = "approved"
 	// TODO(v2-join): legacy RequestJoin still creates node state during approval.
@@ -437,10 +656,30 @@ func (srv *server) RejectJoin(ctx context.Context, req *cluster_controllerpb.Rej
 	}, nil
 }
 
+// tokenHasLiveAdmissionLocked reports whether any node is still mid-join under
+// this token. Must be called with the server lock held.
+func (srv *server) tokenHasLiveAdmissionLocked(token string) bool {
+	for _, jr := range srv.state.JoinRequests {
+		if jr != nil && jr.Token == token && joinAdmissionStillLive(jr) {
+			return true
+		}
+	}
+	return false
+}
+
 func (srv *server) cleanupJoinStateLocked(now time.Time) bool {
 	dirty := false
 	for token, jt := range srv.state.JoinTokens {
 		if jt.MaxUses > 0 && jt.Uses >= jt.MaxUses {
+			// An exhausted token is dropped only once nothing is still joining
+			// under it. Deleting it while a node is mid-join turns every retry
+			// into "join token not found", which is worse than "uses
+			// exhausted": it reads as operator error and hides that the node
+			// already holds an admission. The token still expires on its own
+			// clock below, so this delays reclamation, never prevents it.
+			if srv.tokenHasLiveAdmissionLocked(token) {
+				continue
+			}
 			delete(srv.state.JoinTokens, token)
 			dirty = true
 			continue
@@ -485,4 +724,36 @@ func (srv *server) GetJoinRequestStatus(ctx context.Context, req *cluster_contro
 		NodePrincipal: jr.NodePrincipal,
 		PlanJson:      append([]byte(nil), jr.JoinPlanJSON...),
 	}, nil
+}
+
+// existingNodeIDForIdentityLocked returns the id this machine is ALREADY known by,
+// when the freshly derived id differs from it. Caller must hold srv.lock.
+//
+// Membership authority is srv.state.Nodes. The predicate requires BOTH a matching
+// hostname and at least one shared IP: that is strong evidence of the same
+// machine, and deliberately stricter than the duplicate-cleanup predicate in
+// removeStaleNodesLocked, which may also act on endpoint alone. Merging two
+// different machines onto one id would be a worse failure than the duplicate this
+// prevents, so this errs toward doing nothing.
+func (srv *server) existingNodeIDForIdentityLocked(identity storedIdentity, derivedID string) string {
+	host := strings.TrimSpace(identity.Hostname)
+	if host == "" || len(identity.Ips) == 0 {
+		return "" // no basis to match on — say nothing rather than guess
+	}
+	for id, n := range srv.state.Nodes {
+		if n == nil || id == derivedID {
+			continue // already the id we derived: nothing to reconcile
+		}
+		if !strings.EqualFold(strings.TrimSpace(n.Identity.Hostname), host) {
+			continue
+		}
+		for _, want := range identity.Ips {
+			for _, have := range n.Identity.Ips {
+				if want != "" && want == have {
+					return id
+				}
+			}
+		}
+	}
+	return ""
 }

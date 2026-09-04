@@ -1,0 +1,24 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: failure_mode
+    id: failure.services.tls_repair_re_issues_a_node_agent_cert_without_ip_sans_and_t
+    title: TLS repair re-issues a node-agent cert without IP SANs and the process never reloads it, leaving the node permanently unprobeable
+    description: 'Two defects compound. (1) When node-agent''s tls-convergence finds its leaf unusable it requests re-issue via the CA gateway and logs ''repaired runtime TLS certificate'' — but the certificate it receives is a generic mesh cert (O=globular.internal, CN=globular.internal, SAN: DNS:globular.internal only) instead of the per-node cert (CN=node-N, SANs DNS:node-N, DNS:node-N.globular.internal, DNS:localhost, IP:<node-ip>, IP:127.0.0.1). A cert with no IP SANs cannot authenticate the node for any peer that dials it by IP, which is exactly how the controller dials node agents. (2) The node-agent binds this material once and never reloads it: after the correct per-node cert was restored on disk, the running process kept presenting the bad re-issued cert. Net effect: the controller''s infra probes to <node-ip>:11000 fail forever with ''x509: cannot validate certificate for <ip> because it doesn''t contain any IP SANs''; the reconcile workflow retries remediation, gets child_status=SUCCEEDED with no observable change, and marks items FAILED with reason=remediation_no_progress (44 occurrences in one hour). None of it is visible in the obvious places: the cluster reported 5/5 nodes ready, cluster-doctor reported 0 errors, and the on-disk certificate was correct. Sibling of failure.certificate_repair_on_a_non_issuer_node_was_a_no_op_that_reported_success: the repair is no longer a no-op, but it still reports success for an outcome that does not work.'
+    severity: critical
+    source_files:
+        - golang/node_agent/node_agent_server/certificate.go
+    related_invariants:
+        - pki.leaf_cert_rotation_is_proactive_not_reactive
+        - diagnostics.must_measure_reality
+    evidence:
+        - 'globular-quickstart 5-node sim, release 1.2.329, 2026-08-23: node-3 log ''tls-convergence: local certificate unusable on non-issuer node ... requesting re-issue'' then ''re-issued runtime TLS certificate via CA gateway'' then ''repaired runtime TLS certificate'''
+        - 'openssl on disk at /var/lib/globular/pki/issued/services/service.crt: subject CN=node-3, notBefore Aug 23 12:47:14, SANs include IP Address:10.10.0.13 — CORRECT'
+        - 'openssl s_client to 10.10.0.13:11000 (listener confirmed as node_agent_server pid 16571): subject CN=globular.internal, notBefore Aug 23 13:16:35, SAN DNS:globular.internal only — no IP SANs; served cert is NEWER than the on-disk cert and was never replaced by the restored one'
+        - 'controller journal: ''infra-probe: probe-minio-health on 10.10.0.13:11000 failed ... x509: cannot validate certificate for 10.10.0.13 because it doesn''t contain any IP SANs'' and ''reconcile-workflow: item FAILED: type=infra_unhealthy node=a166b992-... reason=remediation_no_progress'''
+        - Trigger was security/cert-expiry-detection, which deliberately injects an expired cert on node-3 and PASSED (detection works). Its cleanup restored the correct cert to disk, which did not help because the process does not reload. The damage surfaced two suites later as upgrade/deploy-publish-then-converge and upgrade/desired-state-refuses-what-it-cannot-resolve failing reconcile_clean.
+    domain: github.com/globulario/services

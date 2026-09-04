@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net"
 	"strings"
+
+	"github.com/globulario/services/golang/security"
 	"time"
 
 	"github.com/google/uuid"
@@ -31,6 +33,37 @@ const remediationWorkflowName = "remediate.doctor.finding"
 // All side-effects still go through the existing ExecuteRemediation
 // handler (called back via the actor service) — behavioral semantics
 // are unchanged.
+
+// effectiveClusterID returns the cluster id to stamp on outbound requests.
+//
+// s.clusterID is discovered ONCE at construction, and only inside the workflow
+// dial block, and only if GetClusterInfo answers. During bootstrap the
+// controller frequently is not serving yet, so the discovery misses and the
+// field stays empty for the life of the process. Every ExecuteWorkflow then
+// carries an empty ClusterId and the workflow service refuses it:
+//
+//	rpc error: code = Unknown desc = cluster_id is required
+//
+// That is forbidden_fix:guard_cluster_id_injection_on_optionally_propagated_field
+// exactly — identity carried on a field populated by an optional setup path, so
+// when the path does not run every RPC fails.
+//
+// security.GetLocalClusterID is the same authority the cluster_id-injecting
+// interceptor already uses successfully on every one of these dials, and it
+// reads local configuration rather than a peer that may not be up. Prefer the
+// discovered value when present, fall back to the local one, and still return
+// empty when neither knows — callers that must not invent an identity keep
+// refusing (see resolve_finding below).
+func (s *ClusterDoctorServer) effectiveClusterID() string {
+	if id := strings.TrimSpace(s.clusterID); id != "" {
+		return id
+	}
+	if id, err := security.GetLocalClusterID(); err == nil {
+		return strings.TrimSpace(id)
+	}
+	return ""
+}
+
 func (s *ClusterDoctorServer) RunRemediationWorkflow(
 	ctx context.Context,
 	findingID string,
@@ -66,7 +99,7 @@ func (s *ClusterDoctorServer) RunRemediationWorkflow(
 	}
 
 	resp, err := s.workflowClient.ExecuteWorkflow(ctx, &workflowpb.ExecuteWorkflowRequest{
-		ClusterId:    s.clusterID,
+		ClusterId:    s.effectiveClusterID(),
 		WorkflowName: remediationWorkflowName,
 		InputsJson:   string(inputsJSON),
 		ActorEndpoints: map[string]string{
@@ -153,7 +186,7 @@ func (s *ClusterDoctorServer) runAutonomousRemediation(
 	}
 
 	resp, err := s.workflowClient.ExecuteWorkflow(ctx, &workflowpb.ExecuteWorkflowRequest{
-		ClusterId:    s.clusterID,
+		ClusterId:    s.effectiveClusterID(),
 		WorkflowName: remediationWorkflowName,
 		InputsJson:   string(inputsJSON),
 		ActorEndpoints: map[string]string{

@@ -388,20 +388,75 @@ func TestInfraUnhealthy_BackoffKeyIsPerComponent(t *testing.T) {
 }
 
 // TestInfraUnhealthy_ConvergenceRequiresReprobe verifies reconcileItemConverged
-// treats infra_unhealthy as checkable and gates convergence on a fresh health
-// probe rather than trusting the restart RPC's dispatch ack — the same
-// SCAR-2 discipline already applied to missing_package/version_drift. Since
-// srv.probeMinioHealth dials a real node-agent (nil endpoint here), the probe
-// must fail closed (converged=false), not silently report converged=true.
+// gates convergence on a fresh health probe rather than trusting the restart
+// RPC's dispatch ack — the same SCAR-2 discipline already applied to
+// missing_package/version_drift.
+//
+// This test used to assert (converged=false, checkable=true) for an unreachable
+// endpoint. Its purpose was to stop two things: reporting convergence from a
+// dispatch ack, and silently clearing the drift as "unverifiable". Both still
+// hold — convergenceIndeterminate is neither convergenceProven nor
+// convergenceNoPredicate, and only those two clear the observation. What changed
+// is that an unanswered probe no longer also charges a no-progress strike, which
+// is what latched remediation against a healthy component into FAILED.
 func TestInfraUnhealthy_ConvergenceRequiresReprobe(t *testing.T) {
 	ctx := context.Background()
 	srv := &server{}
 	item := map[string]any{"type": "infra_unhealthy", "node_id": "n1", "component": "minio", "endpoint": ""}
-	converged, checkable := srv.reconcileItemConverged(ctx, item)
-	if !checkable {
-		t.Fatal("infra_unhealthy must be checkable, not silently treated as unverifiable")
+
+	got := srv.reconcileItemConverged(ctx, item)
+	if got == convergenceProven {
+		t.Fatal("must not report converged from a dispatch ack alone — an unreachable probe endpoint proves nothing")
 	}
-	if converged {
-		t.Fatal("must not report converged from a dispatch ack alone — an unreachable probe endpoint must fail closed")
+	if got == convergenceNoPredicate {
+		t.Fatal("infra_unhealthy has an observation predicate; treating it as unverifiable would clear the drift")
+	}
+	if got != convergenceIndeterminate {
+		t.Fatalf("an unreachable endpoint is an unanswered question, not an observed failure; got %v", got)
+	}
+}
+
+// TestInfraUnhealthy_UnansweredProbeDoesNotLatchRemediation is the regression
+// guard for the latch itself: an unanswered probe must not accumulate the
+// no-progress strikes that escalate a remediation to FAILED + backoff.
+//
+// The live symptom was a healthy etcd whose remediation reported
+// "child_status=SUCCEEDED, no-progress 3/3" and then latched, because every
+// resolution re-probe went through the same unreachable node agent that caused
+// the drift to be raised in the first place.
+func TestInfraUnhealthy_UnansweredProbeDoesNotLatchRemediation(t *testing.T) {
+	ctx := context.Background()
+	srv := &server{}
+	item := map[string]any{"type": "infra_unhealthy", "node_id": "n1", "component": "etcd", "endpoint": ""}
+	key := "infra_unhealthy|" + driftEntityRef(item)
+
+	for i := 0; i < reconcileNoProgressThreshold; i++ {
+		if err := srv.reconcileMarkItemTerminal(ctx, item, map[string]any{"status": "SUCCEEDED"}); err != nil {
+			t.Fatalf("pass %d: %v", i, err)
+		}
+	}
+
+	if n := srv.reconcilePeekNoProgress(key); n != 0 {
+		t.Errorf("an unanswered probe charged %d no-progress strikes; ignorance is not "+
+			"evidence of a failed remediation", n)
+	}
+
+	// The grace is finite. Past the bound, an item nobody can observe must start
+	// counting again so it can reach a terminal state rather than looping forever
+	// (failure.drift_reconciliation_retried_a_permanently_failing_package_r).
+	for i := 0; i < reconcileNoProgressThreshold*indeterminateGraceMultiplier; i++ {
+		if err := srv.reconcileMarkItemTerminal(ctx, item, map[string]any{"status": "SUCCEEDED"}); err != nil {
+			t.Fatalf("post-grace pass %d: %v", i, err)
+		}
+	}
+	// Escalation resets the strike counter as it arms backoff ("emit a periodic
+	// signal, not every tick"), so the durable evidence that it reached a terminal
+	// state is the backoff arm, not the counter.
+	srv.reconcileNoProgMu.Lock()
+	_, armed := srv.reconcileBackoffUntil[key]
+	srv.reconcileNoProgMu.Unlock()
+	if !armed {
+		t.Error("an item unobservable past the grace bound never reached a terminal " +
+			"state — the benefit of the doubt must be finite")
 	}
 }

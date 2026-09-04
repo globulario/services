@@ -1486,10 +1486,36 @@ func (srv *server) detectServiceDrift(ctx context.Context, rel *cluster_controll
 		node := srv.state.Nodes[nodeID]
 		srv.unlock()
 
+		// A node the cluster no longer has is not drift — it is a ghost entry
+		// in this release's own node list, and judging the release against it
+		// is unfalsifiable.
+		//
+		// srv.state.Nodes is membership authority. When the lookup misses, the
+		// version and health probes below all read from a nil node, every check
+		// fails, and the release is marked DEGRADED -> FAILED -> PENDING on
+		// every pass. It can never recover, because nothing about a node that
+		// does not exist will ever change. Observed live: ServiceRelease
+		// persistence cycled 75 times in a ten-minute window
+		// (AVAILABLE -> RESOLVED -> FAILED -> PENDING -> ...) against node
+		// 2da500c8-32d8-5ffc-8452-6d8af5c02038, which was absent from the node
+		// list and had zero keys under /globular/nodes/. All five real nodes
+		// were reported "artifact+runtime converged" in the same pass. That
+		// churn is why a cluster-wide release audit never reached failed:0.
+		//
+		// Skipping without appending to updatedNodes also prunes the ghost: the
+		// writer below rewrites Status.Nodes whenever the length changes, so the
+		// entry is dropped once and stops costing a reconcile every cycle
+		// (failure_mode:cluster.node_removal_leaves_orphaned_per_node_records).
+		if node == nil {
+			log.Printf("release %s: node %s is not in cluster state — dropping ghost entry from the release node list (not drift)",
+				h.Name, nodeID)
+			continue
+		}
+
 		// Skip drift decisions for nodes with stale heartbeats. Trusting
 		// old data causes false DEGRADED transitions and reconcile storms
 		// when heartbeats are delayed by network issues.
-		if node != nil && !node.LastSeen.IsZero() && time.Since(node.LastSeen) > unhealthyThreshold {
+		if !node.LastSeen.IsZero() && time.Since(node.LastSeen) > unhealthyThreshold {
 			continue
 		}
 

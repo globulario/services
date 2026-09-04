@@ -1,0 +1,13 @@
+applied_repair:
+  - id: feedback.join_no_longer_treats_an_active_unit_as_proof_of_install_the
+    kind: applied_repair
+    title: Join no longer treats an active unit as proof of install; the reinstall produces the receipt
+    description: Removed the runtime fast path in workflow_runner.go's FetchAndInstall that returned success when installed-state was missing/stale but the systemd unit was already active. That skip bypassed the only step that runs installreceipt.Stamp, so the package carried no owner-produced receipt and the heartbeat observer later backfilled a record with only entrypoint_checksum — leaving cluster-doctor with a permanent CRITICAL unit_receipt_drift.installed_state_missing_or_unproven. The path now falls through to the reinstall, which reuses the staged local cache and runs the receipt-stamping install. Deliberately NOT repaired by a reconciler that stamps unit_file_sha256 from the on-disk unit; that is recorded as a forbidden_fix because it would launder unverified filesystem state into an authority record.
+    related_failure_modes:
+      - failure.rejoin_stamps_an_install_receipt_before_the_unit_file_exists
+    required_tests:
+      - golang/node_agent/node_agent_server/workflow_runner_receipt_test.go:TestActiveUnitAloneDoesNotSatisfyInstall
+    source_files:
+      - golang/node_agent/node_agent_server/workflow_runner.go
+    survival_evidence:
+      - 'Fresh 1.2.346 cluster, full upgrade suite: 12/12 PASS. The three scenarios this defect gated — first-join-from-clean-node, liveness-survives-state-writes, package-upgrade-converges-on-all-nodes — all PASS, having been FAIL on both 1.2.345 and the 1.2.341 baseline. rejoin-with-stale-membership-state-is-bounded also PASS, confirming the extra reinstall work does not breach the join time bound, and cluster bootstrap still converged 5/5 in 20 minutes.'

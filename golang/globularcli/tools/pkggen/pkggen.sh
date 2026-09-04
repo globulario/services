@@ -13,6 +13,9 @@ PLATFORM="$(go env GOOS)_$(go env GOARCH)"
 GLOBULAR_BIN="${GLOBULAR_BIN:-globular}"
 SERVICES_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 PACKAGES_ROOT="${SERVICES_ROOT}/../packages"
+PACKAGE_SOURCES="${PACKAGE_SOURCES:-${SERVICES_ROOT}/scripts/release/package-sources.json}"
+PLATFORM_BASELINE="${PLATFORM_BASELINE:-${SERVICES_ROOT}/scripts/release/platform-baseline.json}"
+ALLOW_UNPROVEN_DEBS="${ALLOW_UNPROVEN_DEBS:-0}"
 
 registry_has_package() {
   local pkg="$1"
@@ -52,6 +55,10 @@ Common options:
   --version <ver>       Default version for packages not listed in --versions-file
   --publisher <id>      Publisher (default: core@globular.io)
   --platform <goos_goarch> Platform (default: current go env)
+  --allow-unproven-deb-provenance
+                        DANGEROUS, local builds only: assemble bundled debs whose
+                        provenance cannot be proven against the pinned package
+                        source. An official release must vendor them instead.
 
 Example (BOM-correct release build):
   $0 --globular ./globularcli \\
@@ -78,6 +85,7 @@ while [[ $# -gt 0 ]]; do
     --versions-file) VERSIONS_FILE="$2"; shift 2 ;;
     --publisher) PUBLISHER="$2"; shift 2 ;;
     --platform) PLATFORM="$2"; shift 2 ;;
+    --allow-unproven-deb-provenance) ALLOW_UNPROVEN_DEBS=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown arg: $1" >&2; usage; exit 2 ;;
   esac
@@ -188,11 +196,65 @@ build_one() {
   if [[ -n "${SCRIPTS_DIR}" ]]; then
     scripts_flag="--scripts-dir ${SCRIPTS_DIR}"
   fi
+
+  # Release-input authority for packages that bundle debs.
+  #
+  # A spec carrying bundle_debs makes this a release-input question, not just a
+  # packaging one: `pkg build` refuses to assemble bundled debs without BOTH the
+  # package authority (which source revision may be consumed) and the target
+  # compatibility authority (which platform they must install on). Absence of
+  # either is a refusal, never a silent skip — so a build that omits these flags
+  # fails closed rather than shipping debs nobody declared.
+  #
+  # sql is currently the only service that reaches this path: it is the one
+  # Globular service linking a native library (libodbc.so.2), and specgen emits
+  # bundle_debs for it so a compute-profile join does not fail on a dependency
+  # the release can carry.
+  #
+  # Wired the same way packages/build.sh does it, and only when the file is
+  # present, so a developer tree without the release manifests still builds the
+  # pure-Go services.
+  local authority_flags=""
+  local meta_dir="${PACKAGES_ROOT}/metadata/${svc_hyphen}"
+  if [[ -f "${PACKAGE_SOURCES}" ]]; then
+    authority_flags="--package-sources ${PACKAGE_SOURCES}"
+    # --package-source-root lets provenance resolve a staged copy back to its
+    # authoritative location; the builder looks for <root>/debs/<file>.
+    [[ -d "${meta_dir}" ]] && authority_flags="${authority_flags} --package-source-root ${meta_dir}"
+  fi
+  if [[ -f "${PLATFORM_BASELINE}" ]]; then
+    authority_flags="${authority_flags} --platform-baseline ${PLATFORM_BASELINE}"
+  fi
+  # Prefer vendored debs over an apt download: bytes fetched into a temp dir have
+  # no owning git repository, so their provenance cannot be established against
+  # the pinned revision no matter which flags are passed.
+  local debs_flag=""
+  if [[ -d "${meta_dir}/debs" ]]; then
+    debs_flag="--debs-dir ${meta_dir}/debs"
+  fi
+
+  # Explicit, opt-in escape hatch. NOT a default: the builder treats a missing
+  # provenance declaration as a refusal precisely so an official release cannot
+  # ship third-party bytes nobody declared. Defaulting this on would convert
+  # that refusal into a warning for every build, which is the failure the gate
+  # exists to prevent.
+  #
+  # Reached today only by sql, the one service linking a native library
+  # (libodbc.so.2). Correct for a local/dev build; an official release should
+  # vendor the debs into the pinned package source instead.
+  local unproven_flag=""
+  if [[ "${ALLOW_UNPROVEN_DEBS}" == "1" ]]; then
+    unproven_flag="--allow-unproven-deb-provenance"
+  fi
+
   # shellcheck disable=SC2086
   "${GLOBULAR_BIN}" pkg build \
     --spec "${root}/specs/${svc}_service.yaml" \
     --root "${root}" \
     ${scripts_flag} \
+    ${authority_flags} \
+    ${debs_flag} \
+    ${unproven_flag} \
     --version "${pkg_version}" \
     --publisher "${PUBLISHER}" \
     --platform "${PLATFORM}" \

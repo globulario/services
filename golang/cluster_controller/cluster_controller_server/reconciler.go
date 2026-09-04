@@ -150,7 +150,12 @@ func (r *driftReconciler) reconcileOnce(ctx context.Context) {
 	r.srv.unlock()
 
 	for nodeID, node := range nodes {
-		if node.Status != "ready" {
+		// Not `node.Status != "ready"`. That verdict includes the commodity
+		// object-store tier, so a MinIO outage on a pool member used to freeze
+		// convergence for every unrelated service on the node
+		// (minio.is_commodity_not_a_pillar). Node health still reports the
+		// object store honestly; this gate just stops obeying it.
+		if !r.srv.nodeReadyForServiceConvergence(node) {
 			continue
 		}
 		if node.AgentEndpoint == "" {

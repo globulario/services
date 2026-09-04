@@ -1067,6 +1067,9 @@ func dialGRPC(addr string) (*grpc.ClientConn, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), rootCfg.timeout)
 	defer cancel()
+	// Carry membership metadata like every other Globular client; without it
+	// any call that leaves this node is refused once the cluster is initialized.
+	opts = append(opts, clusterMetadataDialOptions()...)
 	conn, err := grpc.DialContext(ctx, addr, opts...)
 	if err != nil {
 		return nil, rewriteDialInvariantError(originalAddr, addr, err)

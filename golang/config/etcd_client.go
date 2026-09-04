@@ -11,6 +11,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/url"
 	"os"
@@ -28,7 +29,34 @@ import (
 var (
 	cliMu     sync.Mutex
 	cliShared *clientv3.Client
+
+	// Negative cache for a failed connection attempt.
+	//
+	// When etcd is unreachable no client is ever established, so cliShared
+	// stays nil and EVERY caller repeated the full cost: build a client, dial,
+	// then wait out a 2s health probe before returning the same error. Nothing
+	// remembered that the last attempt had just failed.
+	//
+	// That is why one cluster-controller persistStateLocked — an authoritative
+	// write followed by three derived publishes — took 12-28s against a down
+	// etcd instead of one dial's worth, stalling every heartbeat queued behind
+	// its lock. It is also why the affected-package release gate could not run
+	// on a workstation whose cluster was down: each test that builds a server
+	// pays the dial cost several times over, and the package blew past Go's
+	// 600s limit.
+	//
+	// A short TTL is the whole mechanism: a connection that failed 200ms ago
+	// will not succeed now, and one that failed 5s ago is worth retrying. The
+	// window is deliberately smaller than any recovery it could mask.
+	lastDialErr  error
+	lastDialFail time.Time
 )
+
+// etcdDialFailureTTL is how long a failed connection attempt suppresses
+// re-dialing. Short enough that a recovering etcd is picked up promptly,
+// long enough that a burst of calls pays for one attempt rather than all of
+// them.
+const etcdDialFailureTTL = 5 * time.Second
 
 // EtcdClusterToken is the etcd initial-cluster-token shared by every Globular
 // member. It is a fixed bootstrap constant — NOT derived from cluster_id.
@@ -70,12 +98,18 @@ func etcdClient() (*clientv3.Client, error) {
 		return cliShared, nil
 	}
 
+	// A recent failure short-circuits: re-dialing now would repeat the same
+	// probe and return the same error, only slower.
+	if lastDialErr != nil && time.Since(lastDialFail) < etcdDialFailureTTL {
+		return nil, lastDialErr
+	}
+
 	// Build endpoints (with scheme hints) from env / local config.
 	raw := etcdEndpointsFromEnv() // may contain https://
 	hostports := normalizeEndpoints(raw)
 
 	if len(hostports) == 0 {
-		return nil, fmt.Errorf("no valid etcd endpoints after normalization")
+		return nil, noteEtcdDialFailure(fmt.Errorf("no valid etcd endpoints after normalization"))
 	}
 
 	cfg := clientv3.Config{
@@ -87,23 +121,39 @@ func etcdClient() (*clientv3.Client, error) {
 	// TLS is MANDATORY for all etcd connections
 	tlsCfg, err := GetEtcdTLS()
 	if err != nil {
-		return nil, fmt.Errorf("TLS required but not available (TLS is mandatory): %w", err)
+		return nil, noteEtcdDialFailure(fmt.Errorf("TLS required but not available (TLS is mandatory): %w", err))
 	}
 	cfg.TLS = tlsCfg
 
 	c, err := clientv3.New(cfg)
 	if err != nil {
-		return nil, err
+		return nil, noteEtcdDialFailure(err)
 	}
 	if err := probeEtcdHealthy(c, 2*time.Second); err != nil {
 		_ = c.Close()
 		if errors.Is(err, ErrEtcdCorrupt) {
-			return nil, ErrEtcdCorrupt
+			return nil, noteEtcdDialFailure(ErrEtcdCorrupt)
 		}
-		return nil, err
+		return nil, noteEtcdDialFailure(err)
 	}
 	cliShared = c
+	clearEtcdDialFailure()
 	return cliShared, nil
+}
+
+// noteEtcdDialFailure records a failed connection attempt and returns the error
+// unchanged, so call sites read as `return nil, noteEtcdDialFailure(err)`.
+// Must be called with cliMu held.
+func noteEtcdDialFailure(err error) error {
+	lastDialErr = err
+	lastDialFail = time.Now()
+	return err
+}
+
+// clearEtcdDialFailure forgets the last failure. Must be called with cliMu held.
+func clearEtcdDialFailure() {
+	lastDialErr = nil
+	lastDialFail = time.Time{}
 }
 
 // GetEtcdClient returns the shared healthy etcd client.
@@ -120,6 +170,9 @@ func ResetEtcdClient() {
 		_ = cliShared.Close()
 		cliShared = nil
 	}
+	// An explicit reset is a caller saying "conditions changed, try again" —
+	// honouring the negative cache here would ignore that.
+	clearEtcdDialFailure()
 }
 
 // NewEtcdClient creates a brand-new, independent etcd client with the same
@@ -386,10 +439,29 @@ func readEndpointsFile(path string) []string {
 
 // GetEtcdTLS returns a tls.Config for etcd clients.
 //
-// Etcd is configured with client-cert-auth: false, meaning it does NOT require
-// clients to present a certificate. The client only needs to trust the server's
-// TLS certificate (i.e. have the CA). We optionally present the service cert if
-// it happens to be available, but it is NOT required.
+// The client certificate is supplied through GetClientCertificate, which Go
+// invokes on EVERY handshake, so a rotated, repaired or restored keypair is
+// picked up by the next connection without rebuilding the shared client.
+//
+// It must not be read once and cached in cfg.Certificates. This is the same
+// lesson certReloader carries on the server side ("a server that read it once
+// at startup keeps presenting the old certificate until something restarts
+// it"), and the client side is worse in two ways:
+//
+//  1. Etcd here runs with client-cert-auth: TRUE (Day-0 starts it false with
+//     ca.pem, then flips to true with ca.crt), so the client certificate is
+//     mandatory, not the optional nicety this function used to claim.
+//  2. A client certificate the server will not accept produces NO client-side
+//     error. Go only sends a certificate whose issuer appears in the server's
+//     CertificateRequest.AcceptableCAs; when none matches it sends an empty
+//     one, the server logs "tls: client didn't provide a certificate", and
+//     under TLS 1.3 the client's Dial still returns nil. The rejection then
+//     surfaces only as an operation that never completes.
+//
+// Together those cost a node 37 minutes of unresolvable "infra_unhealthy on
+// etcd@<node>" drift in the 1.2.360 soak run: the agent cached a chaos-signed
+// leaf, the correct cert was restored on disk minutes later, and nothing
+// rebuilt the cached config.
 func GetEtcdTLS() (*tls.Config, error) {
 	caPath := GetCACertificatePath()
 	if !fileExists(caPath) {
@@ -411,20 +483,144 @@ func GetEtcdTLS() (*tls.Config, error) {
 		MinVersion: tls.VersionTLS12,
 	}
 
-	// Optionally include the service client cert if it exists.
-	// Etcd has client-cert-auth: false so this is never required, but some
-	// deployments may choose to enable mutual TLS in future.
+	// Present the service client cert through a per-handshake callback so a
+	// rotated or repaired keypair is picked up without a process restart.
+	// caPool is passed so the loader can tell the operator when the leaf it is
+	// about to present does not chain to the CA — the one failure Go itself
+	// reports nowhere.
 	svcDir := filepath.Join(GetStateRootDir(), "pki", "issued", "services")
-	certPath := filepath.Join(svcDir, "service.crt")
-	keyPath := filepath.Join(svcDir, "service.key")
-	if fileExists(certPath) && fileExists(keyPath) {
-		cert, err := tls.LoadX509KeyPair(certPath, keyPath)
-		if err == nil {
-			cfg.Certificates = []tls.Certificate{cert}
-		}
-	}
+	cfg.GetClientCertificate = newEtcdClientCertSource(
+		filepath.Join(svcDir, "service.crt"),
+		filepath.Join(svcDir, "service.key"),
+		caPool,
+	).getClientCertificate
 
 	return cfg, nil
+}
+
+// etcdClientCertSource supplies the etcd client keypair on every handshake,
+// reloading it from disk whenever either file's mtime moves. It mirrors
+// globular_service.certReloader; the two are deliberately not shared because
+// that package imports this one.
+type etcdClientCertSource struct {
+	certPath string
+	keyPath  string
+	caPool   *x509.CertPool
+
+	mu      sync.Mutex
+	cached  *tls.Certificate
+	certMod time.Time
+	keyMod  time.Time
+
+	// warnedAbsent and warnedUntrusted keep a per-handshake path from
+	// producing a per-handshake log line. Each condition is reported when it
+	// starts, and again after it has been repaired and recurs.
+	warnedAbsent    bool
+	warnedUntrusted bool
+}
+
+func newEtcdClientCertSource(certPath, keyPath string, caPool *x509.CertPool) *etcdClientCertSource {
+	return &etcdClientCertSource{certPath: certPath, keyPath: keyPath, caPool: caPool}
+}
+
+// emptyClientCert is what Go itself would send when no certificate matches the
+// server's acceptable-CA list. Returning it explicitly keeps the Day-0 window
+// working: etcd starts with client-cert-auth false before any service cert
+// exists, and a node must be able to reach it then.
+var emptyClientCert = &tls.Certificate{}
+
+func (s *etcdClientCertSource) getClientCertificate(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	certInfo, certErr := os.Stat(s.certPath)
+	keyInfo, keyErr := os.Stat(s.keyPath)
+
+	if certErr != nil || keyErr != nil {
+		// Absence means Day-0 only if we have NEVER had a keypair. Once a node
+		// has presented one, files disappearing is a fault, and silently
+		// downgrading to no certificate would be the very fallback this path
+		// exists to prevent — against client-cert-auth true it converts a
+		// missing file into an unexplained timeout. Keep serving the last good
+		// pair, exactly as the reload-failure path below does.
+		if s.cached != nil {
+			if !s.warnedAbsent {
+				s.warnedAbsent = true
+				log.Printf("etcd-client: service keypair vanished from %s — continuing with the "+
+					"last good certificate; this is a fault, not a rotation", s.certPath)
+			}
+			return s.cached, nil
+		}
+		if !s.warnedAbsent {
+			s.warnedAbsent = true
+			log.Printf("etcd-client: no service keypair at %s — connecting without a client certificate; "+
+				"this only works while etcd runs with client-cert-auth false (Day-0)", s.certPath)
+		}
+		return emptyClientCert, nil
+	}
+	s.warnedAbsent = false
+
+	if s.cached != nil &&
+		certInfo.ModTime().Equal(s.certMod) && keyInfo.ModTime().Equal(s.keyMod) {
+		return s.cached, nil
+	}
+
+	pair, err := tls.LoadX509KeyPair(s.certPath, s.keyPath)
+	if err != nil {
+		// Files are present but unusable. Never silently drop this: an empty
+		// certificate against client-cert-auth true is an unexplained timeout,
+		// which is exactly the shape this whole path exists to avoid. Keep
+		// serving the last good pair if there is one — a half-written rotation
+		// must not take the client down.
+		if s.cached != nil {
+			log.Printf("etcd-client: keypair reload failed, serving previous certificate: %v", err)
+			return s.cached, nil
+		}
+		return nil, fmt.Errorf("etcd client keypair present but unusable (%s): %w", s.certPath, err)
+	}
+
+	s.certMod = certInfo.ModTime()
+	s.keyMod = keyInfo.ModTime()
+	if s.cached != nil {
+		log.Printf("etcd-client: certificate reloaded from disk (%s)", s.certPath)
+	}
+	s.cached = &pair
+	s.warnUnlessChainsToCA(&pair)
+	return s.cached, nil
+}
+
+// warnUnlessChainsToCA reports a leaf that does not verify against the cluster
+// CA. Go will drop such a certificate during the handshake and send an empty
+// one instead, without surfacing any error to the caller, so this log is the
+// only place the condition is nameable before it becomes a timeout.
+func (s *etcdClientCertSource) warnUnlessChainsToCA(pair *tls.Certificate) {
+	if s.caPool == nil || len(pair.Certificate) == 0 {
+		return
+	}
+	leaf := pair.Leaf
+	if leaf == nil {
+		parsed, err := x509.ParseCertificate(pair.Certificate[0])
+		if err != nil {
+			return
+		}
+		leaf = parsed
+	}
+	// KeyUsageAny: this checks issuance, not what the leaf is allowed to do —
+	// etcd decides that. A usage mismatch must not be reported as a CA problem.
+	_, err := leaf.Verify(x509.VerifyOptions{
+		Roots:     s.caPool,
+		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+	})
+	if err != nil {
+		if !s.warnedUntrusted {
+			s.warnedUntrusted = true
+			log.Printf("etcd-client: service certificate %s does not chain to the cluster CA (%v) — "+
+				"etcd with client-cert-auth true will reject it as \"client didn't provide a certificate\", "+
+				"and the failure will surface only as a timeout", s.certPath, err)
+		}
+		return
+	}
+	s.warnedUntrusted = false
 }
 
 func fileExists(p string) bool {

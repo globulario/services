@@ -1,0 +1,24 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: failure_mode
+    id: failure.services.infra_remediation_keeps_retrying_etcd_on_a_node_whose_etcd_i
+    title: Infra remediation keeps retrying etcd on a node whose etcd is healthy, reporting remediation_no_progress forever
+    description: 'After security/cert-expiry-detection ran against node-3, the reconcile loop kept emitting "reconcile-workflow: item FAILED: type=infra_unhealthy node=a166b992-... pkg=%!s(<nil>) reason=remediation_no_progress" for etcd on that node, while etcd on node-3 was demonstrably healthy: systemctl reported the unit active and `etcdctl endpoint health --cluster` returned all five endpoints healthy including 10.10.0.13. The remediation is not resolving because the drift observation that raised it is never re-evaluated against current runtime truth — the same latching shape as quorum_loss_alert_and_partition_fences_latch_forever_because_the_release_path_is_gated_on_the_raise_condition. Practical cost beyond the noise: cluster.reconcile_clean stays false, so any gate that waits for a quiet reconcile lane (including the quickstart harness settle gate) blocks indefinitely on a cluster that has already recovered. Note the log line also renders pkg as "%!s(<nil>)", a formatting defect that hides which package the item refers to.'
+    severity: high
+    source_files:
+        - golang/cluster_controller/cluster_controller_server/reconcile_actions.go
+    related_invariants:
+        - reconcile.terminal_success_requires_observed_convergence
+    evidence:
+        - 'globular-quickstart 5-node sim, release 1.2.334, 2026-08-25 14:22 UTC: `probe_cluster_reconcile_clean --since ''5 min ago''` returned clean=false error_count=3 kinds=''reconcile-workflow: item FAILED;'''
+        - 'Controller journal over the same window: 4 x ''item FAILED: type=infra_unhealthy node=a166b992-b66d-53cb-b7c7-61dfa4dd5a36 pkg=%!s(<nil>) reason=remediation_no_progress'' and ''remediation not resolved for etcd@'''
+        - 'At the same moment: node-3 `systemctl is-active globular-etcd` returned active, and `etcdctl endpoint health --cluster` returned all five endpoints healthy (10.10.0.11 .12 .13 .14 .15), so the remediated condition was already gone'
+        - 'Node liveness was clean too: nodes=5, stale_nodes=0, and the controller listed 5/5 ready'
+        - 'Separately confirmed in the same check that the TLS reloader fix (services 76397702) is holding: node-3 served CN=node-3 with IP Address:10.10.0.13 matching its on-disk cert, where 1.2.331 served a CN=globular.internal cert with no IP SANs after the same scenario'
+    domain: github.com/globulario/services
+    contract: A remediation is finished when the condition it was raised for is gone. Continuing to retry against measured-healthy runtime state, and reporting the retries as item FAILED, makes a recovered cluster indistinguishable from a broken one (diagnostics.must_measure_reality).

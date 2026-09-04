@@ -4935,6 +4935,409 @@
     DEGRADED mode: if ai-memory/AWG are unreachable, CLAUDE.md is the always-available
     safety floor; verify live, do not fabricate state from memory.
   seed_sha256: 4460e6308c3e7ef45c7f0ae46c3f9a7030a9e0e4f013f19d47c5e621495dd4ca
+- id: ops.always.identity.phantom-node-recompute-the-id
+  type: DEBUG
+  title: Phantom node after a restart storm — recompute the id before suspecting etcd
+  tags:
+    - always
+    - identity
+    - node
+    - restart-storm
+  content: |
+    SYMPTOM: `globular cluster nodes list` reports N+1 nodes. The extra id has records
+    under /globular/nodes/ but appears in NO node's journal.
+
+    DO THIS FIRST — do not suspect etcd corruption or a rogue host. A node id is a
+    UUIDv5 derived from a real basis, so it can be RECOMPUTED and attributed:
+
+        nodeid.FromMAC(<mac>)                     # MAC basis
+        nodeid.FromHostAndIPs(<hostname>, <ips>)  # fallback basis
+
+    Observed 2026-08-26: phantom b68457f5-bfb6-5452-bccc-cc36f29d1bbc equalled
+    nodeid.FromMAC("02:42:0a:0a:00:0c"), and /sys/class/net/eth0/address on
+    globular-node-2 was exactly that MAC. The phantom was node-2 under a SECOND
+    identity — not a foreign machine.
+
+    CAUSE: the identity basis is not time-invariant. identity.StableNodeID prefers
+    IdentityBasisMAC() (sync.Once — stable within a process, re-decided on every
+    restart) and falls back to hostname+sorted-IPs. SelectBestMAC requires an
+    interface that is up WITH a routable IP, so an agent restarting before its
+    interface is ready derives the hostname id, and after it is ready derives the
+    MAC id. A restart storm flips the answer and the machine is admitted twice.
+
+    isPhysicalInterface filters on interface NAME (veth, docker, br-, ...). A
+    container's eth0 is named like a physical NIC and carries a Docker-assigned MAC,
+    so it is NOT filtered. Do NOT "fix" this by adding a name prefix or matching the
+    02:42 MAC prefix — the basis choice is not the defect, its instability is.
+
+    COST: a phantom in a release's node list makes that release permanently
+    unconvergeable — see ops.always.release.ghost-node-churn. And a phantom
+    that never even joins still costs you: see
+    ops.always.diagnose.one-orphan-record-fails-every-doctor-assertion.
+
+    WHERE THE ORPHANS COME FROM. Two distinct sources, and closing one does not
+    close the other:
+
+      ADMISSION — a node re-presenting itself under a basis that resolves
+      differently is admitted a SECOND time. Guarded by services 865ea7f8
+      (refuse a partial hostname+IPs basis), 05f5eeae (refuse admission on a
+      partial basis) and de78cec5 (reuse the id a machine already holds:
+      same hostname AND a shared IP).
+
+      WRITERS — a node-agent path that files a record under its locally-derived
+      id before the controller has granted one. The record appears under
+      /globular/nodes/<derived>/ even though the node is NOT in the node list.
+      Guarded by services 0dd286dd (installed-state sync) and dd38635c
+      (metrics-port persister).
+
+    So `cluster nodes list` showing the right count does NOT mean there are no
+    phantoms. Count the ids in etcd separately:
+
+        etcdctl get /globular/nodes/ --prefix --keys-only \
+          | grep -oE '/globular/nodes/[0-9a-f-]{36}' | sort -u | wc -l
+  related_ids:
+    - ops.always.release.ghost-node-churn
+  seed_sha256: c86c60a251cc3533177f4805624d45e377bc413861d6f8ff7ff8d94cac41aa14
+- id: ops.always.release.ghost-node-churn
+  type: DEBUG
+  title: A ServiceRelease that never settles — check its node list against membership
+  tags:
+    - always
+    - release
+    - drift
+    - etcd
+  content: |
+    SYMPTOM: the release audit never reaches failed:0. One ServiceRelease cycles
+    AVAILABLE → RESOLVED → FAILED → PENDING indefinitely. Observed: `persistence`
+    logged 75 phase transitions in a ten-minute window with nothing else running.
+
+    CHECK: read the release record and compare each recorded node_id against actual
+    cluster membership.
+
+        etcdctl get /globular/resources/ServiceRelease/<publisher>/<service> \
+          --print-value-only
+
+    THE SIGNATURE of this bug is a release that is FAILED while its recorded nodes
+    are all AVAILABLE, or which names a node absent from `cluster nodes list`.
+    detectServiceDrift resolved each recorded node against srv.state.Nodes; a miss
+    meant every version/health probe read a nil node and failed, so the release was
+    marked DEGRADED → FAILED → PENDING forever. The verdict is unfalsifiable —
+    nothing about a node that does not exist ever changes.
+
+    Fixed in services 6013811b: ghost entries are skipped and pruned. If it recurs,
+    the upstream cause is a phantom node — see
+    ops.always.identity.phantom-node-recompute-the-id.
+  related_ids:
+    - ops.always.identity.phantom-node-recompute-the-id
+    - ops.always.release.self-heal-backoff
+  seed_sha256: cc82e4fce95859bf5a6a9f224edf434fd28be504e71dbb94f06088089fafa659
+- id: ops.always.release.self-heal-backoff
+  type: ARCHITECTURE
+  title: Transient FAILED is normal — releases self-heal on a 5 minute backoff
+  tags:
+    - always
+    - release
+    - convergence
+  content: |
+    A release going FAILED during ordinary install/upgrade/join activity is NORMAL and
+    self-heals. Both ServiceRelease and InfrastructureRelease reconcilers carry:
+
+        "<name>: FAILED → PENDING (all nodes converged, clearing failure)"
+        transition_reason = self_healed_converged
+
+    It fires after releaseRetryBackoff = 5 minutes, then PENDING → RESOLVED →
+    AVAILABLE.
+
+    OPERATIONAL RULE: do not escalate on a FAILED release until it has had one backoff
+    plus a workflow round-trip. Escalate only if it is STILL FAILED after that — that
+    is the ghost-node signature, not slowness. Measured: a cluster left alone after a
+    destructive suite went 22 succeeded / 2 failed → 24/24 in three minutes unaided.
+
+    DEFERRED is not terminal either: release_phase.go defines DEFERRED → PENDING as
+    "retry target selection after backoff", with no attempt ceiling. A release parked
+    at DEFERRED with every node AVAILABLE is a bug, not a wait.
+
+    COROLLARY FOR TEST AUTHORS: a cluster-wide `failed: 0` assertion sampled sooner
+    than one backoff — or while other work keeps creating releases — will see non-zero
+    and be RIGHT to. Explain the mechanism before widening any settle budget.
+  related_ids:
+    - ops.always.release.ghost-node-churn
+  seed_sha256: 53e3a528e28f1a4f66989113f54312f06da4a0eb4adbc00827ece7f8dff5bfed
+- id: ops.always.minio.commodity-not-a-pillar
+  type: ARCHITECTURE
+  title: MinIO must not gate convergence — the three sites that used to
+  tags:
+    - always
+    - minio
+    - objectstore
+    - convergence
+  content: |
+    invariant minio.is_commodity_not_a_pillar: MinIO is a commodity object-store tier,
+    never a pillar — it must not gate a primary service's health nor block node
+    convergence. Three sites violated it and were fixed 2026-08-25:
+
+    1. bootstrap storage_joining (services cfa922ae). MinIO not reaching
+       verified/non_member FAILED the node's bootstrap, so an object-store problem
+       became a refusal of cluster membership. Now ScyllaDB still blocks — it is a
+       pillar holding cluster state and the workflow lease table — and MinIO degrades.
+    2. the bootstrap workflow's storage_verified condition (services 4ecf082c). The
+       same demand one layer up: maybe_wait_storage gates mark_workload_ready and the
+       workflow's onFailure marks the node failed, so it would have overridden fix 1.
+       Both gates now derive from one predicate, storageGateSatisfied.
+    3. the drift reconciler's node gate (services d7600fdd). node.Status counts MinIO
+       among required units and reconciler.go skipped any node not "ready", so a MinIO
+       outage on a pool member froze convergence for EVERY unrelated service on that
+       node. Node health still reports MinIO honestly; only the convergence gate
+       stopped obeying it.
+
+    OPERATIONAL RULE: if node convergence or bootstrap stalls, MinIO should no longer
+    be the cause. If it appears to be, that is a regression worth reporting.
+  seed_sha256: cb764768c5369aeeeafcb44c7be1a066958ca7d2f0db11faf95583856a2edb0b
+- id: ops.always.diagnose.infra-probe-unreachable-is-not-unhealthy
+  type: DEBUG
+  title: Infra probes run THROUGH the node agent — unreachable is not unhealthy
+  tags:
+    - always
+    - etcd
+    - scylladb
+    - minio
+    - diagnostics
+  content: |
+    Every infra health probe (probe-etcd-health, probe-scylla-health,
+    probe-minio-health) is executed BY the node agent: the controller dials the agent
+    and asks it to run the probe locally. So an unreachable agent tells you NOTHING
+    about etcd/scylla/minio on that node.
+
+    Before services c3a3a317 the probe returned a bare bool, so a dial failure, an RPC
+    timeout and an empty endpoint were indistinguishable from "the component is
+    unhealthy". Live signature of the resulting latch, against an etcd that was fine:
+
+        remediation not resolved for etcd@<node> (infra_unhealthy)
+          — child_status=SUCCEEDED, no-progress 3/3
+        item FAILED: type=infra_unhealthy ... reason=remediation_no_progress
+
+    The resolution re-probe failed for the same reason the original probe did.
+
+    Now three outcomes: healthy / unhealthy / unreachable. Only a definitive
+    "unhealthy" raises drift or counts against a remediation; an unobservable outcome
+    holds the drift open without charging a strike, bounded so it still reaches a
+    terminal state.
+  seed_sha256: 28a34f57666fd68c96382c52768951f869f4623203ea292474feabc827d34f73
+- id: ops.always.diagnose.converging-is-not-progress
+  type: DEBUG
+  title: A node stuck at 'converging' may never escalate — grace cannot expire
+  tags:
+    - always
+    - health
+    - node
+    - known-issue
+  content: |
+    KNOWN DEFECT — filed, not yet fixed as of 2026-08-26.
+
+    evaluateNodeStatus escalates a node with missing/inactive required units from
+    "converging" to "degraded" once statusGracePeriod (2 minutes) elapses, but it
+    measures with time.Since(node.ReportedAt). ReportedAt is refreshed by EVERY
+    heartbeat (handlers_status.go), so for any node still talking to the controller it
+    is seconds old: the grace never expires and "degraded" is unreachable. A node whose
+    units are permanently missing reports "converging" forever.
+
+    OPERATIONAL RULE: do not read "converging" as "making progress". Check the unit
+    list directly. Observed: node-4 and node-5 held "converging" 40+ minutes after all
+    activity stopped, because their profiles legitimately cannot host some required
+    units — a permanent condition displayed as a transient one.
+  seed_sha256: 8a84ddda90670bc34c04eaa1b75fbab5c5961dc61d6f9dc3913d50e71d806546
+- id: ops.always.evidence.read-the-journal-first
+  type: SKILL
+  title: Scenario evidence bundles carry the control-plane journal — read it first
+  tags:
+    - always
+    - debugging
+    - testing
+    - evidence
+  content: |
+    quickstart 137790c added evidence_collect_journals. A scenario bundle now contains:
+
+        evidence/journal/<node>/cluster-controller.log
+        evidence/journal/<node>/node-agent.log
+        evidence/journal/<node>/workflow.log
+        evidence/journal/<node>/cluster-doctor.log
+
+    bounded by EVIDENCE_JOURNAL_SINCE (default -30 min) and EVIDENCE_JOURNAL_LINES
+    (default 4000) — roughly 1 MB per node.
+
+    WHY IT EXISTS: evidence_collect_systemd captures `systemctl status`, which retains
+    about ten journal lines — enough to see that a unit is unhealthy, never enough to
+    see why. Twice in one campaign a failure could not be root-caused after the fact
+    because the explaining line lived only in the live journal ("circuit OPEN" after a
+    controller thaw; the release-workflow skip reason behind a DEFERRED release), and
+    the cluster had since been rebuilt.
+
+    READ THIS DIRECTORY FIRST when a scenario fails. The ghost-node bug
+    (ops.always.release.ghost-node-churn) was found in it within minutes of it
+    existing, after two earlier attempts had dead-ended for want of exactly this.
+
+    cluster-doctor was added second (quickstart 2e1e442) and matters most for
+    assertion failures: several assertions ARE doctor findings
+    (doctor_reports_no_errors, no_doctor_errors), so when one fails the question
+    is always "which finding, on what evidence" — and that reasoning exists
+    nowhere else. Without it a bundle records the COUNT
+    (info 1, warn 0, error 1, worst CRITICAL) and not the finding, which is
+    exactly what left three upgrade failures unattributable.
+  related_ids:
+    - ops.always.release.ghost-node-churn
+  seed_sha256: 4a51ee2adf4cf38b71ed757c026097b69cafcfd89bf08eb3e241ee9412d2ac8b
+- id: ops.always.diagnose.one-orphan-record-fails-every-doctor-assertion
+  type: DEBUG
+  title: Several scenarios fail the same doctor assertion — look for one orphan record
+  tags:
+    - always
+    - diagnostics
+    - node
+    - testing
+  content: |
+    SYMPTOM: several unrelated scenarios fail on the IDENTICAL assertion —
+    "doctor error: expected 0, got 1" — and none of them fails on its own
+    subject matter.
+
+    That shape means ONE cluster-wide finding, not N independent bugs. Do not
+    debug the scenarios; find the finding.
+
+    THE COMMON CAUSE is a single orphaned per-node record. A node id that holds
+    even ONE key under /globular/nodes/ while being absent from the node list is
+    enough: cluster-doctor reports CRITICAL on an otherwise healthy cluster
+    (failure_mode cluster.node_removal_leaves_orphaned_per_node_records), and
+    every scenario asserting zero doctor errors then fails.
+
+    Measured 2026-08-26 on a FRESH cluster before any scenario ran: six ids under
+    /globular/nodes/ for five nodes. The extra one held exactly ONE key,
+    node_agent_metrics_port, and was absent from `cluster nodes list`. One stray
+    key, four red scenarios.
+
+    CHECK, in this order:
+      1. count ids in etcd vs the node list — they can disagree
+      2. for any id in etcd but not in the list, dump its subtree; a single key
+         is the signature of a pre-join writer, a full subtree
+         (packages/..., installed state) is the signature of an admitted duplicate
+      3. recompute the id — see
+         ops.always.identity.phantom-node-recompute-the-id
+
+    Because the derivation is deterministic, the SAME orphan reappears on every
+    boot rather than accumulating new ones. A recurring id across runs you
+    assumed were independent is the tell.
+  related_ids:
+    - ops.always.identity.phantom-node-recompute-the-id
+    - ops.always.evidence.read-the-journal-first
+  seed_sha256: 3abd251b492b506247a2bc96b19acb4ca0e810d0efb4f1fc3c3360d0dc4d4fc1
+- id: ops.always.decisions.open-questions-2026-08
+  type: DECISION
+  title: Open architecture questions from the 2026-08 campaign
+  tags:
+    - always
+    - placement
+    - etcd
+    - catalog
+  content: |
+    Filed as contract_unknown in the awareness graph rather than guessed at. Each
+    changes behaviour materially and is owed a human decision.
+
+    1. WHICH CATALOG IS THE PLACEMENT AUTHORITY. golang/service_catalog.yaml and
+       cluster_controller/component_catalog.go disagree on profiles for 16 of the 33
+       services they share (e.g. ai-memory yaml=[compute core] vs
+       go=[control-plane database scylla]). The controller dispatches from the Go
+       catalog; specgen publishes the YAML one into package manifests, and the dynamic
+       catalog built from those manifests OVERRIDES the static one — so effective
+       placement depends on whether a repository load succeeded. Evidence the Go values
+       are the semantically correct ones: ai-memory was found running on node-5 with
+       Scylla inactive.
+    2. MUST AN UNPLACEABLE RELEASE TERMINATE. DEFERRED retries every 2 minutes with no
+       ceiling; release_phase.go already permits DEFERRED → FAILED.
+    3. WHO RESTORES ETCD MEMBERSHIP after an identity-clone attack. The controller is
+       observe-only here BY DESIGN ("avoids dangerous controller-initiated MemberAdd");
+       a node that lost membership is marked EtcdJoinRejoinRequired and the operator is
+       told to run repair-etcd. Weigh any change against
+       etcd.auto_rejoin_leader_guard_fails_open.
+    4. WHETHER service_catalog "dependencies" MEANS INSTALL ORDER OR systemd After=.
+       It is currently rendered into After=, which would order node_agent after the
+       etcd and cluster-controller it installs during Day-0.
+  seed_sha256: bf5b6fc8477964719b85d599c3a40ff4b36ee34d099aa672d4ef66d4b2f3f530
+- id: ops.always.diagnose.healthy-clusters-never-converge-derived-config
+  type: DEBUG
+  title: Derived per-node config converges only on a failure trigger — a healthy cluster never converges it
+  tags:
+    - always
+    - diagnostics
+    - config
+    - scylla
+    - etcd
+    - convergence
+  content: |
+    SYMPTOM: a per-node config file disagrees across nodes that should be in lockstep,
+    while the authoritative source in etcd is correct. Doctor reports it only where an
+    attestation rule happens to exist (today: scylla seeds), so ONE ERROR usually means
+    SEVERAL stale files.
+
+    THE SHAPE. Derived config (a pure function of cluster membership) has a
+    materialization path wired exclusively to a FAILURE, RECOVERY, or INSTALL trigger.
+    A healthy cluster therefore never converges it — only a degraded one does. Three
+    instances found on one healthy 5-node cluster at 1.2.343:
+
+      1. Controller rendered config. computeNodePlan() re-renders every reconcile pass
+         against live membership, and the whole machinery exists (HashRenderedConfigs,
+         PendingRenderedConfigHashes, promote-on-apply, restartActionsForChangedConfigs).
+         But computeNodePlan has THREE callers and only ONE dispatches: recoverNode() in
+         handlers_health.go. The other two harvest the required-unit set for health
+         evaluation and discard RenderedConfig.
+      2. scylla seeds. Because (1) is dead, /etc/scylla/scylla.yaml is owned by the
+         package post-install script instead — check the marker: a file that says
+         "# Generated by Globular post-install" was NOT written by the controller, whose
+         marker is "# Managed by Globular cluster controller". Each node froze the seed
+         set known at its own install moment: node-1 self-only, node-2 "11,12",
+         node-3 "11,13".
+      3. etcd_endpoints. node_agent refreshEtcdEndpointsFromSystemKey() reconciles the
+         file from /globular/system/etcd_endpoints, but is called ONLY in the heartbeat
+         failure branch after 3 consecutive failures.
+      4. etcd initial-cluster. /var/lib/globular/config/etcd.yaml is never rewritten
+         after it is first laid down, so the founding node keeps its Day-0 self-only
+         list and later nodes freeze membership as of their own join. THIS IS THE
+         DANGEROUS ONE: self-only initial-cluster plus initial-cluster-state "new"
+         means a wiped restart SILENTLY BOOTSTRAPS A SECOND CLUSTER rather than
+         rejoining. Promoting the state to "existing" turns that split-brain into an
+         honest refusal to start until the member is re-added.
+
+    EXPECT SIBLINGS, ONE AT A TIME. The doctor surfaces whichever instance it has an
+    attestation rule for, so fixing one REVEALS the next rather than finishing the job.
+    On 1.2.344 the scylla-seed ERROR cleared and the etcd initial-cluster ERROR
+    appeared immediately in its place — same root, one layer down. When you fix a
+    member of this class, go looking for the others before declaring it closed.
+
+    THE FIX SHAPE (node-agent reconcilers on the 30s heartbeat, never restarting):
+    read the authoritative etcd key or the LIVE ring, rewrite only the one field,
+    write atomically, no-op when it already matches, and refuse to act when authority
+    is unavailable rather than guessing from local observation. Defer entirely on a
+    partially-formed ring (an added-but-unstarted etcd member has an empty Name);
+    emitting a partial ring a future bootstrap would trust is worse than waiting.
+
+    SEVERITY IS START-TIME, NOT RUNTIME. All three files are read only at process start.
+    Do not escalate from a stale file to a live outage without checking the runtime path:
+    clientv3 sets AutoSyncInterval=30s and replaces the seeded endpoint set with live
+    membership, and a live scylla node tracks the ring via gossip/Raft. Verified with
+    `ss -tnH state established '( dport = :2379 )'` — every node held ~42 established
+    connections to EACH of the five etcd endpoints despite a one-line endpoints file.
+    A suspected single-point-of-failure was disproved this way; check before claiming one.
+    The damage is invisible until a restart: a service starting while the seed node is
+    down has one unreachable endpoint, and a wiped restart of the founding node would
+    bootstrap an isolated single-node scylla ring.
+
+    FIX HAZARD. Because a lower layer currently owns these files, merely enabling
+    steady-state dispatch makes the controller begin OVERWRITING them, and
+    restartActionsForChangedConfigs injects a restart for every renderer declaring
+    restartUnits — including globular-etcd.service on the founding node, whose etcd.yaml
+    still holds single-node embedded defaults. Note the existing precedent for the safe
+    shape: the etcd-endpoints renderer carries `restartUnits: nil // services discover
+    endpoints on next connection`. A file consumed only at process start converges by
+    being WRITTEN; forcing a restart to "apply" it turns a benign correction into an
+    availability event on the data tier.
+  seed_sha256: 1f0cfe0020d89bf747cac6b201bf7952b6caa2874cca4d218d3b269adeb9c88a
 - id: ops.always.package.what-a-package-is
   type: ARCHITECTURE
   title: What a Globular package IS — identity, kind, recipe

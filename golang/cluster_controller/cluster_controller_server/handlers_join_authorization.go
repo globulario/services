@@ -98,7 +98,17 @@ func (srv *server) requestJoinAuthorizationCore(req *JoinAuthorizationRequest) (
 		srv.unlock()
 		return nil, status.Error(codes.PermissionDenied, "join token expired")
 	}
-	if jt.Uses >= jt.MaxUses {
+	// A use is one node admission, not one authorization request — see
+	// priorJoinAdmissionLocked in handlers_join.go for why, and for the failure
+	// this prevents. The identity is resolved here rather than further down
+	// because the exhaustion gate itself has to know whether this node is
+	// already inside the budget.
+	identity := storedIdentity{
+		Hostname: strings.TrimSpace(req.Identity.Hostname),
+		Ips:      append([]string(nil), req.Identity.IPs...),
+	}
+	priorAdmission := srv.priorJoinAdmissionLocked(token, identity)
+	if priorAdmission == nil && jt.Uses >= jt.MaxUses {
 		srv.unlock()
 		return nil, status.Error(codes.PermissionDenied, "join token uses exhausted")
 	}
@@ -159,13 +169,7 @@ func (srv *server) requestJoinAuthorizationCore(req *JoinAuthorizationRequest) (
 		}
 	}
 
-	jt.Uses++
 	joinID := uuid.NewString()
-
-	identity := storedIdentity{
-		Hostname: strings.TrimSpace(req.Identity.Hostname),
-		Ips:      append([]string(nil), req.Identity.IPs...),
-	}
 
 	caps := &cluster_controllerpb.NodeCapabilities{
 		CpuCount:      req.CPUCount,
@@ -220,6 +224,14 @@ func (srv *server) requestJoinAuthorizationCore(req *JoinAuthorizationRequest) (
 
 	// Approve: assign profiles and node_id.
 	srv.approveJoinRecordLocked(jr, requestedProfiles)
+
+	// Charge the token here — after preflight passed and the node has actually
+	// been approved — and only for a node this token has not already admitted.
+	// Every earlier return path (expired, wrong cluster, blocked preflight,
+	// unknown profiles) now costs nothing, because none of them admitted a node.
+	if priorAdmission == nil {
+		jt.Uses++
+	}
 
 	// Build and sign the JoinPlan now that profiles and node_id are determined.
 	plan, err := srv.buildJoinPlan(jr)

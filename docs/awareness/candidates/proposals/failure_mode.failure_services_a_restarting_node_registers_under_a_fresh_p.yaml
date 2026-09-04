@@ -1,0 +1,24 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: failure_mode
+    id: failure.services.a_restarting_node_registers_under_a_fresh_provisional_id_and
+    title: A restarting node registers under a fresh provisional id and leaves an orphaned installed-state subtree behind
+    description: 'During a restart storm a node registers under a provisional node id that is NOT its canonical one, and while holding that id it writes Layer-3 installed-package records. The provisional id then vanishes from the cluster node list, but its etcd subtree survives — /globular/nodes/{provisional-id}/ retains cluster-controller, etcd, repository, scylladb and node_agent_metrics_port entries belonging to no member. So the transient identity is not merely a counting blip: it becomes a durable, orphaned Layer-3 record set attributed to a node that does not exist. The provisional id DIFFERS between occurrences (b68457f5-bfb6-5452-bccc-cc36f29d1bbc on 1.2.330, 12944a1b-cfae-5d2f-8056-e8f633c8d3dd on 1.2.332), so it is computed fresh at registration from transient input rather than read from persisted state — which also means each occurrence leaves a NEW orphan rather than reusing the last. Feeds cluster.node_removal_leaves_orphaned_per_node_records: those records are exactly the kind that make a healthy cluster report CRITICAL later. Node count is also an input to RF and topology decisions, so any computation sampling membership inside the window sees a member that does not exist.'
+    severity: critical
+    source_files:
+        - golang/node_agent/node_agent_server/join_auto.go
+        - golang/cluster_controller/cluster_controller_server/handlers_status.go
+    related_invariants:
+        - identity.has_single_canonical_source_and_is_immutable
+    evidence:
+        - globular-quickstart 5-node sim. training/restart-storm-awareness failed its all-nodes-present assertion with count=6 on release 1.2.330 (extra id b68457f5-bfb6-5452-bccc-cc36f29d1bbc) and again on 1.2.332 (extra id 12944a1b-cfae-5d2f-8056-e8f633c8d3dd) — a different provisional id each time
+        - 'On 1.2.332, after the node list returned to exactly 5 canonical ids, etcdctl on /globular/nodes/12944a1b-cfae-5d2f-8056-e8f633c8d3dd/ still returned keys: cluster-controller, etcd, node_agent_metrics_port, repository, scylladb — installed-state records under a non-member'
+        - The scenario PASSED on 1.2.331 between those two failures, confirming the window is timing-dependent rather than deterministic — a single green run is not evidence the defect is gone
+        - 'Distinct from the metrics-port re-key defect (which this shares a provisional-id root with): here the provisional identity reaches the cluster node registry AND Layer-3 package state, not just one key'
+    domain: github.com/globulario/services
+    contract: A node has exactly one canonical id, and Layer-3 installed state is keyed by it (identity.has_single_canonical_source_and_is_immutable, four_layer.layer_has_single_writing_actor). A restart must not mint a second identity, and no installed-package record may exist under an id that is not a cluster member.

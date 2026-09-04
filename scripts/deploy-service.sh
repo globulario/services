@@ -193,10 +193,21 @@ sed 's/^/  /' "${BUILD_LOG}"
 rm -f "${BUILD_LOG}"
 
 # Find the actual output file (name may use dashes instead of underscores)
+#
+# `|| true` on both probes: under `set -euo pipefail` (line 2) `ls` exits 2 when
+# the glob matches nothing, pipefail propagates that through `head`, and the
+# assignment inherits it — so the script would die on the dash-named probe
+# instead of reaching the underscore fallback two lines down. The fallback's
+# existence is the author saying "the first probe missing is normal"; without
+# this the fallback is unreachable in exactly the case it was written for.
+#
+# Same shape as the install.sh Day-0 abort measured 2026-09-02
+# (failure.a_best_effort_probe_in_install_sh_aborts_a_completed_day_0_w);
+# found here by looking for siblings of that pattern, not by a failure.
 SERVICE_DASH="${SERVICE//_/-}"
-ACTUAL_PKG=$(ls -t "${GENERATED}/${SERVICE_DASH}"*"${VERSION}"*".tgz" 2>/dev/null | head -1)
+ACTUAL_PKG=$(ls -t "${GENERATED}/${SERVICE_DASH}"*"${VERSION}"*".tgz" 2>/dev/null | head -1 || true)
 if [[ -z "$ACTUAL_PKG" ]]; then
-    ACTUAL_PKG=$(ls -t "${GENERATED}/${SERVICE}"*"${VERSION}"*".tgz" 2>/dev/null | head -1)
+    ACTUAL_PKG=$(ls -t "${GENERATED}/${SERVICE}"*"${VERSION}"*".tgz" 2>/dev/null | head -1 || true)
 fi
 if [[ -z "$ACTUAL_PKG" ]]; then
     echo "ERROR: package file not found after build" >&2

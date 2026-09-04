@@ -220,7 +220,31 @@ func decideNodeRolloutProof(
 	//    This is apples-to-apples (convergence vs convergence). Disagreement
 	//    means the node-agent didn't get the expected rendering — distinct
 	//    from tampering, but still drift.
-	if wantConvergence != "" && gotConvergence != "" && gotConvergence != wantConvergence {
+	//
+	// GUARD: only run this leg when Checksum can actually BE a convergence
+	// hash. Per the proto it is "SHA256 of installed archive", and the
+	// node-agent — the single writing actor for the Installed layer — now
+	// writes the binary SHA there deliberately, saying so at the write site.
+	// When it does, Checksum equals the record's own entrypoint_checksum, and
+	// comparing it to desired_hash compares two different hash schemas, which
+	// can only ever yield drift.
+	//
+	// The binary leg above does NOT short-circuit on success — it returns only
+	// on mismatch — so a package whose binary identity matched perfectly fell
+	// straight through to here and was reported as drift. Measured 2026-08-18
+	// on the 5-node simulation: resource@1.2.312 with installed 70dee39b vs
+	// desired 7b14db46, where 70dee39b was byte-identical to its own
+	// entrypoint_checksum. The node went DEGRADED, the release went DEFERRED,
+	// and DEFERRED re-defers on every 2-minute retry — permanently stuck.
+	//
+	// Skipping the leg in exactly that case keeps the legacy detector alive
+	// for the shape it was built for (a writer that really did put the
+	// release-identity hash in Checksum — pinned by the pre-fix fixture in
+	// TestDecideNodeRolloutProof_ClusterControllerStaleHashRegression, where
+	// entrypoint_checksum is absent) while removing the false positive.
+	checksumIsBinaryHash := gotEntrypoint != "" && gotConvergence == gotEntrypoint
+	if wantConvergence != "" && gotConvergence != "" && gotConvergence != wantConvergence &&
+		!checksumIsBinaryHash {
 		return NodeRolloutProofVerdict{
 			ProofStatus: RolloutProofMismatch,
 			FindingID:   FindingRolloutInstalledHashMismatch,
@@ -235,7 +259,9 @@ func decideNodeRolloutProof(
 	//    when binary proof isn't carried (legacy / pre-entrypoint records).
 	entrypointMatched := wantEntrypoint != "" && gotEntrypoint != "" && gotEntrypoint == wantEntrypoint
 	buildMatched := wantBuild != "" && gotBuild != "" && gotBuild == wantBuild
-	convergenceMatched := wantConvergence != "" && gotConvergence != "" && gotConvergence == wantConvergence
+	// A Checksum that is really the binary hash is not convergence evidence.
+	convergenceMatched := wantConvergence != "" && gotConvergence != "" &&
+		gotConvergence == wantConvergence && !checksumIsBinaryHash
 
 	// Runtime posture is evaluated BEFORE proof strength: a unit that is down
 	// is a real, reportable condition regardless of how strongly the installed

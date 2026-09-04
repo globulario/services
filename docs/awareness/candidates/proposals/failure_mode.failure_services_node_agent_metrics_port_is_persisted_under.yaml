@@ -1,0 +1,22 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: failure_mode
+    id: failure.services.node_agent_metrics_port_is_persisted_under_a_provisional_nod
+    title: node-agent metrics port is persisted under a provisional node id and never re-keyed
+    description: 'startMetricsServer(nodeID) writes the bound metrics port to /globular/nodes/{nodeID}/node_agent_metrics_port using the node id the agent holds AT STARTUP, and only when savedPort != chosen. If the agent binds the metrics listener before its final registered identity is settled, the port is persisted under the provisional id; the metrics server is not restarted once the real id arrives, so the key is never written under the node''s canonical id. Result: an orphan /globular/nodes/{provisional-id}/node_agent_metrics_port key whose subtree contains that single key and nothing else, while the real node''s subtree carries every other key (packages, services) but no metrics port. Any consumer that treats this key as the node''s registration or scrape-target signal sees the node as unregistered. Violates identity.has_single_canonical_source_and_is_immutable: one named identity value ended up with two computations for the same subject.'
+    severity: warning
+    source_files:
+        - golang/node_agent/node_agent_server/main.go
+    related_invariants:
+        - identity.has_single_canonical_source_and_is_immutable
+    evidence:
+        - 'globular-quickstart 5-node sim, release 1.2.329, freshly built cluster with no manual intervention, 2026-08-23: node-2 (canonical id c8a09d9e-3813-5357-ab58-93aa410f27fb, listed ready by the controller and a healthy etcd member) had no /globular/nodes/c8a09d9e-.../node_agent_metrics_port key'
+        - An orphan key /globular/nodes/b68457f5-bfb6-5452-bccc-cc36f29d1bbc/node_agent_metrics_port existed whose entire subtree was that one key — no packages, no services — while node-2's own subtree carried the full package/service key set
+        - 4 of 5 nodes had the key under their canonical id; only node-2 was affected, consistent with a startup-order race rather than a systematic path error
+        - training/day1-join-second-node-awareness failed its node-2-registered assertion (probe node.etcd_registered, which reads this key) on an otherwise fully healthy cluster
+    domain: github.com/globulario/services

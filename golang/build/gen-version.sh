@@ -89,14 +89,23 @@ OVERRIDDEN=0
 for pkg_dir in "${PKGS[@]}"; do
   # Determine version for this package.
   pkg_version="$VERSION"
-  # Check for override. Try three representations of one package identity:
+  # Check for override. Try four representations of one package identity:
   #   1. Full go_target path: authentication/authentication_server
   #   2. Target leaf without _server: authentication
   #   3. Hyphenated target leaf: cluster-controller or globular-oci-runner
+  #   4. Registry package name: globular-cli (differs from the derivations)
   rel_path="${pkg_dir#$GOLANG_ROOT/}"
   target_leaf="${rel_path##*/}"
   pkg_name="${target_leaf%_server}"
   pkg_name_hyphen="${pkg_name//_/-}"
+  # 4. Registry package name. Identity follows the target LEAF, and for one
+  #    target the registry name differs from every mechanical derivation:
+  #    globularcli ships as globular-cli. Mirrors pkg_name_for_target in
+  #    scripts/gen-package-versions-from-source.sh — keep the two in step.
+  case "${pkg_name}" in
+    globularcli) pkg_registry_name="globular-cli" ;;
+    *)           pkg_registry_name="${pkg_name_hyphen}" ;;
+  esac
   if [[ ${#VERSION_OVERRIDES[@]} -gt 0 ]]; then
     if [[ -n "${VERSION_OVERRIDES[$rel_path]+x}" ]]; then
       pkg_version="${VERSION_OVERRIDES[$rel_path]}"
@@ -107,6 +116,18 @@ for pkg_dir in "${PKGS[@]}"; do
     elif [[ -n "${VERSION_OVERRIDES[$pkg_name_hyphen]+x}" ]]; then
       pkg_version="${VERSION_OVERRIDES[$pkg_name_hyphen]}"
       OVERRIDDEN=$((OVERRIDDEN + 1))
+    elif [[ -n "${VERSION_OVERRIDES[$pkg_registry_name]+x}" ]]; then
+      pkg_version="${VERSION_OVERRIDES[$pkg_registry_name]}"
+      OVERRIDDEN=$((OVERRIDDEN + 1))
+    else
+      # No override matched, so this package silently takes the DEFAULT version.
+      # That is how globularcli got bumped by a build that changed no CLI source:
+      # its registry name is globular-cli while every key form derived above is
+      # globularcli, so the lookup missed and the default applied. A miss that
+      # lands on a plausible value is indistinguishable from a hit — say so.
+      if [[ -n "${OVERRIDES_FILE}" ]]; then
+        echo "gen-version: WARNING no override matched '${pkg_name}' (tried ${rel_path}, ${pkg_name}, ${pkg_name_hyphen}, ${pkg_registry_name}); using default ${VERSION}" >&2
+      fi
     fi
   fi
 

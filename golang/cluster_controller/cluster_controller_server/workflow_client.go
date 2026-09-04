@@ -114,10 +114,10 @@ func (srv *server) resolveWorkflowCandidates() []string {
 			host = h
 		}
 		host = strings.TrimSpace(host)
-		if host == "" || host == "localhost" || host == "127.0.0.1" {
-			continue
-		}
-		if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		// config.IsLoopbackEndpoint is the single loopback predicate: it covers
+		// "localhost", the whole 127.0.0.0/8 range and ::1, and splits host:port
+		// itself. Hand-rolled comparisons drift — this one already missed ::1.
+		if host == "" || config.IsLoopbackEndpoint(host) {
 			continue
 		}
 		var port int

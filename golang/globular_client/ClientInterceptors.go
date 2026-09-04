@@ -48,23 +48,53 @@ func clientStreamInterceptor(_ Client) func(ctx context.Context, desc *grpc.Stre
 				ctx = metadata.AppendToOutgoingContext(ctx, "cluster_id", clusterID)
 			}
 		}
-		// Additive dual-emit: also carry the opaque membership UUID when minted.
-		// Best-effort — omit on absence, never fall back to the domain. Nothing
-		// validates cluster_uid yet (Phase-2 dual-accept).
+		// Carry the opaque membership UUID. Omit on absence, never fall back to
+		// the domain.
+		//
+		// This is best-effort in mechanism only — it is NOT optional in effect.
+		// The comment here used to say "nothing validates cluster_uid yet
+		// (Phase-2 dual-accept)". That has been false since the server began
+		// enforcing it: interceptors/ServerInterceptors.go returns
+		// Unauthenticated("cluster_uid required after cluster initialization")
+		// once the cluster is initialized, for any request that is not
+		// bootstrap, mTLS, JWT, loopback, or an allowlisted method.
+		//
+		// So a silent omission here is a request the caller knows will be
+		// refused. It is invisible for local calls (loopback is exempt) and
+		// fails only when the callee happens to be remote, which is how it
+		// reached production as an "intermittent" fault: 2 of 15 `services
+		// desired set` calls on 1.2.359, and one `deploy-publish-then-converge`
+		// failure on 1.2.360 — all of them rotations that left the node.
+		//
+		// GetLocalClusterUID reads the UUID through the etcd client, which needs
+		// the cluster service keypair, which an unprivileged CLI may not be able
+		// to read. A caller that is not already privileged therefore cannot
+		// obtain the badge that proves it is a member. Fixing that circularity
+		// is an authorization-boundary decision, not a change to make here —
+		// see the scratch note defect-5-cluster-uid.md.
 		if md, ok := metadata.FromOutgoingContext(ctx); !ok || len(md.Get("cluster_uid")) == 0 {
-			if uid, err := security.GetLocalClusterUID(); err == nil && uid != "" {
+			uid, uidErr := security.GetLocalClusterUID()
+			if uidErr == nil && uid != "" {
 				ctx = metadata.AppendToOutgoingContext(ctx, "cluster_uid", uid)
+				noteClusterUIDAvailable()
+			} else {
+				// Record WHY. This error was previously discarded, which is why
+				// the resulting refusal was unattributable.
+				noteClusterUIDUnavailable(uidErr)
 			}
 		}
 
-		return streamer(ctx, desc, cc, method, opts...)
+		cs, err := streamer(ctx, desc, cc, method, opts...)
+		// Same diagnosis on the streaming path: a stream refused for want of
+		// the membership badge must say so at open, not fail opaquely.
+		return cs, annotateClusterUIDRefusal(err)
 	}
 }
 
 // clientInterceptor adds:
-//   • Quieter logging during initial boot (configurable grace).
-//   • Exponential backoff with jitter for reconnect attempts.
-//   • A re-Init on retriable errors to refresh desired/runtime endpoint.
+//   - Quieter logging during initial boot (configurable grace).
+//   - Exponential backoff with jitter for reconnect attempts.
+//   - A re-Init on retriable errors to refresh desired/runtime endpoint.
 func clientInterceptor(client_ Client) func(ctx context.Context, method string, rqst interface{}, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 	return func(ctx context.Context, method string, rqst interface{}, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 		// Propagate call depth: read from incoming context, increment, set on outgoing.
@@ -96,16 +126,46 @@ func clientInterceptor(client_ Client) func(ctx context.Context, method string, 
 				ctx = metadata.AppendToOutgoingContext(ctx, "cluster_id", clusterID)
 			}
 		}
-		// Additive dual-emit: also carry the opaque membership UUID when minted.
-		// Best-effort — omit on absence, never fall back to the domain. Nothing
-		// validates cluster_uid yet (Phase-2 dual-accept).
+		// Carry the opaque membership UUID. Omit on absence, never fall back to
+		// the domain.
+		//
+		// This is best-effort in mechanism only — it is NOT optional in effect.
+		// The comment here used to say "nothing validates cluster_uid yet
+		// (Phase-2 dual-accept)". That has been false since the server began
+		// enforcing it: interceptors/ServerInterceptors.go returns
+		// Unauthenticated("cluster_uid required after cluster initialization")
+		// once the cluster is initialized, for any request that is not
+		// bootstrap, mTLS, JWT, loopback, or an allowlisted method.
+		//
+		// So a silent omission here is a request the caller knows will be
+		// refused. It is invisible for local calls (loopback is exempt) and
+		// fails only when the callee happens to be remote, which is how it
+		// reached production as an "intermittent" fault: 2 of 15 `services
+		// desired set` calls on 1.2.359, and one `deploy-publish-then-converge`
+		// failure on 1.2.360 — all of them rotations that left the node.
+		//
+		// GetLocalClusterUID reads the UUID through the etcd client, which needs
+		// the cluster service keypair, which an unprivileged CLI may not be able
+		// to read. A caller that is not already privileged therefore cannot
+		// obtain the badge that proves it is a member. Fixing that circularity
+		// is an authorization-boundary decision, not a change to make here —
+		// see the scratch note defect-5-cluster-uid.md.
 		if md, ok := metadata.FromOutgoingContext(ctx); !ok || len(md.Get("cluster_uid")) == 0 {
-			if uid, err := security.GetLocalClusterUID(); err == nil && uid != "" {
+			uid, uidErr := security.GetLocalClusterUID()
+			if uidErr == nil && uid != "" {
 				ctx = metadata.AppendToOutgoingContext(ctx, "cluster_uid", uid)
+				noteClusterUIDAvailable()
+			} else {
+				// Record WHY. This error was previously discarded, which is why
+				// the resulting refusal was unattributable.
+				noteClusterUIDUnavailable(uidErr)
 			}
 		}
 
 		err := invoker(ctx, method, rqst, reply, cc, opts...)
+		// A membership refusal must arrive naming its cause, not as a bare
+		// Unauthenticated the caller cannot act on. No-op for every other error.
+		err = annotateClusterUIDRefusal(err)
 		if client_ != nil && err != nil {
 			msg := err.Error()
 			retriable := strings.HasPrefix(msg, `rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing`) ||
@@ -157,4 +217,5 @@ func clientInterceptor(client_ Client) func(ctx context.Context, method string, 
 		return err
 	}
 }
+
 // ==============================================

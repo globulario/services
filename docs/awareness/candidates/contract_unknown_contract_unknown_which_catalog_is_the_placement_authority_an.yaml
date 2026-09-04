@@ -1,0 +1,11 @@
+contract_unknown:
+  - id: contract_unknown.which_catalog_is_the_placement_authority_and_must_an_unplace
+    kind: contract_unknown
+    title: Which catalog is the placement authority, and must an unplaceable release terminate
+    description: 'Two questions the dual-catalog livelock cannot be fixed without answering. First: golang/service_catalog.yaml and component_catalog.go disagree on placement for 16 of 33 shared services; only one can be the placement authority, and the other must be derived from it or deleted. component_catalog.go is what the controller dispatches from today. Second: when a desired service has no profile-eligible node anywhere in the cluster, selectReleaseTargets marks the release DEFERRED and the reconciler retries it every 2 minutes forever. release_phase.go already permits DEFERRED to FAILED, so terminating is legal — but whether an unplaceable release SHOULD fail (operator misconfigured placement) or wait indefinitely (operator is about to add a node with the right profile) is a product decision, not a code detail.'
+    revision_request: Pick the single placement authority and generate or delete the other catalog. Then decide the unplaceable-release outcome. If it must terminate, split selectReleaseTargets' defer reasons into permanent (profile_not_applicable) and transient (bootstrap_not_ready, node_state_missing, bootstrap_infra_not_ready, active_infra_member_protected) and let an all-permanent skip set finalize terminally. Regardless of that choice, stop discarding the specific reason in normalizeNoopFinalizePhase — an operator cannot currently distinguish a placement dead end from a node that is still booting, which is the shape of desired_state.refusal_message_misattributes_cause.
+    source_files:
+      - golang/cluster_controller/cluster_controller_server/workflow_release.go
+      - golang/service_catalog.yaml
+    evidence:
+      - '16 disagreeing services listed in failure.two_service_catalogs_disagree_on_placement_and_the_loser_def. selectReleaseTargets calls markDeferred for both permanent and transient skips (workflow_release.go). release_phase.go DEFERRED transitions: {PENDING: retry target selection after backoff, FAILED, Removing}. resumeDeferredRelease re-enters PENDING after releaseWaitingBackoff = 2 minutes with no attempt ceiling.'

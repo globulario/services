@@ -1,0 +1,24 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: failure_mode
+    id: failure.services.a_wiped_node_rejoins_and_inserts_itself_into_the_minio_pool
+    title: A wiped node rejoins and inserts itself into the MinIO pool on an unadmitted path
+    description: 'A node that is wiped and rejoins comes back running MinIO on the standalone default path /var/lib/globular/minio, and the controller then reports it as a POOL NODE even though it was never admitted. Concretely: the pool was provisioned over 10.10.0.11/.12/.13 at /var/lib/minio/d1 and d2; node-5 (10.10.0.15) was wiped and rejoined; `objectstore topology status` afterwards reported "Pool nodes: 10.10.0.11, 10.10.0.12, 10.10.0.13, 10.10.0.15" and cluster-doctor raised objectstore.minio.unapproved_path for [10.10.0.15:/var/lib/globular/minio]. Membership was inferred from a local MinIO process rather than granted by admission, which is the shape objectstore.local_membership_inference describes. Consequence beyond the finding: erasure-set membership is a data-placement decision, so a node that joins the pool without an admitted path can attract placement decisions against storage nobody approved, and the operator''s only signal is a doctor warning about a path — not about membership. This is reproducible: it recurred on every release tested (1.2.329 through 1.2.331) whenever a rejoin followed objectstore provisioning.'
+    severity: critical
+    source_files:
+        - golang/node_agent/node_agent_server/minio_topology_gate.go
+        - golang/node_agent/node_agent_server/minio_contract_reconcile.go
+    related_invariants:
+        - objectstore.topology_contract
+    evidence:
+        - 'globular-quickstart 5-node sim, release 1.2.331, 2026-08-24: provision-distributed-objectstore.sh admitted only STORAGE_NODES=10.10.0.11 10.10.0.12 10.10.0.13 (script line 33), yet after upgrade/first-join-from-clean-node wiped and rejoined node-5, `objectstore topology status` reported ''Pool nodes: 10.10.0.11, 10.10.0.12, 10.10.0.13, 10.10.0.15'''
+        - 'cluster-doctor, same moment: ''MinIO running on unapproved disk path(s): [10.10.0.15:/var/lib/globular/minio]. These paths were not admitted via globular objectstore disk approve'''
+        - The admitted pool paths are /var/lib/minio/d1 and /var/lib/minio/d2; the path node-5 came back on is the standalone default /var/lib/globular/minio, so the rejoin did not inherit the topology contract at all
+        - This is what failed upgrade/first-join-from-clean-node's no_doctor_errors assertion on an otherwise healthy cluster (5/5 ready), across three consecutive releases
+    domain: github.com/globulario/services
+    contract: Object-store pool membership is granted by explicit admission (`objectstore disk approve`) against a published topology generation — intent:objectstore.topology_requires_contract. A node may not enter the pool by starting MinIO locally, and a path may not become a pool path by having data on it.

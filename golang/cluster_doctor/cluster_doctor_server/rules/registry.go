@@ -634,8 +634,25 @@ func (r *Registry) EvaluateForNode(snap *collector.Snapshot, nodeID string) []Fi
 
 	var all []Finding
 	for _, inv := range r.invariants {
-		if inv.Scope() == "node" || inv.Scope() == "cluster" {
+		switch inv.Scope() {
+		case "node":
+			// Node-scoped rules reason about THIS node, so they get the
+			// node-filtered snapshot built above.
 			all = append(all, inv.Evaluate(nodesnap, r.cfg)...)
+		case "cluster":
+			// Cluster-scoped rules must reason over the FULL node set. Handing
+			// them nodesnap (Nodes filtered to one entry) makes every other
+			// node look absent — no NodeRecord, no inventory — so membership
+			// checks count them as down and the verdict rests on missing data
+			// rather than observed state.
+			//
+			// Observed 2026-08-19: objectstore.write_quorum_lost fired CRITICAL
+			// ("active_drives=1 < write_quorum=3") on a fully healthy 4-drive
+			// pool, naming a different sole survivor on every node's report,
+			// with known_down_nodes empty — nothing had actually been seen
+			// down. Evaluate against snap so the finding matches what
+			// EvaluateCluster computes.
+			all = append(all, inv.Evaluate(snap, r.cfg)...)
 		}
 	}
 	annotated := applyReducedHarvestPolicy(all, nodesnap)

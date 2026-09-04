@@ -1,0 +1,25 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: contract_unknown
+    id: contract_unknown.services.may_recovery_class_workflows_execute_unfenced_when_the_lease
+    title: May recovery-class workflows execute unfenced when the lease store has lost quorum?
+    description: 'The workflow executor claims a ScyllaDB lease before every run and refuses to execute if the claim fails, citing double-execution risk. The lease LWT needs a SERIAL quorum. A node being down is exactly what removes that quorum — so a storage outage blocks EVERY workflow, including the recovery workflows that would end the outage. Concretely: `cluster nodes remove --force` is documented as working on an unreachable node, but it dispatches node.remove, which cannot claim a lease, so the dead node cannot be deregistered; its wiped rejoin is then refused with "node identity conflict: hostname already present" and it stays out of the cluster until storage recovers on its own. The code already has one degraded path — ClaimRun with a nil ScyllaDB session logs a warning and proceeds unfenced, citing meta.fallback_must_degrade_semantics. Quorum loss is arguably the same condition (the fence is unavailable) reached by a different route, yet it is fatal. WHAT IS UNKNOWN: whether a bounded class of recovery workflows (node.remove and similar topology repairs) may proceed unfenced when consensus is unavailable, and if so what bounds it. This was NOT patched. Bypassing the workflow entirely for --force is already ruled out — workflow_node_remove.go exists specifically to guard hidden_workflow.controller_remove_node_inline_preflight_and_drain and implements workflow.every_state_mutation_belongs_to_a_workflow_instance — so any fix must keep the mutation inside a workflow and change only the fencing decision. Shipped instead: the refusal now names storage quorum as the cause (diagnostic only, fence unchanged).'
+    severity: high
+    source_files:
+        - golang/workflow/workflow_server/executor_lease.go
+        - golang/cluster_controller/cluster_controller_server/workflow_node_remove.go
+    related_invariants:
+        - workflow.every_state_mutation_belongs_to_a_workflow_instance
+    evidence:
+        - 'Reproduced 2026-08-23 in the globular-quickstart 5-node sim: `globular cluster nodes remove <id> --force --drain=false` returned ''lease claim failed — refusing unfenced execution: ... Cannot achieve consistency level for cl SERIAL. Requires 2, alive 1'''
+        - The identical command succeeded minutes later once the cluster had recovered, confirming the block is quorum-dependent and not command-dependent
+        - 'upgrade/first-join-from-clean-node failed downstream of this: node-5 was stopped, its removal refused, and its fresh join denied with ''node identity conflict: hostname already present'''
+        - golang/workflow/workflow_server/executor_lease.go ClaimRun already proceeds unfenced with a warning when the ScyllaDB session is nil, establishing that 'fence unavailable' is not universally fatal in this design
+    domain: github.com/globulario/services
+    proposed_contract: A workflow whose purpose is to restore cluster capacity may execute unfenced when, and only when, the lease store cannot reach consensus AND the workflow is on an explicit recovery allowlist AND the degraded execution is recorded in the run record as unfenced. All other workflows continue to refuse.
+    revision_request: Decide whether the fencing contract admits a recovery class. If it does, name the allowlist and where it lives; if it does not, node removal during a storage outage needs some other lawful path, because the documented behaviour of --force is currently unachievable when it matters most.

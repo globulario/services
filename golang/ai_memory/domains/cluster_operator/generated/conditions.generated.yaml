@@ -60,6 +60,11 @@
   severity: info
   source: opsknowledge:stage.learned_2026_06
   title: Learned lessons — promoted from runtime ai-memory (2026-06)
+- detect_spec: cluster is operating in lifecycle stage learned_2026_08
+  id: condition.cluster.lifecycle.learned_2026_08
+  severity: info
+  source: opsknowledge:stage.learned_2026_08
+  title: Learned lessons — 1.2.328→1.2.338 simulation campaign (2026-08)
 - detect_spec: cluster is operating in lifecycle stage package_system
   id: condition.cluster.lifecycle.package_system
   severity: info

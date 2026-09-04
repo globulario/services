@@ -214,38 +214,36 @@ func (srv *server) reconcileScanDrift(ctx context.Context, clusterID, scope stri
 
 		// Probe infra health on nodes where join is verified.
 		if node.AgentEndpoint != "" {
-			if nodeHasProfile(&memberNode{Profiles: node.Profiles}, profilesForEtcd) && node.EtcdJoinPhase == EtcdJoinVerified {
-				if !srv.probeEtcdHealth(ctx, node.AgentEndpoint) {
+			// Raise infra_unhealthy only when the node agent ANSWERED and said the
+			// component is unhealthy. An unreachable agent proves nothing about
+			// etcd/scylla/minio — treating silence as a negative raised drift
+			// against healthy components and then latched the remediation, since
+			// the resolution re-probe failed for the same reason. Node
+			// reachability is the heartbeat path's authority, not this scan's.
+			raiseIfUnhealthy := func(component string) {
+				switch res := srv.probeInfraComponentResult(ctx, node.NodeID, node.AgentEndpoint, component); res {
+				case infraProbeUnhealthy:
 					driftItems = append(driftItems, map[string]any{
 						"type":      "infra_unhealthy",
 						"node_id":   node.NodeID,
-						"component": "etcd",
+						"component": component,
 						"endpoint":  node.AgentEndpoint,
 						"hostname":  node.Identity.Hostname,
 					})
+				case infraProbeUnreachable:
+					log.Printf("reconcile-workflow: scan_drift: %s health UNKNOWN on node %s (%s) — "+
+						"node agent unreachable; not raising infra_unhealthy on an unanswered probe",
+						component, node.NodeID, node.Identity.Hostname)
 				}
+			}
+			if nodeHasProfile(&memberNode{Profiles: node.Profiles}, profilesForEtcd) && node.EtcdJoinPhase == EtcdJoinVerified {
+				raiseIfUnhealthy("etcd")
 			}
 			if nodeHasScyllaProfile(node) && node.ScyllaJoinPhase == ScyllaJoinVerified {
-				if !srv.probeScyllaHealth(ctx, node.AgentEndpoint) {
-					driftItems = append(driftItems, map[string]any{
-						"type":      "infra_unhealthy",
-						"node_id":   node.NodeID,
-						"component": "scylladb",
-						"endpoint":  node.AgentEndpoint,
-						"hostname":  node.Identity.Hostname,
-					})
-				}
+				raiseIfUnhealthy("scylladb")
 			}
 			if nodeHasMinioProfile(node) && node.MinioJoinPhase == MinioJoinVerified {
-				if !srv.probeMinioHealth(ctx, node.AgentEndpoint) {
-					driftItems = append(driftItems, map[string]any{
-						"type":      "infra_unhealthy",
-						"node_id":   node.NodeID,
-						"component": "minio",
-						"endpoint":  node.AgentEndpoint,
-						"hostname":  node.Identity.Hostname,
-					})
-				}
+				raiseIfUnhealthy("minio")
 			}
 		}
 
@@ -968,7 +966,29 @@ var getInstalledPackageFn = installed_state.GetInstalledPackage
 // Enforces reconcile.terminal_success_requires_observed_convergence: a child
 // workflow reporting SUCCEEDED is a dispatch acknowledgement, not proof the
 // node installed the package.
-func (srv *server) reconcileItemConverged(ctx context.Context, item map[string]any) (converged, checkable bool) {
+// convergenceCheck is the outcome of asking "did this remediation actually take?"
+//
+// The fourth state is the point: an observation that could not be made is not an
+// observation of failure. Charging a no-progress strike for it is how a healthy
+// component's remediation latched into FAILED — the resolution re-probe was
+// failing for the same reason the original probe did.
+type convergenceCheck int
+
+const (
+	// convergenceNoPredicate — this drift type has no observation predicate, so
+	// the child's SUCCEEDED is all the evidence there is.
+	convergenceNoPredicate convergenceCheck = iota
+	// convergenceProven — observed state confirms the remediation took.
+	convergenceProven
+	// convergenceDisproven — observed state says it did NOT take. Counts as
+	// no-progress (SCAR-2).
+	convergenceDisproven
+	// convergenceIndeterminate — the observation could not be made this pass.
+	// Neither clears the drift nor charges a strike; the next scan re-evaluates.
+	convergenceIndeterminate
+)
+
+func (srv *server) reconcileItemConverged(ctx context.Context, item map[string]any) convergenceCheck {
 	dType := fmt.Sprint(item["type"])
 	switch dType {
 	case "missing_package", "version_drift":
@@ -977,13 +997,19 @@ func (srv *server) reconcileItemConverged(ctx context.Context, item map[string]a
 		desiredVer := fmt.Sprint(item["desired_version"])
 		pkg, err := srv.observeInstalledPackage(ctx, nodeID, name)
 		if err != nil || pkg == nil {
-			return false, true
+			return convergenceDisproven
 		}
 		if dType == "missing_package" {
 			// Installed at all; when a desired version is known, require the match.
-			return desiredVer == "" || pkg.GetVersion() == desiredVer, true
+			if desiredVer == "" || pkg.GetVersion() == desiredVer {
+				return convergenceProven
+			}
+			return convergenceDisproven
 		}
-		return pkg.GetVersion() == desiredVer, true // version_drift
+		if pkg.GetVersion() == desiredVer { // version_drift
+			return convergenceProven
+		}
+		return convergenceDisproven
 	case "infra_unhealthy":
 		// Child SUCCEEDED means the restart RPC was dispatched and node-agent
 		// reported the systemd action itself succeeded — not proof the
@@ -992,18 +1018,25 @@ func (srv *server) reconcileItemConverged(ctx context.Context, item map[string]a
 		// Re-probe the same health check reconcileScanDrift used to raise
 		// this drift in the first place before clearing it.
 		endpoint := fmt.Sprint(item["endpoint"])
-		switch fmt.Sprint(item["component"]) {
-		case "etcd":
-			return srv.probeEtcdHealth(ctx, endpoint), true
-		case "scylladb":
-			return srv.probeScyllaHealth(ctx, endpoint), true
-		case "minio":
-			return srv.probeMinioHealth(ctx, endpoint), true
+		nodeID := fmt.Sprint(item["node_id"])
+		component := fmt.Sprint(item["component"])
+		switch srv.probeInfraComponentResult(ctx, nodeID, endpoint, component) {
+		case infraProbeHealthy:
+			return convergenceProven
+		case infraProbeUnhealthy:
+			return convergenceDisproven
 		default:
-			return false, true
+			// Unreachable: we cannot prove convergence, and we have not observed a
+			// failure to converge either. Counting this as no-progress is what
+			// latched a healthy component's remediation into FAILED + backoff —
+			// the re-probe was failing for the same reason the original probe did.
+			log.Printf("reconcile-workflow: %s health UNKNOWN on node %s — node agent "+
+				"unreachable; remediation outcome indeterminate, not counting a "+
+				"no-progress strike", component, nodeID)
+			return convergenceIndeterminate
 		}
 	default:
-		return false, false
+		return convergenceNoPredicate
 	}
 }
 
@@ -1029,12 +1062,40 @@ func (srv *server) reconcileBumpNoProgress(key string) int {
 	return srv.reconcileNoProgress[key]
 }
 
+// reconcilePeekNoProgress reads the strike count without changing it.
+func (srv *server) reconcilePeekNoProgress(key string) int {
+	srv.reconcileNoProgMu.Lock()
+	defer srv.reconcileNoProgMu.Unlock()
+	return srv.reconcileNoProgress[key]
+}
+
 func (srv *server) reconcileResetNoProgress(key string) {
 	srv.reconcileNoProgMu.Lock()
 	defer srv.reconcileNoProgMu.Unlock()
 	if srv.reconcileNoProgress != nil {
 		delete(srv.reconcileNoProgress, key)
 	}
+	if srv.reconcileIndeterminate != nil {
+		delete(srv.reconcileIndeterminate, key)
+	}
+}
+
+// indeterminateGraceMultiplier bounds how long an unobservable remediation may
+// hold without counting against it, expressed in units of the no-progress
+// threshold. Generous, because the honest answer to an unreachable agent is
+// "wait" — but finite, so nothing loops forever without a terminal state.
+const indeterminateGraceMultiplier = 4
+
+// reconcileBumpIndeterminate counts consecutive rounds in which the remediation's
+// outcome could not be observed at all. Reset alongside no-progress.
+func (srv *server) reconcileBumpIndeterminate(key string) int {
+	srv.reconcileNoProgMu.Lock()
+	defer srv.reconcileNoProgMu.Unlock()
+	if srv.reconcileIndeterminate == nil {
+		srv.reconcileIndeterminate = make(map[string]int)
+	}
+	srv.reconcileIndeterminate[key]++
+	return srv.reconcileIndeterminate[key]
 }
 
 // reconcileArmBackoff starts a reconcileBackoffCooldown window for key, during
@@ -1096,22 +1157,41 @@ func (srv *server) reconcileMarkItemTerminal(ctx context.Context, item, childRes
 	key := dType + "|" + eRef
 
 	if status == "SUCCEEDED" {
-		converged, checkable := srv.reconcileItemConverged(ctx, item)
-
-		// Observed convergence proven (or the drift type has no observation
-		// predicate): clear the drift observation and reset the no-progress counter.
-		if !checkable || converged {
+		switch srv.reconcileItemConverged(ctx, item) {
+		case convergenceNoPredicate, convergenceProven:
+			// Observed convergence proven (or the drift type has no observation
+			// predicate): clear the drift observation and reset no-progress.
 			if dType != "" && eRef != "" {
 				srv.clearDriftObservation(ctx, dType, eRef)
 			}
 			srv.reconcileResetNoProgress(key)
-			if checkable {
-				log.Printf("reconcile-workflow: observed convergence confirmed for %s (%s) — drift cleared", eRef, dType)
-			}
+			log.Printf("reconcile-workflow: observed convergence accepted for %s (%s) — drift cleared", eRef, dType)
 			return nil
+		case convergenceIndeterminate:
+			// We could not observe the result. Hold the drift open — clearing it
+			// would forget a real problem — but charge no strike, because ignorance
+			// is not evidence of a failed remediation.
+			//
+			// Bounded, though: an item nobody can ever observe must still reach a
+			// terminal state, or this becomes
+			// failure.drift_reconciliation_retried_a_permanently_failing_package_r
+			// wearing a different hat. After indeterminateGraceMultiplier rounds of
+			// learning nothing we stop granting the benefit of the doubt and let the
+			// normal no-progress machinery take over.
+			if u := srv.reconcileBumpIndeterminate(key); u <= reconcileNoProgressThreshold*indeterminateGraceMultiplier {
+				log.Printf("reconcile-workflow: remediation outcome indeterminate for %s (%s) — "+
+					"node agent unreachable; holding drift open (%d/%d unobservable rounds), "+
+					"no-progress unchanged at %d/%d",
+					eRef, dType, u, reconcileNoProgressThreshold*indeterminateGraceMultiplier,
+					srv.reconcilePeekNoProgress(key), reconcileNoProgressThreshold)
+				return nil
+			}
+			log.Printf("reconcile-workflow: %s (%s) has been unobservable for %d rounds — "+
+				"treating as no-progress so it can reach a terminal state",
+				eRef, dType, reconcileNoProgressThreshold*indeterminateGraceMultiplier)
 		}
-		// Child reported SUCCEEDED but installed_state does NOT reflect it — falls
-		// through to the shared no-progress counting below (SCAR-2).
+		// convergenceDisproven: child reported SUCCEEDED but observed state does
+		// NOT reflect it — falls through to no-progress counting below (SCAR-2).
 	}
 	// Any other terminal status (FAILED, ERROR, UNKNOWN, ...) also falls through:
 	// meta.silence_is_not_valid_for_unexpected. This used to `return nil` here,
@@ -1382,7 +1462,27 @@ func (srv *server) RunClusterReconcileWorkflow(ctx context.Context) (*workflowpb
 	if err != nil {
 		outcomeStatus = workflowpb.RunStatus_RUN_STATUS_FAILED
 		failureReason = err.Error()
-		log.Printf("reconcile-workflow: cluster.reconcile FAILED: %v", err)
+		// Distinguish "declined because a dependency is down" from "ran and
+		// failed". They are different conditions and must not read the same.
+		//
+		// Reconciliation classification already draws this line for one case —
+		// etcd.must_have_free_backend_space_for_reconciliation requires that
+		// persistence-blocked be distinguishable from controller/verification
+		// failure. A dependency-blocked refusal is the same shape and was
+		// simply missing the distinction: the workflow never ran, so calling it
+		// FAILED reports an outcome that did not occur.
+		//
+		// This is not cosmetic. When a node is deliberately removed, ScyllaDB
+		// is legitimately absent and every reconcile tick correctly declines;
+		// each decline was logging "cluster.reconcile FAILED", which any reader
+		// grepping for failures — human or probe — counts as a real fault. The
+		// classifier already identifies the condition (workflow_dependency_
+		// blocked); only the log ignored it.
+		if transient, reason := classifyWorkflowError(err); transient {
+			log.Printf("reconcile-workflow: cluster.reconcile BLOCKED (%s, will retry): %v", reason, err)
+		} else {
+			log.Printf("reconcile-workflow: cluster.reconcile FAILED: %v", err)
+		}
 		// Stamp heartbeat on failure so alerts reset and surfaces show recent activity.
 		controllerLoopHeartbeatUnix.Set(float64(time.Now().Unix()))
 	} else {

@@ -62,7 +62,7 @@ section() { echo ""; echo -e "${BOLD}━━━ $* ━━━${NC}"; echo ""; }
 usage() {
   cat <<'EOF'
 Usage:
-  bash scripts/build-release.sh [version] [--bump patch|minor|major] [--full-regenerate] [--allow-extracted-bundle-sources <bundle-or-packages-dir> ...]
+  bash scripts/build-release.sh [version] [--bump patch|minor|major] [--full-regenerate] [--allow-unproven-deb-provenance] [--allow-extracted-bundle-sources <bundle-or-packages-dir> ...]
 
 Release mode defaults to controlled package sources only:
   - services/generated (generated workspace only)
@@ -159,6 +159,14 @@ while [[ $# -gt 0 ]]; do
         *) die "unsupported bump kind '$2' — expected patch, minor, or major" ;;
       esac
       shift 2
+      ;;
+    --allow-unproven-deb-provenance)
+      # Explicit opt-in for a LOCAL build whose bundled debs are not yet
+      # vendored into the pinned package source. An official release must
+      # not use this: it downgrades the release-input provenance refusal to
+      # a warning. Currently reached only by sql (libodbc.so.2).
+      ALLOW_UNPROVEN_DEBS=1
+      shift
       ;;
     --full-regenerate)
       FULL_REGENERATE=1
@@ -910,13 +918,30 @@ for name in targets:
 PYEOF
 }
 
-# registry_name_for_target_dir <golang-subdir> — registry package name for a
-# services.list target's top-level directory (mirrors gen-package-versions).
-registry_name_for_target_dir() {
-  local dir="$1"
-  case "${dir}" in
+# registry_name_for_target <services.list-target> — registry package name for a
+# services.list Go target.
+#
+# Package identity follows the target LEAF, not the top-level source directory.
+# This function previously took the top-level directory and claimed in its
+# comment to mirror gen-package-versions-from-source.sh, which derives from the
+# leaf. For flat targets the two agree (cluster_controller/cluster_controller_server
+# -> cluster-controller either way), so the divergence stayed invisible until a
+# nested command hit it: ./oci/cmd/globular-oci-runner resolved to "oci" here and
+# "globular-oci-runner" in the version authority, so the release build could not
+# find a committed version for it and died packaging.
+#
+# Two independent computations of one identity is
+# identity.has_single_canonical_source_and_is_immutable; the leaf rule is the
+# canonical one (see the comment on pkg_name_for_target in
+# gen-package-versions-from-source.sh). Keep these two in step — better still,
+# collapse them into one shared helper.
+registry_name_for_target() {
+  local rel="${1#./}"
+  local leaf="${rel##*/}"
+  leaf="${leaf%_server}"
+  case "${leaf}" in
     globularcli) echo "globular-cli" ;;
-    *) echo "${dir//_/-}" ;;
+    *) echo "${leaf//_/-}" ;;
   esac
 }
 
@@ -944,8 +969,7 @@ stage_release_binaries() {
     [[ -z "${target}" ]] && continue
 
     bin_name=$(basename "${output}")
-    svc_dir="${target#./}"; svc_dir="${svc_dir%%/*}"
-    pkg_reg_name="$(registry_name_for_target_dir "${svc_dir}")"
+    pkg_reg_name="$(registry_name_for_target "${target}")"
     info "Building ${bin_name} (version $(pkg_version_of "${pkg_reg_name}") from committed source)..."
     go build -trimpath -ldflags "$(ldflags_for "${pkg_reg_name}")" -o "${BIN_STAGE_DIR}/${bin_name}" "${target}"
   done < build/services.list
@@ -985,7 +1009,7 @@ mkdir -p "${BIN_STAGE_DIR}" "${PKG_STAGE_DIR}"
 if (( FULL_REGENERATE )); then
   stage_release_binaries
   info "Running full regeneration for services/generated release inputs..."
-  bash "${SERVICES_ROOT}/scripts/regenerate-release-inputs.sh" --version "${VERSION}" --bin-dir "${BIN_STAGE_DIR}"
+  bash "${SERVICES_ROOT}/scripts/regenerate-release-inputs.sh" --version "${VERSION}" --bin-dir "${BIN_STAGE_DIR}" ${ALLOW_UNPROVEN_DEBS:+--allow-unproven-deb-provenance}
   REUSE_GENERATED_RELEASE_INPUTS=1
 fi
 

@@ -1,0 +1,25 @@
+# Agent-proposed awareness entry — AWAITING REVIEW.
+# Written by the awareness feedback write-path (Propose RPC / awg onboard); NOT a
+# live graph node. Promote by moving the entry into the canonical corpus file
+# after verifying the contract.
+proposal:
+    status: awaiting_review
+    proposed_by: agent
+    kind: failure_mode
+    id: failure.services.pool_membership_is_granted_by_profile_breadth_so_a_non_stora
+    title: Pool membership is granted by profile breadth, so a non-storage node joins the erasure pool unadmitted
+    description: 'profilesForMinio is ["core","compute","storage","control-plane"] — effectively every node in a normal cluster. Because pool membership in legacy mode is gated on that profile list rather than on the admitted-disk records, and because state.MinioPoolNodes is an ordered APPEND-ONLY list (service_config.go), any node carrying core or compute lands in the MinIO pool without ever passing `objectstore disk approve`. It arrives with no admitted path, so it is rendered with the standalone default /var/lib/globular/minio while the properly admitted nodes sit on /var/lib/minio/d1. The published desired state then describes a distributed erasure pool whose members disagree about their own data paths. Cluster-doctor reports this as objectstore.minio.unapproved_path — correctly, but the finding names a PATH, so an operator reads it as a disk problem rather than as an unapproved node inside the erasure pool. Erasure-set membership is a data-placement decision: a node admitted this way can attract placement onto storage nobody approved, on a path chosen by a fallback constant.'
+    severity: critical
+    source_files:
+        - golang/cluster_controller/cluster_controller_server/service_config.go
+        - golang/cluster_controller/cluster_controller_server/minio_pools.go
+    related_invariants:
+        - objectstore.topology_contract
+    evidence:
+        - 'globular-quickstart 5-node sim, release 1.2.331, 2026-08-24. /globular/objectstore/config read directly from etcd: mode distributed, generation 1, nodes [10.10.0.11, 10.10.0.12, 10.10.0.13, 10.10.0.15], node_paths {10.10.0.11: /var/lib/minio/d1, 10.10.0.12: /var/lib/minio/d1, 10.10.0.13: /var/lib/minio/d1, 10.10.0.15: /var/lib/globular/minio}, written_at 2026-08-24T20:17:33Z'
+        - provision-distributed-objectstore.sh admits only STORAGE_NODES=10.10.0.11 10.10.0.12 10.10.0.13; 10.10.0.15 was never passed to `objectstore disk approve`
+        - node-5 (10.10.0.15) profiles as reported by the controller are ['compute','core'] — it does NOT carry the storage profile, yet profilesForMinio (service_config.go:77) accepts core and compute
+        - cluster-doctor concurrently raised objectstore.minio.unapproved_path for [10.10.0.15:/var/lib/globular/minio], which is what failed upgrade/first-join-from-clean-node's no_doctor_errors assertion on an otherwise 5/5-ready cluster
+        - Reproduced on 1.2.329, 1.2.330 and 1.2.331 — every time a node was wiped and rejoined after the objectstore had been provisioned
+    domain: github.com/globulario/services
+    contract: Object-store pool membership is granted by explicit admission against a published topology generation (intent:objectstore.topology_requires_contract, intent:objectstore.destructive_changes_require_approval). Having a profile is placement eligibility, not admission — a profile check may narrow who MAY be admitted, it may not stand in for having BEEN admitted.

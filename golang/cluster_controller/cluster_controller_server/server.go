@@ -153,40 +153,54 @@ type kvClient interface {
 type server struct {
 	cluster_controllerpb.UnimplementedClusterControllerServiceServer
 
-	cfg                        *clusterControllerConfig
-	cfgPath                    string
-	statePath                  string
-	state                      *controllerState
-	mu                         sync.Mutex
-	muHeldSince                atomic.Int64
-	muHeldBy                   atomic.Value
-	kv                         kvClient
-	agentMu                    sync.Mutex
-	agentClients               map[string]*agentClient
-	agentInsecure              bool
-	agentIdleTimeout           time.Duration
-	agentCAPath                string
-	lastStateSave              time.Time
-	agentServerName            string
-	opMu                       sync.Mutex
-	operations                 map[string]*operationState
-	watchMu                    sync.Mutex
-	watchers                   map[*operationWatcher]struct{}
-	serviceBlock               map[string]time.Time
-	enableServiceRemoval       bool
-	leader                     atomic.Bool
-	leaderID                   atomic.Value
-	leaderAddr                 atomic.Value
+	cfg                  *clusterControllerConfig
+	cfgPath              string
+	statePath            string
+	state                *controllerState
+	mu                   sync.Mutex
+	muHeldSince          atomic.Int64
+	muHeldBy             atomic.Value
+	kv                   kvClient
+	agentMu              sync.Mutex
+	agentClients         map[string]*agentClient
+	agentInsecure        bool
+	agentIdleTimeout     time.Duration
+	agentCAPath          string
+	lastStateSave        time.Time
+	agentServerName      string
+	opMu                 sync.Mutex
+	operations           map[string]*operationState
+	watchMu              sync.Mutex
+	watchers             map[*operationWatcher]struct{}
+	serviceBlock         map[string]time.Time
+	enableServiceRemoval bool
+	leader               atomic.Bool
+	leaderID             atomic.Value
+	leaderAddr           atomic.Value
 	// leaderSinceUnix is when this process most recently BECAME leader (0 when
 	// not leader). Heartbeat staleness must be judged relative to it: a fresh
 	// leader loads LastSeen from persisted state, which is stale by
 	// construction, so without this it concludes healthy nodes are unreachable
 	// before it has ever had a chance to hear from them.
-	leaderSinceUnix atomic.Int64
+	leaderSinceUnix            atomic.Int64
 	leaderEpoch                atomic.Int64
 	leaderCtx                  context.Context    // cancelled when leadership is lost
 	leaderCancel               context.CancelFunc // called by setLeader(false, ...)
 	leaderCtxMu                sync.Mutex         // guards leaderCtx/leaderCancel
+	// etcdRejoinDispatch records nodeID -> time of the last wipe-and-rejoin
+	// dispatch, so the destructive repair is not re-issued on every reconcile
+	// tick while it is still in flight (see etcdRejoinDispatchCooldown).
+	// In-memory by design: a controller that has just taken leadership SHOULD
+	// dispatch once for a node still sitting in RejoinInProgress.
+	etcdRejoinDispatch sync.Map
+	// releaseDispatchHold records releaseID -> the earliest time that release may
+	// be dispatched again. The release work queue is fed by etcd watch events and
+	// a dispatch WRITES to the release record (wave state), so a dispatch whose
+	// workflow returns without doing anything re-triggers itself immediately —
+	// an unbounded loop at watch speed, not at reconcile-tick speed.
+	// In-memory by design, like etcdRejoinDispatch: a new leader should evaluate
+	// every release once on takeover.
+	releaseDispatchHold sync.Map
 	resignCh                   chan struct{}      // signal leader election to resign
 	lastHeartbeatProcessed     atomic.Int64       // UnixNano of last successful ReportNodeStatus
 	reconcileRunning           atomic.Bool
@@ -294,9 +308,14 @@ type server struct {
 	// repository build) stops being re-attempted every reconcile cycle forever.
 	// Both maps are leader-local, in-memory, and reset on failover — same accepted
 	// tradeoff as the pre-existing no-progress counter.
-	reconcileNoProgMu     sync.Mutex
-	reconcileNoProgress   map[string]int
-	reconcileBackoffUntil map[string]time.Time
+	reconcileNoProgMu   sync.Mutex
+	reconcileNoProgress map[string]int
+	// reconcileIndeterminate counts consecutive rounds in which a remediation's
+	// outcome could not be observed AT ALL (node agent unreachable), as distinct
+	// from observed non-convergence. Bounds the benefit of the doubt so an
+	// unobservable item still reaches a terminal state.
+	reconcileIndeterminate map[string]int
+	reconcileBackoffUntil  map[string]time.Time
 
 	// workflowClient is an EXPLICIT OVERRIDE for the WorkflowService client and
 	// is left nil in production. Reach the workflow service through
@@ -553,28 +572,7 @@ func newServer(cfg *clusterControllerConfig, cfgPath, statePath string, state *c
 	// Connect to EventService for reconciliation event publishing.
 	// On cold boot the event service may not be registered yet —
 	// retry in background so we don't permanently miss it.
-	go func() {
-		for attempt := 0; attempt < 60; attempt++ {
-			eventAddr := config.ResolveServiceAddr("event.EventService", "")
-			if eventAddr == "" {
-				if addr, err := config.GetMeshAddress(); err == nil {
-					eventAddr = addr
-				}
-			}
-			if eventAddr != "" {
-				if ec, err := event_client.NewEventService_Client(eventAddr, "event.EventService"); err == nil {
-					srv.eventClient.Store(ec)
-					log.Printf("cluster-controller: event client connected (attempt %d)", attempt+1)
-					return
-				}
-			}
-			if attempt == 0 {
-				log.Printf("cluster-controller: event service not yet available — will retry")
-			}
-			time.Sleep(5 * time.Second)
-		}
-		log.Printf("cluster-controller: WARNING — event client not available after 60 attempts")
-	}()
+	go srv.reconnectEventClient()
 
 	// Connect to WorkflowService for reconciliation workflow tracing.
 	// Prefer the LOCAL workflow service (same as workflowClient) so the
@@ -705,12 +703,96 @@ func (srv *server) emitClusterEvent(name string, payload map[string]interface{})
 		return
 	}
 	go func() {
+		ec := srv.eventClient.Load()
+		if ec == nil {
+			return
+		}
 		if err := srv.eventClient.Load().Publish(name, data); err != nil {
 			// Open the circuit breaker on failure.
 			eventCircuitBreaker.openUntil.Store(time.Now().Add(eventCircuitCooldown).UnixNano())
 			log.Printf("cluster-controller: publish %q failed, circuit breaker open for %s: %v", name, eventCircuitCooldown, err)
+
+			// A dead CONNECTION is not a failed publish: the client was dialed
+			// once at boot and cached, so once its connection closes every
+			// subsequent publish fails forever and the breaker just paces the
+			// noise. Observed on the 5-node simulation after the resilience
+			// suite restarted services: 116 occurrences of "grpc: the client
+			// connection is closing", 5 in the last 3 minutes, across
+			// cluster.dns_reconciled, cluster.drift_detected,
+			// cluster.reconcile.clean and controller.invariant_enforcement_report.
+			//
+			// Same shape as the workflow client pinned at boot (fixed in
+			// 1be9dbd5): a cached client is an assumption that the peer never
+			// moves or restarts. Drop it so the reconnect loop re-dials, rather
+			// than publishing into a closed connection until the process is
+			// restarted.
+			if isDeadClientConn(err) {
+				if srv.eventClient.CompareAndSwap(ec, nil) {
+					log.Printf("cluster-controller: event client connection is dead — dropped for re-dial")
+					go srv.reconnectEventClient()
+				}
+			}
 		}
 	}()
+}
+
+// reconnectEventClient (re-)establishes the event client. Used both at boot and
+// after a dead connection is dropped, so the two paths cannot drift apart.
+//
+// Address is re-resolved on every attempt: the event service may have moved to
+// another node, so re-dialling the address cached at boot would fail forever in
+// exactly the case reconnection exists to handle.
+func (srv *server) reconnectEventClient() {
+	for attempt := 0; attempt < 60; attempt++ {
+		if srv.eventClient.Load() != nil {
+			return // another goroutine won the race
+		}
+		eventAddr := config.ResolveServiceAddr("event.EventService", "")
+		if eventAddr == "" {
+			if addr, err := config.GetMeshAddress(); err == nil {
+				eventAddr = addr
+			}
+		}
+		if eventAddr != "" {
+			if ec, err := event_client.NewEventService_Client(eventAddr, "event.EventService"); err == nil {
+				srv.eventClient.Store(ec)
+				log.Printf("cluster-controller: event client connected (attempt %d, addr %s)", attempt+1, eventAddr)
+				return
+			}
+		}
+		if attempt == 0 {
+			log.Printf("cluster-controller: event service not reachable — will retry")
+		}
+		time.Sleep(5 * time.Second)
+	}
+	log.Printf("cluster-controller: WARNING — event client not available after 60 attempts")
+}
+
+// isDeadClientConn reports whether err means the CONNECTION is gone, as opposed
+// to this particular publish having failed. A dead connection never recovers on
+// its own, so it must be distinguished: retrying on it is pointless and
+// re-dialling on an ordinary error would churn a healthy client.
+func isDeadClientConn(err error) bool {
+	if err == nil {
+		return false
+	}
+	switch status.Code(err) {
+	case codes.Unavailable, codes.Canceled:
+	default:
+		return false
+	}
+	msg := err.Error()
+	for _, sig := range []string{
+		"the client connection is closing",
+		"connection refused",
+		"transport is closing",
+		"no such host",
+	} {
+		if strings.Contains(msg, sig) {
+			return true
+		}
+	}
+	return false
 }
 
 func (srv *server) getWorkflowRecorder() *workflow.Recorder {

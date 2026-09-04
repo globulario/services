@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -123,6 +124,14 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 	withOpTimeout(15*time.Second, srv.reconcileMinioSystemdConfig)
 	// Ensure scylla-manager-agent config always has a valid auth_token.
 	withOpTimeout(10*time.Second, srv.ensureScyllaManagerAgentAuthToken)
+	// Converge derived per-node config that is read only at process start.
+	// These files have no other live writer: scylla.yaml is written once by the
+	// scylladb post-install, and the controller's renderer never lands because
+	// dispatchPlan is a no-op. Neither reconciler restarts its service — the
+	// files matter for the NEXT start, so they converge by being written.
+	withOpTimeout(15*time.Second, srv.reconcileScyllaSeeds)
+	withOpTimeout(15*time.Second, srv.refreshEtcdEndpointsFromSystemKey)
+	withOpTimeout(10*time.Second, srv.ensureMetricsPortPublished)
 
 	heartbeatDelay := 30 * time.Second
 	heartbeatTimer := time.NewTimer(0) // immediate first heartbeat
@@ -210,6 +219,18 @@ func (srv *NodeAgentServer) heartbeatLoop(ctx context.Context) {
 			hb.Tick()
 		}
 		setControllerStateGauge(srv.controllerConnState)
+
+		// Converge derived per-node config that is read only at process start.
+		// Both are cheap — a TTL-cached etcd read plus a small file read — and
+		// write nothing when already correct, so they ride the 30s heartbeat
+		// rather than the 5-minute sync ticker. Cadence is the point: these
+		// files must be correct BEFORE the next restart, and ring membership
+		// changes exactly when a node joins or leaves, so a 5-minute window
+		// would leave a freshly grown cluster reporting stale seeds for most of
+		// its bootstrap. Neither restarts its service.
+		withOpTimeout(10*time.Second, srv.reconcileScyllaSeeds)
+		withOpTimeout(10*time.Second, srv.ensureMetricsPortPublished)
+		withOpTimeout(10*time.Second, srv.refreshEtcdEndpointsFromSystemKey)
 	}
 
 	for {
@@ -265,6 +286,13 @@ func (srv *NodeAgentServer) refreshEtcdEndpointsFromSystemKey(ctx context.Contex
 	}
 	path := "/var/lib/globular/config/etcd_endpoints"
 	content := strings.Join(endpoints, "\n") + "\n"
+	// Idempotence guard. This runs on the sync ticker as well as on the
+	// heartbeat-failure path, and resetSharedEtcdClient() tears down every
+	// pooled etcd connection on this node. Rewriting an already-correct file
+	// every cycle would churn those connections forever for no gain.
+	if existing, err := readEtcdEndpointsFile(path); err == nil && string(existing) == content {
+		return
+	}
 	if err := writeEtcdEndpointsFile(path, []byte(content), 0o644); err != nil {
 		log.Printf("nodeagent: failed to write refreshed etcd endpoints: %v", err)
 		return
@@ -299,6 +327,38 @@ func (srv *NodeAgentServer) syncInstalledStateToEtcd(ctx context.Context) {
 	}
 	if srv.nodeID == "" {
 		log.Printf("nodeagent: sync skipped — node ID not yet assigned")
+		return
+	}
+	// A guess about our own identity is not something to publish observations
+	// under.
+	//
+	// This guard already refused an EMPTY id. It did not refuse a DERIVED one,
+	// and a derived id is a guess: when the controller later assigns the real
+	// id, everything written under the guess is orphaned. installed_state is a
+	// split-authority model — the controller commits authoritative records, the
+	// node-agent reports observations about ITSELF
+	// (installed_state.owned_by_node_agent, node_agent.is_executor_not_cluster_brain).
+	// An observation filed under an identity the cluster never granted is not an
+	// observation about ourselves; it is a record about a node that does not
+	// exist, which is precisely what
+	// identity.has_single_canonical_source_and_is_immutable forbids.
+	//
+	// Observed across releases 1.2.330 to 1.2.334: a restart storm left the
+	// controller reporting six and then seven members for a five-node cluster,
+	// and the phantom subtree carried real Layer-3 content —
+	// packages/COMMAND/etcdctl, packages/INFRASTRUCTURE/envoy,
+	// node_agent_metrics_port. Two admission-side guards (services 865ea7f8,
+	// 05f5eeae) cut the count but could not reach five, because THIS write path
+	// is not admission-gated. The derivation is deterministic, so the same
+	// partial basis recreates the SAME orphan every time rather than
+	// accumulating new ones.
+	//
+	// Suppressing costs nothing durable: installed state is re-derived from disk
+	// on the next sync, and by then the controller has assigned the canonical id.
+	if srv.nodeIDProvisional {
+		log.Printf("nodeagent: sync skipped — node ID %s is provisional (derived locally, "+
+			"not assigned by the controller); observations would be orphaned under an "+
+			"identity the cluster has not granted", srv.nodeID)
 		return
 	}
 
@@ -2258,4 +2318,67 @@ func assignEntrypointChecksumMetadata(pkg *node_agentpb.InstalledPackage, manife
 	if diskEntry != "" {
 		pkg.Metadata["entrypoint_checksum_disk_observed"] = diskEntry
 	}
+}
+
+
+// ensureMetricsPortPublished re-asserts this node's /node_agent_metrics_port key
+// so a single failed write cannot leave the node permanently invisible.
+//
+// The key is published once, at identity adoption, by a fire-and-forget
+// persistMetricsPort with a 3s etcd timeout — issued during a join, which is the
+// busiest and least reliable moment in a node's life. It logs on failure and is
+// never retried, and the 5-minute re-key timer it replaced has long expired by
+// then. One lost Put is therefore permanent.
+//
+// The key is load-bearing well beyond metrics. It is how a node's PRESENCE is
+// counted: probe_cluster_nodes greps /node_agent_metrics_port$, so a node that
+// misses this one write reads as absent while being entirely healthy. Observed
+// on 1.2.340 as all_nodes_heartbeating "expected >= 5, got 4" failing three
+// scenarios, and again on 1.2.353 where node c8a09d9e held every package key and
+// only this one was missing — failing compute-node-stop-restart at its
+// PRECONDITIONS and, through that, two later scenarios that inherited the count.
+//
+// Reconciling here is the node reporting an observation about ITSELF — the
+// bound port, under its own subtree — which is what the heartbeat is for
+// (intent runtime_health.requires_live_observation) and stays inside its own
+// layer (four_layer.layer_has_single_writing_actor). It writes no desired state
+// (infra.heartbeat_observer_only_not_authority).
+//
+// It is a read-then-write, not an unconditional Put: an already-correct key is
+// left untouched, so this cannot become an observe-time stomp
+// (forbidden_fix.bump_immutable_timestamp_on_observe). The value has one source,
+// boundMetricsPort — the port actually bound — never a guess or a default
+// (identity.has_single_canonical_source_and_is_immutable).
+func (srv *NodeAgentServer) ensureMetricsPortPublished(ctx context.Context) {
+	// A provisional id is one this node derived locally, not one the cluster
+	// granted. Publishing under it creates exactly the orphan subtree the sync
+	// path refuses to create.
+	if srv.nodeIDProvisional {
+		return
+	}
+	key := metricsPortEtcdKey(srv.nodeID)
+	if key == "" {
+		return
+	}
+	port := int(boundMetricsPort.Load())
+	if port <= 0 {
+		return // listener has not bound yet — nothing observed, so nothing to report
+	}
+	cli, err := config.GetEtcdClient()
+	if err != nil {
+		return // transient; the next heartbeat retries
+	}
+	want := strconv.Itoa(port)
+	resp, err := cli.Get(ctx, key)
+	if err != nil {
+		return
+	}
+	if len(resp.Kvs) > 0 && string(resp.Kvs[0].Value) == want {
+		return // already correct — leave it alone
+	}
+	if _, err := cli.Put(ctx, key, want); err != nil {
+		log.Printf("metrics: cannot republish %s=%s: %v", key, want, err)
+		return
+	}
+	log.Printf("metrics: republished %s=%s (node presence key was missing or stale)", key, want)
 }
